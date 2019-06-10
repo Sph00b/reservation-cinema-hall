@@ -2,38 +2,38 @@
 #include <Windows.h>
 #include <tchar.h>
 
-// Variabili globali:
+//	Variabili globali:
 
-HINSTANCE hInst;                                // istanza corrente
-TCHAR *szTitle;                  // Testo della barra del titolo
-TCHAR *szWindowClass;            // nome della classe della finestra principale
+HINSTANCE hInst;			// istanza corrente
+LPTSTR szTitle;				// Testo della barra del titolo
+LPTSTR szWindowClass;		// nome della classe della finestra principale
 
 //
-//  FUNZIONE: MyRegisterClass(HINSTANCE)
+//	FUNZIONE: MyRegisterClass(HINSTANCE)
 //
-//  SCOPO: Registra la classe di finestre.
+//	SCOPO: Registra la classe di finestre.
 //
 extern BOOL MyRegisterClass(HINSTANCE);
 //
-//  FUNZIONE: WndProc(HWND, UINT, WPARAM, LPARAM)
+//	FUNZIONE: WndProc(HWND, UINT, WPARAM, LPARAM)
 //
-//  SCOPO: Elabora i messaggi per la finestra principale.
+//	SCOPO: Elabora i messaggi per la finestra principale.
 //
 extern LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 //
-//   FUNZIONE: InitInstance(HINSTANCE, int)
+//	FUNZIONE: InitInstance(HINSTANCE, int)
 //
-//   SCOPO: Salva l'handle di istanza e crea la finestra principale
+//	SCOPO: Salva l'handle di istanza e crea la finestra principale
 //
-//   COMMENTI:
+//	COMMENTI:
 //
-//        In questa funzione l'handle di istanza viene salvato in una variabile globale e
-//        viene creata e visualizzata la finestra principale del programma.
+//		In questa funzione l'handle di istanza viene salvato in una variabile globale e
+//		viene creata e visualizzata la finestra principale del programma.
 //
 extern BOOL InitInstance(HINSTANCE, int);
 //
-//  FUNZIONE: wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPWTTR, _In_ int);
+//	FUNZIONE: wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPWTTR, _In_ int);
 //
-//  SCOPO: Punto di ingresso dell'applicazione.
+//	SCOPO: Punto di ingresso dell'applicazione.
 //
-extern int APIENTRY wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPTSTR, _In_ int);
+extern int APIENTRY WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPTSTR, _In_ int);
