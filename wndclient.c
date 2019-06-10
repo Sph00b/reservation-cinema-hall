@@ -2,13 +2,9 @@
 
 #define DEBUG
 
-#define FILL_TSTR(tstr, txt)							\
-			tstr = malloc(sizeof(TEXT(txt)));			\
-			_tcscpy_s(tstr, sizeof(TEXT(txt)), TEXT(txt))
-
 BOOL MyRegisterClass(HINSTANCE hInstance) {
 	WNDCLASS wndc;
-	wndc.style = CS_HREDRAW | CS_VREDRAW;
+	wndc.style = CS_HREDRAW | CS_VREDRAW,
 	wndc.lpfnWndProc = WndProc;
 	wndc.cbClsExtra = 0;
 	wndc.cbWndExtra = 0;
@@ -23,6 +19,18 @@ BOOL MyRegisterClass(HINSTANCE hInstance) {
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam){
 	switch (message) {
+	case WM_CREATE:
+#ifdef DEBUG
+		printf("RECEIVED CREATE MESSAGE\n");
+#endif
+		break;
+
+	case WM_SIZE:
+#ifdef DEBUG
+		printf("RECEIVED SIZE MESSAGE\n");
+#endif
+		break;
+
 	case WM_PAINT:
 #ifdef DEBUG
 		printf("RECEIVED PAINT MESSAGE\n");
@@ -52,47 +60,84 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow){
 	hInst = hInstance;	//	Archivia l'handle di istanza nella variabile globale
 
 	HWND hWnd = CreateWindow(
-		(LPCTSTR) szWindowClass,	//	CLASS
-		(LPCTSTR) szTitle,			//	TITLE
-		WS_OVERLAPPEDWINDOW,		//	STYLE
-		CW_USEDEFAULT,				//	X
-		CW_USEDEFAULT,				//	Y
-		CW_USEDEFAULT,				//	WIDTH
-		CW_USEDEFAULT,				//	HEIGHT
-		NULL,						//	NO PARENT WINDOW
-		NULL,						//	NO MENU
-		hInstance,					//	INSTANCE
-		NULL						//	NO PARAMETER
+		(LPCTSTR) szWindowClass,									//	CLASS
+		(LPCTSTR) szTitle,											//	TITLE
+		WS_OVERLAPPEDWINDOW ^ WS_THICKFRAME ^ WS_MAXIMIZEBOX,		//	STYLE
+		CW_USEDEFAULT,												//	X
+		CW_USEDEFAULT,												//	Y
+		630,														//	WIDTH
+		420,														//	HEIGHT
+		NULL,														//	NO PARENT WINDOW
+		NULL,														//	NO MENU
+		hInstance,													//	INSTANCE
+		NULL														//	NO PARAMETER
 	);
 
 	if (!hWnd){
 		return FALSE;
 	}
 
+
 #ifdef DEBUG
 	printf("WINDOW SUCCESFULLY CREATED\n");
 #endif
 
 	//	Create Button
-	HWND hWndButton = CreateWindow(
+	HWND hButton1 = CreateWindow(
+		"BUTTON",										//	PREDEFINED CLASS 
+		"Prenota",										//	Button text 
+		WS_TABSTOP | WS_CHILD,							//	Styles 
+		210,											//	x position 
+		300,											//	y position 
+		210,											//	Button width
+		60,												//	Button height
+		hWnd,											//	PARENT WINDOW window
+		NULL,											//	NO MENU
+		hInstance,										//	INSTANCE
+		NULL);											//	NO PARAMETER
+
+	if (!hButton1) {
+		return FALSE;
+	}
+
+	//	Create Button
+	HWND hButton2 = CreateWindow(
 		"BUTTON",												//	PREDEFINED CLASS 
-		"Button",												//	Button text 
-		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,  //	Styles 
-		10,														//	x position 
-		10,														//	y position 
-		100,													//	Button width
+		"Modifica prenotazione",								//	Button text 
+		WS_CHILD | WS_VISIBLE,									//	Styles 
+		70,													//	x position 
+		300,													//	y position 
+		210,													//	Button width
 		60,														//	Button height
 		hWnd,													//	PARENT WINDOW window
 		NULL,													//	NO MENU
 		hInstance,												//	INSTANCE
 		NULL);													//	NO PARAMETER
 
-	if (!hWndButton) {
+	if (!hButton2) {
+		return FALSE;
+	}
+
+	//	Create Button
+	HWND hButton3 = CreateWindow(
+		"BUTTON",												//	PREDEFINED CLASS 
+		"Elimina prenotazione",									//	Button text 
+		WS_VISIBLE | WS_CHILD,									//	Styles 
+		350,													//	x position 
+		300,													//	y position 
+		210,													//	Button width
+		60,														//	Button height
+		hWnd,													//	PARENT WINDOW window
+		NULL,													//	NO MENU
+		hInstance,												//	INSTANCE
+		NULL);													//	NO PARAMETER
+
+	if (!hButton3) {
 		return FALSE;
 	}
 
 #ifdef DEBUG
-	printf("BUTTON SUCCESFULLY CREATED\n");
+	printf("BUTTONS SUCCESFULLY CREATED\n");
 #endif
 
 	//	Create Textxbox
@@ -102,16 +147,16 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow){
 		"Static",
 		"Text",
 		WS_CHILD | WS_VISIBLE | ES_AUTOVSCROLL | ES_AUTOHSCROLL,
-		120,
+		210,
 		20,
-		500,
-		100,
+		210,
+		20,
 		hWnd,													//	PARENT WINDOW window
 		NULL,
 		hInstance,
 		NULL);
 
-	if (!hWndButton) {
+	if (!hEdit) {
 		return FALSE;
 	}
 
@@ -127,10 +172,10 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow){
 	return TRUE;
 }
 
-int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPTSTR lpCmdLine, _In_ int nCmdShow) {
+int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPTSTR lpCmdLine, _In_ int nCmdShow) {
 	// Inizializzare le stringhe globali
-	FILL_TSTR(szTitle, "Preonatazione");
-	FILL_TSTR(szWindowClass, "gclass");
+	szTitle = TEXT("Prenotazione");
+	szWindowClass = TEXT("generic_class");
 	if (!MyRegisterClass(hInstance))
 		return GetLastError();
 #ifdef DEBUG
