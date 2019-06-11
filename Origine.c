@@ -15,7 +15,6 @@ Pending request:
 						Disdire una prenotazione per cui si possiede un codice.
 	Lato Server:
 Implementazioni:		Server lato Unix Client lato Windows
-						Scelta se utilizzaere lista di liste o matrice (bloccaggio della memoria) [liste di liste di puntaori?]
 */
 
 #include <stdio.h>
@@ -23,7 +22,7 @@ Implementazioni:		Server lato Unix Client lato Windows
 #include "wndclient.h"
 #include "savefile.h"
 
-int main(int argc, char** argv) {
+int _tmain(int argc, char** argv) {
 	int term_code;
 	InitSavefile("PrenotazioneCinema");//argv[0]);
 	term_code = WinMain(GetModuleHandle(NULL), NULL, NULL, SW_SHOWNORMAL);
