@@ -2,9 +2,11 @@
 
 #define DEBUG
 
+LPTSTR pID;		//ID codice di prenotazione
+
 BOOL MyRegisterClass(HINSTANCE hInstance) {
 	WNDCLASS wndc;
-	wndc.style = CS_HREDRAW | CS_VREDRAW,
+	wndc.style = CS_HREDRAW | CS_VREDRAW;
 	wndc.lpfnWndProc = WndProc;
 	wndc.cbClsExtra = 0;
 	wndc.cbWndExtra = 0;
@@ -65,7 +67,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow){
 		WS_OVERLAPPEDWINDOW ^ WS_THICKFRAME ^ WS_MAXIMIZEBOX,		//	STYLE
 		CW_USEDEFAULT,												//	X
 		CW_USEDEFAULT,												//	Y
-		630,														//	WIDTH
+		650,														//	WIDTH
 		420,														//	HEIGHT
 		NULL,														//	NO PARENT WINDOW
 		NULL,														//	NO MENU
@@ -105,7 +107,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow){
 		"BUTTON",												//	PREDEFINED CLASS 
 		"Modifica prenotazione",								//	Button text 
 		WS_CHILD | WS_VISIBLE,									//	Styles 
-		70,													//	x position 
+		70,														//	x position 
 		300,													//	y position 
 		210,													//	Button width
 		60,														//	Button height
@@ -145,7 +147,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow){
 	HWND hEdit = CreateWindowEx(
 		WS_EX_CLIENTEDGE,
 		"Static",
-		"Text",
+		pID,
 		WS_CHILD | WS_VISIBLE | ES_AUTOVSCROLL | ES_AUTOHSCROLL,
 		210,
 		20,
@@ -176,6 +178,8 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 	// Inizializzare le stringhe globali
 	szTitle = TEXT("Prenotazione");
 	szWindowClass = TEXT("generic_class");
+	pID = savLoad();
+	// Registrazione della classe principale:
 	if (!MyRegisterClass(hInstance))
 		return GetLastError();
 #ifdef DEBUG
