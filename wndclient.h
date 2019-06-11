@@ -4,9 +4,9 @@
 
 //	Variabili globali:
 
-HINSTANCE hInst;			// istanza corrente
-LPTSTR szTitle;				// Testo della barra del titolo
-LPTSTR szWindowClass;		// nome della classe della finestra principale
+HINSTANCE hInst;		// Istanza corrente
+LPTSTR szTitle;			// Testo della barra del titolo
+LPTSTR szWindowClass;	// Nome della classe della finestra principale
 
 //
 //	FUNZIONE: MyRegisterClass(HINSTANCE)
