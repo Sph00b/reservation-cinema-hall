@@ -1,6 +1,7 @@
 #include "savefile.h"
 
 #define DEBUG
+#define MAX_SIZE 32
 
 void getPath(LPTSTR* path, LPCTSTR var, LPCTSTR dir) {
 	size_t size = GetEnvironmentVariable(var, NULL, 0) + _tcslen(TEXT("\\")) + _tcslen(dir);
@@ -11,11 +12,11 @@ void getPath(LPTSTR* path, LPCTSTR var, LPCTSTR dir) {
 }
 
 void getSaveFileName(LPTSTR* filename, LPCTSTR path) {
-	size_t size = _tcslen(path) + _tcslen(TEXT("\\")) + _tcslen(TEXT("sav.txt")) + sizeof(TCHAR);
+	size_t size = _tcslen(path) + _tcslen(TEXT("\\")) + _tcslen(TEXT("sav.dat")) + sizeof(TCHAR);
 	*filename = malloc(size);
 	_tcscpy_s(*filename, size, path);
 	_tcscat_s(*filename, size, TEXT("\\"));
-	_tcscat_s(*filename, size, TEXT("sav.txt"));
+	_tcscat_s(*filename, size, TEXT("sav.dat"));
 }
 
 HANDLE getSavefile(LPCTSTR pname) {
@@ -52,16 +53,18 @@ HANDLE getSavefile(LPCTSTR pname) {
 }
 
 BOOL InitSavefile(LPCTSTR pname) {
-	hSavefile = getSavefile(pname);
+	hSaveFile = getSavefile(pname);
 #ifdef DEBUG
 	printf("SAVEFILE INITIALIZED\n");
 #endif
 	return TRUE;
 }
 
-BOOL store(LPCTSTR lpBuffer) {
+BOOL savStore(LPCTSTR lpBuffer) {
 	DWORD dwBytesWritten = 0;
-	WriteFile(hSavefile, lpBuffer, _tcslen(lpBuffer), &dwBytesWritten, NULL);
+	SetFilePointer(hSaveFile, 0, NULL, FILE_BEGIN);
+	SetEndOfFile(hSaveFile);
+	WriteFile(hSaveFile, lpBuffer, _tcslen(lpBuffer), &dwBytesWritten, NULL);
 	if (_tcslen(lpBuffer) == dwBytesWritten) {
 #ifdef DEBUG
 		printf("DATA STORED IN THE SAVEFILE\n");
@@ -73,16 +76,22 @@ BOOL store(LPCTSTR lpBuffer) {
 	}
 }
 
-BOOL load(LPTSTR lpBuffer) {
+LPTSTR savLoad() {
 	DWORD dwBytesRead = 0;
-	WriteFile(hSavefile, lpBuffer, _tcslen(lpBuffer), &dwBytesRead, NULL);
-	if (_tcslen(lpBuffer) == dwBytesRead) {
+	DWORD dwBytesReadable = GetFileSize(hSaveFile, NULL);
+	if (dwBytesReadable == INVALID_FILE_SIZE || dwBytesReadable > MAX_SIZE) {
+		return NULL;
+	}
+	LPTSTR lpBuffer = (LPTSTR) calloc(dwBytesReadable + 1, sizeof(TCHAR));
+	SetFilePointer(hSaveFile, 0, NULL, FILE_BEGIN);
+	ReadFile(hSaveFile, lpBuffer, dwBytesReadable, &dwBytesRead, NULL);
+	if (dwBytesReadable == dwBytesRead) {
 #ifdef DEBUG
 		printf("DATA LOADED FROM THE SAVEFILE\n");
 #endif
-	return TRUE;
-}
+		return lpBuffer;
+	}
 	else {
-	return FALSE;
+		return NULL;
 	}
 }
