@@ -10,12 +10,14 @@
 #include <errno.h>
 #include <pthread.h>
 
+#define WORDLEN 16
+
 const char *msg_succ = "Operation succeded";
 const char *msg_fail = "Operaiton failed";
 
 FILE* stream = NULL;	//stream to the database
-uint16_t rows = 0;	//number of seat's rows
-uint16_t columns = 0;	//number of seat's columns
+short rows = 0;		//number of seat's rows
+short columns = 0;	//number of seat's columns
 
 pthread_mutex_t mutex;
 
@@ -23,7 +25,18 @@ int create(char *filename, int capacity){
 	if((stream = fopen(filename, "r+")) == NULL){
 		return -1;
 	}
-	if (fprintf(stream, "[NETWORK] 10.0.2.15 55555 [CONFIG] 1 1 [DATA] 0") < 0){
+	if (fprintf(stream, "\
+[NETWORK]       \
+          IP =  \
+                \
+        PORT =  \
+                \
+[CONFIG]        \
+        ROWS =  \
+                \
+     COLUMNS =  \
+                \
+[DATA]          ") < 0){
 		return -1;
 	}
 	fflush(stream);
@@ -55,43 +68,6 @@ char* token_fromsection(char* section){
 	return strtok(NULL, " ");
 }
 
-char *get_map(){
-	char *buff;
-	char *token;
-	if ((token = token_fromsection("[DATA]")) == NULL){
-		return NULL;
-	}
-	if ((buff = (char *) malloc(sizeof(char) * 2 * ((rows * columns) + 64))) == NULL){
-		return NULL;
-	}
-	sprintf(buff, "%d %d ", rows, columns);
-	for (int i = 0; i < rows * columns; i++){
-		if (token == NULL){
-			return NULL;
-		}
-		strcat(buff, token);
-		strcat(buff, " ");
-		token = strtok(NULL, " ");
-	}
-	return buff;
-}
-
-int add(const char *buff){
-	/*	prendi il puntatore al vettore dei post*/
-	/*	ottieni codice univoco	*/
-	/*	scrivi codice univoco	*/
-	/*	apporta modifiche	*/
-	/*	comunica al client	*/
-	return 0;
-}
-
-int rmv(const char *buff){
-	/*	ricerca posti con codice identificativo	e sovrascrivi con NULL	*/
-	/*	apporta modifiche	*/
-	/*	comunica al client	*/
-	return 0;
-}
-
 int database_init(char* filename){
 	/*	Init the stream of the file, return 0 on success -1 on error	*/
 	char *token;
@@ -115,75 +91,206 @@ int database_init(char* filename){
 	return 0;
 }
 
-int database_network_getconfig(struct cinema_config *conf){
-	char *token;
-	if (stream == NULL){
-		errno = EBADF;
-		return -1;
-	}
-	if ((token = token_fromsection("[NETWORK]")) == NULL){
-		return -1;
-	}
-	if ((conf->ip = (char *) malloc(sizeof(char) * strlen(token))) == NULL){
-		return -1;
-	}
-	strcpy(conf->ip, token);
-	token = strtok(NULL, " ");
-	conf->port = atoi(token);
-	return 0;
-}
-
 const char *database_query_handler(const char *query){
 	char *msg;
 	if (stream == NULL){
 		errno = EBADF;
 		return NULL;
 	}
-	if (!strcmp(query, "map")){
-		int ret;
-		while((ret = pthread_mutex_lock(&mutex)) && errno == EINTR);	//try lock
-		if (ret){
-			return NULL;
-		}
-		msg = get_map();
-		while((ret = pthread_mutex_unlock(&mutex)) && errno == EINTR);	//try unlock
-		if (ret){
-			return NULL;
-		}
-		return msg;
-	}
-	else if (!strncmp(query, "add ", strlen("add "))){
-		if (!add(query + strlen("add "))){
-			return msg_succ;
-		}
-	}
-	else if (!strncmp(query, "rmv ", strlen("rmv "))){
-		if (!rmv(query + strlen("rmv "))){
-			return msg_succ;
-		}
-	}
 	return msg_fail;
 }
 
-const char *get(const char *arg){
-	return NULL;
+/*
+ *
+ *
+ * */
+
+struct query{
+	const char *section;
+	const char *record;
+	const char *value;
+};
+
+int get_offset(const struct query *query){
+	/* return -1 on error*/
+	char *section;
+	char *record;
+	char *buff;
+	int bufflen = 4096;
+	int rltv_off = -bufflen;
+	int rcrd_off = 0;
+	char *psctn = NULL;
+	char *prcrd = NULL;
+	if (fseek(stream, 0, SEEK_SET) == -1){
+		return -1;
+	}
+	if ((buff = (char *) malloc(sizeof(char) * bufflen)) == NULL){
+		return -1;
+	}
+	if ((section = (char *)malloc(sizeof(char) * (strlen (query->section) + 3))) == NULL){
+		return -1;
+	}
+	if ((record = (char *)malloc(sizeof(char) * (strlen (query->record) + 5))) == NULL){
+		return -1;
+	}
+	strcat(section, "[");
+	strcat(section, query->section);
+	strcat(section, "]");
+	strcat(record, " ");
+	strcat(record, query->record);
+	strcat(record, " = ");
+	while(!prcrd){
+		/*Non ci preoccupiamo delle stringhe spezzate perché le stringhe hanno dimensione fissa*/
+		if (fgets(buff, bufflen, stream) == NULL){
+			return -1;
+		}
+		rltv_off += bufflen;
+		if (!psctn){
+			if(psctn = strstr(buff, section)){
+				int offset = rltv_off + (psctn - buff) / sizeof(char) + strlen(section);
+				fseek(stream, offset, SEEK_SET);
+				rltv_off -= bufflen - offset;
+			}
+		}
+		else{
+			char *psctn_next = strstr(buff, "[");
+			prcrd = strstr(buff, record);
+			if (psctn_next && prcrd && psctn_next < prcrd){
+				return -1;
+			}
+		}
+	}
+	rcrd_off = (prcrd - buff) / sizeof(char);
+	return rltv_off + rcrd_off + strlen(record) - 1;
 }
 
-const char *set(const char *arg){
-	return NULL;
+int parse_query(struct query *query, const char *str){
+	char *buff;
+	if ((buff = (char *) malloc(sizeof(char) * (strlen(str) + 1))) == NULL){
+		return -1;
+	}
+	if (strcpy(buff, str) == NULL){
+		return -1;
+	}
+	if ((query->record = strtok(buff, " ")) == NULL){
+		return -1;
+	}
+	if (strcmp("FROM", strtok(NULL, " "))){
+		return -1;
+	}
+	if ((query->section = strtok(NULL, " ")) == NULL){
+		return -1;
+	}
+	char *substr;
+	if ((substr = strtok(NULL, " ")) == NULL){
+		query->value = NULL;
+	}
+	else{
+		if (strcmp("AS", substr)){
+			return -1;
+		}
+		if ((query->value = strtok(NULL, " ")) == NULL){
+			return -1;
+		}
+		int len = strlen(query->value);
+		if (len > WORDLEN){
+			return -1;
+		}
+		substr = malloc(sizeof(char) * (len + 1));
+		strcpy(substr, query->value);
+		if (strtok(NULL, " ")){
+			return -1;
+		}
+		substr = strtok(substr, " ");
+		if (len != strlen(substr)){
+			return -1;
+		}
+		free(substr);
+	}
+	return 0;
 }
 
-const char *database_execute(const char *query){
-	const char *result = NULL;
+char *get(int offset){
+	int ret;
+	char *msg;
+	if ((msg = (char *)malloc(sizeof(char) * (WORDLEN + 1))) == NULL){
+		return NULL;
+	}
+	while((ret = pthread_mutex_lock(&mutex)) && errno == EINTR);	//try lock
+	if (ret){
+		return NULL;
+	}
+	if (fseek(stream, offset, SEEK_SET) == -1){
+		return NULL;
+	}
+	if (fgets(msg, WORDLEN, stream) == NULL){
+		return NULL;
+	}
+	while((ret = pthread_mutex_unlock(&mutex)) && errno == EINTR);	//try unlock
+	if (ret){
+		return NULL;
+	}
+	msg = strtok(msg, " ");
+	return msg;
+}
+
+int set(int offset, const char *value){
+	int ret;
+	char *msg;
+	if ((msg = (char *)malloc(sizeof(char) * (WORDLEN + 1))) == NULL){
+		return 1;
+	}
+	memset(msg, ' ', WORDLEN);
+	strcpy(msg, value);
+	if (strlen(msg) < WORDLEN){
+		msg[strlen(msg)] = ' ';
+	}
+	printf("%s,\n", msg);
+	while((ret = pthread_mutex_lock(&mutex)) && errno == EINTR);	//try lock
+	if (ret){
+		return 1;
+	}
+	if (fseek(stream, offset + 1, SEEK_SET) == -1){
+		return 1;
+	}
+	if (fprintf(stream, "%s", msg) < 0){
+		return 1;
+	}
+	fflush(stream);
+	while((ret = pthread_mutex_unlock(&mutex)) && errno == EINTR);	//try unlock
+	if (ret){
+		return 1;
+	}
+	return 0;
+}
+
+char *database_execute(const char *request){
+	char *result = NULL;
+	struct query q;
+	int offset;
 	if (stream == NULL){
 		errno = EBADF;
 	}
 	else{
-		if (!strncmp(query, "GET ", 4) && strlen(query) > 4){
-			result = get(query + 4);
+		if (strlen(request) < 5){
+			return "INVALID REQUEST";
 		}
-		else if (!strncmp(query, "SET ", 4) && strlen(query) > 4){
-			result = set(query + 4);
+		if (parse_query(&q, request + 4)){
+			return "INVALID REQUEST";
+		}
+		if ((offset = get_offset(&q)) == -1){
+			return "INVALID REQUEST";
+		}
+		if (!strncmp(request, "GET ", 4)){
+			result = get(offset);
+		}
+		else if (!strncmp(request, "SET ", 4)){
+			if (set(offset, q.value)){
+				result = "OPERATION FAILED";
+			}
+			else{
+				result = "OPERATION COMPLETED";
+			}
 		}
 		else{
 			return "INVALID REQUEST";

@@ -3,7 +3,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <pthread.h>
-//#include <inttypes.h>
+#include <inttypes.h>
 
 #include "lib/try.h"
 #include "lib/database.h"
@@ -12,39 +12,37 @@
 void *connection_handler(void *);
 void *request_handler(void *);
 
+struct thread_arg{
+	char *ip;
+	uint16_t port;
+};
+
 int main(int argc, char *argv[]){
 	/*Add status, start, stop, change ip and port, change configuration*/
 	pthread_t chndl_tid;
-	struct cinema_config config;
+	struct thread_arg arg;
+	char *result;
+
 	/*	Init cinema api	*/
 try(
 	database_init("data.dat"), (-1)
 )
 	/*	Fetch configuration info	*/
-	/*
-	 *
-	 * char *result;
-	 * char *ip;
-	 * uint16_t port;
-	 * 
-	 * try(
-	 * result = database_execute("GET IP FROM NETWORK"), (NULL)
-	 * )
-	 * ip = result;
-	 * try(
-	 * result = database_execute("GET PORT FROM NETWORK"), (NULL)
-	 * )
-	 * port = atoi(result);
-	 * */
-try(
-	database_network_getconfig(&config), (-1)
-)
+
+	try(
+	result = database_execute("GET IP FROM NETWORK"), (NULL)
+	)
+	arg.ip = result;
+	try(
+	result = database_execute("GET PORT FROM NETWORK"), (NULL)
+	)
+	arg.port = atoi(result);
 #ifdef DEBUG
-	printf("Config loaded from 'data.dat': address=%s, port=%d\n", config.ip, config.port);
+	printf("Config loaded from 'data.dat': address=%s, port=%d\n", arg.ip, arg.port);
 #endif
 	/*	Start threads	*/
 try(
-	pthread_create(&chndl_tid, NULL, connection_handler, (void *)&config), (!0)
+	pthread_create(&chndl_tid, NULL, connection_handler, (void *)&arg), (!0)
 )
 try(
 	pthread_join(chndl_tid, NULL), (!0)
@@ -53,7 +51,7 @@ try(
 }
 
 void *connection_handler(void *arg){
-	struct cinema_config *data = (struct cinema_config *) arg;
+	struct thread_arg *data = (struct thread_arg *) arg;
 	pthread_t *tid = NULL;
 	int tn = 0;		//thread number
 try(
