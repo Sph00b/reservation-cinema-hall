@@ -25,7 +25,7 @@ int main(int argc, char *argv[]){
 
 	/*	Init cinema api	*/
 try(
-	database_init("data.dat"), (-1)
+	database_init("data.dat"), (1)
 )
 	/*	Fetch configuration info	*/
 
@@ -100,13 +100,8 @@ try(
 	recv(fd, buff, 1024, 0), (-1)
 )
 	printf("%s\n", buff);
-	/*
-	 * try(
-	 * msg = database_execute("GET IP FROM NETWORK"), (NULL)
-	 * )
-	 */
 try(
-	msg = database_query_handler(buff), (NULL)
+	msg = database_execute(buff), (NULL)
 )
 try(
 	send(fd, msg, strlen(msg), 0), (-1)

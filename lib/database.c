@@ -21,95 +21,58 @@ short columns = 0;	//number of seat's columns
 
 pthread_mutex_t mutex;
 
-int create(char *filename, int capacity){
-	if((stream = fopen(filename, "r+")) == NULL){
-		return -1;
-	}
-	if (fprintf(stream, "\
-[NETWORK]       \
-          IP =  \
-                \
-        PORT =  \
-                \
-[CONFIG]        \
-        ROWS =  \
-                \
-     COLUMNS =  \
-                \
-[DATA]          ") < 0){
-		return -1;
-	}
-	fflush(stream);
-	return 0;
-}
-
-char* token_fromsection(char* section){
-	/*	Return NULL on failure	*/
-	char *buff;
-	char *substr;
-	int bufflen = 4096;
-	if (fseek(stream, 0, SEEK_SET) == -1){
-		return NULL;
-	}
-	if ((buff = (char *) malloc(sizeof(char) * bufflen)) == NULL){
-		return NULL;
-	}
-	do{
-		if (fgets(buff, bufflen, stream) == NULL){
-			return NULL;
-		}
-		substr = strtok(buff, " ");
-		while(strcmp(substr, section)){
-			if ((substr = strtok(NULL, " ")) == NULL){
-				break;
-			}
-		}
-	}while(strcmp(substr, section));
-	return strtok(NULL, " ");
-}
-
-int database_init(char* filename){
-	/*	Init the stream of the file, return 0 on success -1 on error	*/
-	char *token;
-	if((stream = fopen(filename, "r+")) == NULL){
-		int datafd = open(filename, O_CREAT | O_EXCL, 0666);
-		close(datafd);
-		return create(filename, 0);
-	}
-	if ((token = token_fromsection("[CONFIG]")) == NULL){
-		return -1;
-	}
-	rows = atoi(token);
-	token = strtok(NULL, " ");
-	columns = atoi(token);
-	if (!pthread_mutex_init(&mutex, NULL)){
-		return 1;
-	}
-	if (!pthread_mutex_unlock(&mutex)){
-		return -1;
-	}
-	return 0;
-}
-
-const char *database_query_handler(const char *query){
-	char *msg;
-	if (stream == NULL){
-		errno = EBADF;
-		return NULL;
-	}
-	return msg_fail;
-}
-
-/*
- *
- *
- * */
-
 struct query{
 	const char *section;
 	const char *record;
 	const char *value;
 };
+
+int parse_query(struct query *query, const char *str){
+	char *buff;
+	if ((buff = (char *) malloc(sizeof(char) * (strlen(str) + 1))) == NULL){
+		return -1;
+	}
+	if (strcpy(buff, str) == NULL){
+		return -1;
+	}
+	if ((query->record = strtok(buff, " ")) == NULL){
+		return -1;
+	}
+	if (strcmp("FROM", strtok(NULL, " "))){
+		return -1;
+	}
+	if ((query->section = strtok(NULL, " ")) == NULL){
+		return -1;
+	}
+	char *substr;
+	if ((substr = strtok(NULL, " ")) == NULL){
+		query->value = NULL;
+	}
+	else{
+		if (strcmp("AS", substr)){
+			return -1;
+		}
+		if ((query->value = strtok(NULL, " ")) == NULL){
+			return -1;
+		}
+		int len = strlen(query->value);
+		if (len > WORDLEN){
+			return -1;
+		}
+		substr = malloc(sizeof(char) * (len + 1));
+		strcpy(substr, query->value);
+		if (strtok(NULL, " ")){
+			return -1;
+		}
+		substr = strtok(substr, " ");
+		if (len != strlen(substr)){
+			return -1;
+		}
+		free(substr);
+	}
+	return 0;
+}
+
 
 int get_offset(const struct query *query){
 	/* return -1 on error*/
@@ -164,52 +127,6 @@ int get_offset(const struct query *query){
 	return rltv_off + rcrd_off + strlen(record) - 1;
 }
 
-int parse_query(struct query *query, const char *str){
-	char *buff;
-	if ((buff = (char *) malloc(sizeof(char) * (strlen(str) + 1))) == NULL){
-		return -1;
-	}
-	if (strcpy(buff, str) == NULL){
-		return -1;
-	}
-	if ((query->record = strtok(buff, " ")) == NULL){
-		return -1;
-	}
-	if (strcmp("FROM", strtok(NULL, " "))){
-		return -1;
-	}
-	if ((query->section = strtok(NULL, " ")) == NULL){
-		return -1;
-	}
-	char *substr;
-	if ((substr = strtok(NULL, " ")) == NULL){
-		query->value = NULL;
-	}
-	else{
-		if (strcmp("AS", substr)){
-			return -1;
-		}
-		if ((query->value = strtok(NULL, " ")) == NULL){
-			return -1;
-		}
-		int len = strlen(query->value);
-		if (len > WORDLEN){
-			return -1;
-		}
-		substr = malloc(sizeof(char) * (len + 1));
-		strcpy(substr, query->value);
-		if (strtok(NULL, " ")){
-			return -1;
-		}
-		substr = strtok(substr, " ");
-		if (len != strlen(substr)){
-			return -1;
-		}
-		free(substr);
-	}
-	return 0;
-}
-
 char *get(int offset){
 	int ret;
 	char *msg;
@@ -245,7 +162,6 @@ int set(int offset, const char *value){
 	if (strlen(msg) < WORDLEN){
 		msg[strlen(msg)] = ' ';
 	}
-	printf("%s,\n", msg);
 	while((ret = pthread_mutex_lock(&mutex)) && errno == EINTR);	//try lock
 	if (ret){
 		return 1;
@@ -297,4 +213,49 @@ char *database_execute(const char *request){
 		}
 	}
 	return result;
+}
+
+int create(char *filename, int capacity){
+	if((stream = fopen(filename, "r+")) == NULL){
+		return -1;
+	}
+	if (fprintf(stream, "\
+[NETWORK]       \
+          IP =  \
+                \
+        PORT =  \
+                \
+[CONFIG]        \
+        ROWS =  \
+                \
+     COLUMNS =  \
+                \
+[DATA]          ") < 0){
+		return -1;
+	}
+	fflush(stream);
+	return 0;
+}
+
+int database_init(char* filename){
+	/*	Init the stream of the file, return 0 on success	*/
+	char *token;
+	if((stream = fopen(filename, "r+")) == NULL){
+		int datafd = open(filename, O_CREAT | O_EXCL, 0666);
+		close(datafd);
+		create(filename, 0);
+		database_execute("SET IP FROM NETWORK AS 127.0.0.1");
+		database_execute("SET PORT FROM NETWORK AS 55555");
+		database_execute("SET ROWS FROM CONFIG AS 1");
+		database_execute("SET COLUMNS FROM CONFIG AS 1");
+	}
+	rows = atoi(database_execute("GET ROWS FROM CONFIG"));
+	columns = atoi(database_execute("GET COLUMNS FROM CONFIG"));
+	if (pthread_mutex_init(&mutex, NULL)){
+		return 1;
+	}
+	if (pthread_mutex_unlock(&mutex)){
+		return 1;
+	}
+	return 0;
 }
