@@ -1,9 +1,9 @@
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <pthread.h>
-#include <inttypes.h>
 
 #include "lib/try.h"
 #include "lib/database.h"
@@ -11,42 +11,66 @@
 
 void *connection_handler(void *);
 void *request_handler(void *);
+int start();
+int stop();
+
+int status;
 
 struct thread_arg{
 	char *ip;
-	uint16_t port;
+	char *port;
 };
 
 int main(int argc, char *argv[]){
 	/*Add status, start, stop, change ip and port, change configuration*/
-	pthread_t chndl_tid;
-	struct thread_arg arg;
-	char *result;
-
-	/*	Init cinema api	*/
+	char *cmd;
+	status = 0;
 try(
 	database_init("data.dat"), (1)
 )
-	/*	Fetch configuration info	*/
+	printf("Cinema reservation service\nDatabase initialized\nUse help for list commands\n");
+	do{
+		scanf("%ms", &cmd);
+		if (!strcmp(cmd, "start")){
+			start();
+		}
+		if (!strcmp(cmd, "status")){
+			if(!status){
+				printf("Server stopped\n");
+			}
+			else{
+				printf("Server running\n");
+			}
+		}
+		if (!strcmp(cmd, "stop")){
+			stop();
+		}
+	} while (strcmp(cmd, "exit"));
+	return 0;
+}
 
-	try(
-	result = database_execute("GET IP FROM NETWORK"), (NULL)
-	)
-	arg.ip = result;
-	try(
-	result = database_execute("GET PORT FROM NETWORK"), (NULL)
-	)
-	arg.port = atoi(result);
-#ifdef DEBUG
-	printf("Config loaded from 'data.dat': address=%s, port=%d\n", arg.ip, arg.port);
-#endif
+int start(){
 	/*	Start threads	*/
+	pthread_t chndl_tid;
+	struct thread_arg arg;
+try(
+	arg.ip = database_execute("GET IP FROM NETWORK"), (NULL)
+)
+try(
+	arg.port = database_execute("GET PORT FROM NETWORK"), (NULL)
+)
+#ifdef DEBUG
+	printf("Config loaded from 'data.dat': address=%s, port=%d\n", arg.ip, atoi(arg.port));
+#endif
 try(
 	pthread_create(&chndl_tid, NULL, connection_handler, (void *)&arg), (!0)
 )
-try(
-	pthread_join(chndl_tid, NULL), (!0)
-)
+	return 0;
+}
+
+int stop(){
+	/*	Signal closure and wait for threads to stop	*/
+	//	pthread_join(chndl_tid, NULL);
 	return 0;
 }
 
@@ -55,7 +79,7 @@ void *connection_handler(void *arg){
 	pthread_t *tid = NULL;
 	int tn = 0;		//thread number
 try(
-	connection_listener_start(data->ip, data->port), (-1)
+	connection_listener_start(data->ip, atoi(data->port)), (-1)
 )
 #ifdef DEBUG
 	printf("Starting listen\n");
@@ -112,3 +136,4 @@ try(
 	free(buff);
 	pthread_exit(0);
 }
+
