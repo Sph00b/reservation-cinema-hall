@@ -1,19 +1,18 @@
 #include "database.h"
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <pthread.h>
 
 #define WORDLEN 16
 
-const char *msg_succ = "Operation succeded";
-const char *msg_fail = "Operaiton failed";
+char *msg_succ = "OPERATION SUCCEDED";
+char *msg_fail = "OPERATION FAILED";
+char *msg_err = "DATABASE FAILURE";
 
 FILE* dbstrm = NULL;	//stream to the database
 short rows = 0;		//number of seat's rows
@@ -21,58 +20,68 @@ short columns = 0;	//number of seat's columns
 
 pthread_mutex_t mutex;
 
-struct reference{
+/*	IDK how to name it	*/
+struct info{
 	const char *section;
 	const char *key;
 	const char *value;
 };
 
-/*It doesn't parse so well*/
+/*Buggy*/
 
-int parse_query(struct reference *dest, const char *query){
+struct info *query_get_info(const char **query){
+	struct info *info;
 	char *buff;
-	if ((buff = (char *) malloc(sizeof(char) * (strlen(query) + 1))) == NULL){
-		return -1;
+	if (query == NULL){
+		return NULL;
 	}
-	if (strcpy(buff, query) == NULL){
-		return -1;
+	if ((info = (struct info *) malloc(sizeof(struct info))) == NULL){
+		return NULL;
 	}
-	if ((dest->key = strtok(buff, " ")) == NULL){
-		return -1;
+	if ((buff = (char *) malloc(sizeof(char) * (strlen(*query) + 1))) == NULL){
+		return NULL;
 	}
-	if (strcmp("FROM", strtok(NULL, " "))){
-		if (strtok(NULL, " ") == NULL){
-			dest->section = dest->key;
-			return 1;
+	if (strcpy(buff, *query) == NULL){
+		return NULL;
+	}
+	if ((info->key = strtok(buff, " ")) == NULL){
+		return NULL;
+	}
+	char *tmp = strtok(NULL, " ");
+	if (tmp == NULL){
+		info->section = info->key;
+		info->key = NULL;
+		return info;
+	}
+	if (strcmp("FROM", tmp)){
+		return NULL;
+	}
+	if ((info->section = strtok(NULL, " ")) == NULL){
+		return NULL;
+	}
+	if (((info->value = strtok(NULL, " ")) != NULL)){
+		if (strcmp("AS", info->value)){
+			return info;
 		}
-		return -1;
-	}
-	if ((dest->section = strtok(NULL, " ")) == NULL){
-		return -1;
-	}
-	if (((dest->value = strtok(NULL, " ")) != NULL)){
-		if (strcmp("AS", dest->value)){
-			return 1;
-		}
-		if ((dest->value = strtok(NULL, " ")) == NULL){
-			return -1;
+		if ((info->value = strtok(NULL, " ")) == NULL){
+			return NULL;
 		}
 		if (strtok(NULL, " ")){
-			return -1;
+			return NULL;
 		}
-		if (strlen(dest->value) > WORDLEN){
-			return -1;
+		if (strlen(info->value) > WORDLEN){
+			return NULL;
 		}
-		if (strstr(dest->value, " ") - dest->value < strlen(dest->value)){
-			return -1;
+		if (strstr(info->value, " ") - info->value < strlen(info->value)){
+			return NULL;
 		}
 	}
-	return 0;
+	return info;;
 }
 
 /*I'm seriously thinking of use the line terminator character for parsing*/
 
-int get_offset(const struct reference *ref){
+int get_offset(const struct info *info){
 	/* return -1 on error*/
 	char *section;
 	char *key;
@@ -95,10 +104,10 @@ int get_offset(const struct reference *ref){
 		return -1;
 	}
 	strcat(section, "<");
-	strcat(section, ref->section);
+	strcat(section, info->section);
 	strcat(section, ">");
 	strcat(key, "[");
-	strcat(key, ref->key);
+	strcat(key, info->key);
 	strcat(key, "]");
 	while(!prcrd){
 		/*Non ci preoccupiamo delle stringhe spezzate perché le stringhe hanno dimensione fissa*/
@@ -125,40 +134,45 @@ int get_offset(const struct reference *ref){
 	return rltv_off + rcrd_off + WORDLEN - 1;
 }
 
-int get(char **dest, const struct reference *src){
-	int ret;
+int get(char **dest, const struct info *src){
+	int ret = 0;
+	int err = 0;
 	int offset;
 	char *msg;
-	if ((offset = get_offset(src)) == -1){
+	if (src == NULL){
 		return 1;
 	}
 	if ((msg = (char *)malloc(sizeof(char) * (WORDLEN + 1))) == NULL){
 		return 1;
 	}
-	while((ret = pthread_mutex_lock(&mutex)) && errno == EINTR);	//try lock
-	if (ret){
-		return 1;
+	while((err = pthread_mutex_lock(&mutex)) && errno == EINTR);	//try lock
+	if (err){
+		return -1;
 	}
-	if (fseek(dbstrm, offset, SEEK_SET) == -1){
-		return 1;
+	if (!ret && (offset = get_offset(src)) == -1){
+		ret = 1;
 	}
-	if (fgets(msg, WORDLEN, dbstrm) == NULL){
-		return 1;
+	if (!ret && fseek(dbstrm, offset, SEEK_SET) == -1){
+		ret = 1;
 	}
-	while((ret = pthread_mutex_unlock(&mutex)) && errno == EINTR);	//try unlock
-	if (ret){
-		return 1;
+	if (!ret && fgets(msg, WORDLEN, dbstrm) == NULL){
+		ret = 1;
+	}
+	while((err = pthread_mutex_unlock(&mutex)) && errno == EINTR);	//try unlock
+	if (err){
+		return -1;
 	}
 	*dest = malloc(sizeof(msg));
 	strcpy(*dest, msg);
-	return 0;
+	return ret;
 }
 
-int set(const struct reference *src){
-	int ret;
+int set(const struct info *src){
+	int ret = 0;
+	int err = 0;
 	int offset;
 	char *msg;
-	if ((offset = get_offset(src)) == -1){
+	if (src == NULL){
 		return 1;
 	}
 	if ((msg = (char *)malloc(sizeof(char) * (WORDLEN + 1))) == NULL){
@@ -169,117 +183,104 @@ int set(const struct reference *src){
 	if (strlen(msg) < WORDLEN){
 		msg[strlen(msg)] = ' ';
 	}
-	while((ret = pthread_mutex_lock(&mutex)) && errno == EINTR);	//try lock
-	if (ret){
+	while((err = pthread_mutex_lock(&mutex)) && errno == EINTR);	//try lock
+	if (err){
+		return -1;
+	}
+	if (!ret && (offset = get_offset(src)) == -1){
+		ret = 1;
+	}
+	if (!ret && fseek(dbstrm, offset + 1, SEEK_SET) == -1){
+		ret = 1;
+	}
+	if (!ret && fprintf(dbstrm, "%s", msg) < 0){
+		ret = 1;
+	}
+	if (!ret){
+		fflush(dbstrm);
+	}
+	while((err = pthread_mutex_unlock(&mutex)) && errno == EINTR);	//try unlock
+	if (err){
+		return -1;
+	}
+	return ret;
+}
+
+int add(const struct info *src){
+	char *content;
+	int len = WORDLEN;
+	if (src == NULL){
 		return 1;
 	}
-	if (fseek(dbstrm, offset + 1, SEEK_SET) == -1){
+	if (src->key){
+		len += WORDLEN;
+	}
+	if ((content = (char *)malloc(sizeof(char) * (len + 1))) == NULL){
 		return 1;
 	}
-	if (fprintf(dbstrm, "%s", msg) < 0){
+	if (strlen(src->section) > WORDLEN - 2){
+		free(content);
+		return 1;
+	}
+	memset(content, ' ', len);
+	if (src->key){
+		content[0] = '<';
+		strcpy(content + 1, src->key);
+		content[strlen(content)] = '>';
+	}
+	else{
+		content[0] = '[';
+		strcpy(content + 1, src->section);
+		content[strlen(content)] = ']';
+	}
+	if (fprintf(dbstrm, content) < 0){
 		return 1;
 	}
 	fflush(dbstrm);
-	while((ret = pthread_mutex_unlock(&mutex)) && errno == EINTR);	//try unlock
-	if (ret){
-		return 1;
-	}
 	return 0;
 }
 
-int add_section(int offset){
-	return 0;
-}
-
-int add_key(int offset){
-	return 0;
-}
+/*	I'll change it to an int maybe	*/
 
 char *database_execute(const char *query){
+	int ret = -1;
 	char *result = NULL;
-	struct reference r;
 	if (dbstrm == NULL){
 		errno = EBADF;
 	}
 	else{
+		const char *ref = query + 4;
 		if (strlen(query) < 5){
-			return "INVALID REQUEST";
+			ret = 1;
 		}
-		if (parse_query(&r, query + 4) == -1){
-			return "INVALID REQUEST";
+		else if (!strncmp(query, "ADD ", 4)){
+			ret =add(query_get_info(&ref));
 		}
-		int offset;
-		if ((offset = get_offset(&r)) == -1){
-			return "INVALID REQUEST";
-		}
-		if (!strncmp(query, "ADD ", 4)){
-			if (parse_query(&r, query + 4) == 1){
-				add_section(offset);
-			}
-			else{
-				add_key(offset);
-			}
-		}
-		if (!strncmp(query, "GET ", 4)){
-			get(&result, &r);
+		else if (!strncmp(query, "GET ", 4)){
+			ret = get(&result, query_get_info(&ref));
+			strtok(result, " ");	//this should be deleted and handled elsewere
 		}
 		else if (!strncmp(query, "SET ", 4)){
-			if (set(&r)){
-				result = "OPERATION FAILED";
-			}
-			else{
-				result = "OPERATION COMPLETED";
-			}
+			ret = set(query_get_info(&ref));
 		}
 		else{
 			return "INVALID REQUEST";
 		}
 	}
-	char *tmp = malloc(sizeof(result));
-	strcpy(tmp, result);
-	strtok(tmp, " ");
-	return tmp;
-}
-
-/* I should probably delete this functions*/
-int insert_section(const char *section){
-	char *content;
-	if ((content = (char *)malloc(sizeof(char) * (WORDLEN + 1))) == NULL){
-		return 1;
+	switch (ret){
+	case 0:
+		if (!result){
+			result = msg_succ;;
+		}
+		break;
+	case 1:
+		result = msg_fail;
+		break;
+	case -1:
+		result = msg_err;
+		break;
 	}
-	if (strlen(section) > WORDLEN - 2){
-		free(content);
-		return 1;
-	}
-	memset(content, ' ', WORDLEN);
-	content[0] = '<';
-	strcpy(content + 1, section);
-	content[strlen(content)] = '>';
-	if (fprintf(dbstrm, content) < 0){
-		return 1;
-	}
-	fflush(dbstrm);
-	return 0;
-}
-
-int insert_key(const char *section, const char *key){
-	char *content;
-	if ((content = (char *)malloc(sizeof(char) * (WORDLEN * 2 + 1))) == NULL){
-		return 1;
-	}
-	if (strlen(key) > WORDLEN - 2){
-		free(content);
-		return 1;
-	}
-	memset(content, ' ', WORDLEN * 2);
-	content[0] = '[';
-	strcpy(content + 1, key);
-	content[strlen(content)] = ']';
-	if (fprintf(dbstrm, content) < 0){
-		return 1;
-	}
-	fflush(dbstrm);
-	return 0;
+	return result;
 }
 
 int database_init(char* filename){
@@ -290,27 +291,39 @@ int database_init(char* filename){
 		if((dbstrm = fopen(filename, "r+")) == NULL){
 			return 1;
 		}
-		char *content;
-		insert_section("NETWORK");
-		insert_key("NETWORK", "IP");
-		insert_key("NETWORK", "PORT");
-		insert_section("CONFIG");
-		insert_key("CONFIG", "ROWS");
-		insert_key("CONFIG", "COLUMNS");
-		insert_section("DATA");
-		/*
-		database_execute(ADD NETWORK);
-		database_execute(ADD IP FROM NETWORK);
-		database_execute(ADD PORT FROM NETWORK);
-		database_execute(ADD CONFIG);
-		database_execute(ADD ROWS CONFIG);
-		database_execute(ADD COLUMNS CONFIG);
-		database_execute(ADD DATA);
-		*/
-		database_execute("SET IP FROM NETWORK AS 127.0.0.1");
-		database_execute("SET PORT FROM NETWORK AS 55555");
-		database_execute("SET ROWS FROM CONFIG AS 1");
-		database_execute("SET COLUMNS FROM CONFIG AS 1");
+		if (!strcmp(msg_err, database_execute("ADD NETWORK"))){
+			return 1;
+		}
+		if (!strcmp(msg_err, database_execute("ADD IP FROM NETWORK"))){
+			return 1;
+		}
+		if (!strcmp(msg_err, database_execute("SET IP FROM NETWORK AS 127.0.0.1"))){
+			return 1;
+		}
+		if (!strcmp(msg_err, database_execute("ADD PORT FROM NETWORK"))){
+			return 1;
+		}
+		if (!strcmp(msg_err, database_execute("SET PORT FROM NETWORK AS 55555"))){
+			return 1;
+		}
+		if (!strcmp(msg_err, database_execute("ADD CONFIG"))){
+			return 1;
+		}
+		if (!strcmp(msg_err, database_execute("ADD ROWS FROM CONFIG"))){
+			return 1;
+		}
+		if (!strcmp(msg_err, database_execute("SET ROWS FROM COLUMNS AS 1"))){
+			return 1;
+		}
+		if (!strcmp(msg_err, database_execute("ADD COLUMNS FROM CONFIG"))){
+			return 1;
+		}
+		if (!strcmp(msg_err, database_execute("SET COLUMNS FROM CONFIG AS 1"))){
+			return 1;
+		}
+		if (!strcmp(msg_err, database_execute("ADD DATA"))){
+			return 1;
+		}
 	}
 	rows = atoi(database_execute("GET ROWS FROM CONFIG"));
 	columns = atoi(database_execute("GET COLUMNS FROM CONFIG"));
