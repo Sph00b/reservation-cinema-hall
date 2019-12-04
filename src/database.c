@@ -13,6 +13,20 @@
 char *msg_succ = "OPERATION SUCCEDED";
 char *msg_fail = "OPERATION FAILED";
 char *msg_err = "DATABASE FAILURE";
+char *msg_init[] = {
+	"ADD NETWORK",
+	"ADD IP FROM NETWORK",
+	"SET IP FROM NETWORK AS 127.0.0.1",
+	"ADD PORT FROM NETWORK",
+	"SET PORT FROM NETWORK AS 55555",
+	"ADD CONFIG",
+	"ADD ROWS FROM CONFIG",
+	"SET ROWS FROM CONFIG AS 1",
+	"ADD COLUMNS FROM CONFIG",
+	"SET COLUMNS FROM CONFIG AS 1",
+	"ADD DATA",
+	NULL
+};
 
 FILE* dbstrm = NULL;	//stream to the database
 short rows = 0;		//number of seat's rows
@@ -29,7 +43,7 @@ struct info{
 
 /*Buggy*/
 
-struct info *query_get_info(const char **query){
+struct info *get_info(const char **query){
 	struct info *info;
 	char *buff;
 	if (query == NULL){
@@ -110,7 +124,6 @@ int get_offset(const struct info *info){
 	strcat(key, info->key);
 	strcat(key, "]");
 	while(!prcrd){
-		/*Non ci preoccupiamo delle stringhe spezzate perché le stringhe hanno dimensione fissa*/
 		if (fgets(buff, bufflen, dbstrm) == NULL){
 			return -1;
 		}
@@ -224,14 +237,14 @@ int add(const struct info *src){
 	}
 	memset(content, ' ', len);
 	if (src->key){
-		content[0] = '<';
+		content[0] = '[';
 		strcpy(content + 1, src->key);
-		content[strlen(content)] = '>';
+		content[strlen(content)] = ']';
 	}
 	else{
-		content[0] = '[';
+		content[0] = '<';
 		strcpy(content + 1, src->section);
-		content[strlen(content)] = ']';
+		content[strlen(content)] = '>';
 	}
 	if (fprintf(dbstrm, content) < 0){
 		return 1;
@@ -254,14 +267,14 @@ char *database_execute(const char *query){
 			ret = 1;
 		}
 		else if (!strncmp(query, "ADD ", 4)){
-			ret =add(query_get_info(&ref));
+			ret =add(get_info(&ref));
 		}
 		else if (!strncmp(query, "GET ", 4)){
-			ret = get(&result, query_get_info(&ref));
+			ret = get(&result, get_info(&ref));
 			strtok(result, " ");	//this should be deleted and handled elsewere
 		}
 		else if (!strncmp(query, "SET ", 4)){
-			ret = set(query_get_info(&ref));
+			ret = set(get_info(&ref));
 		}
 		else{
 			return "INVALID REQUEST";
@@ -291,38 +304,10 @@ int database_init(char* filename){
 		if((dbstrm = fopen(filename, "r+")) == NULL){
 			return 1;
 		}
-		if (!strcmp(msg_err, database_execute("ADD NETWORK"))){
-			return 1;
-		}
-		if (!strcmp(msg_err, database_execute("ADD IP FROM NETWORK"))){
-			return 1;
-		}
-		if (!strcmp(msg_err, database_execute("SET IP FROM NETWORK AS 127.0.0.1"))){
-			return 1;
-		}
-		if (!strcmp(msg_err, database_execute("ADD PORT FROM NETWORK"))){
-			return 1;
-		}
-		if (!strcmp(msg_err, database_execute("SET PORT FROM NETWORK AS 55555"))){
-			return 1;
-		}
-		if (!strcmp(msg_err, database_execute("ADD CONFIG"))){
-			return 1;
-		}
-		if (!strcmp(msg_err, database_execute("ADD ROWS FROM CONFIG"))){
-			return 1;
-		}
-		if (!strcmp(msg_err, database_execute("SET ROWS FROM COLUMNS AS 1"))){
-			return 1;
-		}
-		if (!strcmp(msg_err, database_execute("ADD COLUMNS FROM CONFIG"))){
-			return 1;
-		}
-		if (!strcmp(msg_err, database_execute("SET COLUMNS FROM CONFIG AS 1"))){
-			return 1;
-		}
-		if (!strcmp(msg_err, database_execute("ADD DATA"))){
-			return 1;
+		for (int i = 0; msg_init[i]; i++){
+			if (!strcmp(msg_err, database_execute(msg_init[i]))){
+				return 1;
+			}
 		}
 	}
 	rows = atoi(database_execute("GET ROWS FROM CONFIG"));
