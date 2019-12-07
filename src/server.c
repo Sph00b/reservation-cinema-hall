@@ -8,23 +8,17 @@
 #include <sys/stat.h>
 #include <pthread.h>
 
-#include "try.h"
+#include "helper.h"
 #include "database.h"
 
 int parseCmdLine(int argc, char *argv[], short *op);
-int cinemad_start();
+void cinemad_start();
 int stop();
-
-int status;
+char *getpath(const char *rltvp);
 
 int main(int argc, char *argv[]){
 	/*Add status, start, stop, change ip and port, change configuration*/
-	char *cmd;
 	short op;
-	status = 0;
-try(
-	database_init("data.dat"), (1)
-)
 try(
 	parseCmdLine(argc, argv, &op), (1)
 )
@@ -39,19 +33,38 @@ default:
 	return 0;
 }
 
-int cinemad_start(){
-	/*	execve cinemad deamon	*/
-	status = 1;
+void set_foo(){
+	char *filename;
+try(
+	msprintf(&filename, "%s%s", getenv("HOME"), "/.cinema/etc/data.dat"), (-1)
+)
+try(
+	database_init(filename), (1)
+)
+	free(filename);
+}
+
+void cinemad_start(){
+	char *filename;
+try(
+	msprintf(&filename, "%s%s", getenv("HOME"), "/.cinema/bin/cinemad"), (-1)
+)
+try(
+	execl(filename, "cinemad", NULL), (-1)
+)
+}
+
+int stop(){
+	system("killall -s KILL cinemad");
 	return 0;
 }
 
 int parseCmdLine(int argc, char *argv[], short *op){
-	int n = 1;
 	if (argc < 2){
 		printf("Usage:\t name [COMMAND] [-h]\n\n");
 		exit(EXIT_SUCCESS);
 	}
-	while(n < argc){
+	for (int n = 1; n < argc; n++){
 		if (!strncasecmp(argv[n], "-start", 6)){
 			*op = 0;
 		}
@@ -63,11 +76,5 @@ int parseCmdLine(int argc, char *argv[], short *op){
 			exit(EXIT_SUCCESS);
 		}
 	}
-	return 0;
-}
-
-int stop(){
-	/*	Signal closure and wait for threads to stop	*/
-	//	pthread_join(chndl_tid, NULL);
 	return 0;
 }

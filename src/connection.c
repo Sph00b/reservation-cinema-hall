@@ -44,6 +44,7 @@ int connection_listener_stop(){
 		return -1;
 	}
 	free(passive_sockfd);
+	return 0;
 }
 
 int connection_accepted_getfd(){

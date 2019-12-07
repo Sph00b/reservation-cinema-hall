@@ -20,6 +20,8 @@ char *msg_init[] = {
 	"ADD PORT FROM NETWORK",
 	"SET PORT FROM NETWORK AS 55555",
 	"ADD CONFIG",
+	"ADD PID FROM CONFIG",
+	"SET PID FROM CONFIG AS -1",
 	"ADD ROWS FROM CONFIG",
 	"SET ROWS FROM CONFIG AS 1",
 	"ADD COLUMNS FROM CONFIG",
@@ -144,7 +146,7 @@ int get_offset(const struct info *info){
 		}
 	}
 	rcrd_off = (prcrd - buff) / sizeof(char);
-	return rltv_off + rcrd_off + WORDLEN - 1;
+	return rltv_off + rcrd_off + WORDLEN;
 }
 
 int get(char **dest, const struct info *src){
@@ -203,7 +205,7 @@ int set(const struct info *src){
 	if (!ret && (offset = get_offset(src)) == -1){
 		ret = 1;
 	}
-	if (!ret && fseek(dbstrm, offset + 1, SEEK_SET) == -1){
+	if (!ret && fseek(dbstrm, offset, SEEK_SET) == -1){
 		ret = 1;
 	}
 	if (!ret && fprintf(dbstrm, "%s", msg) < 0){
@@ -296,7 +298,7 @@ char *database_execute(const char *query){
 	return result;
 }
 
-int database_init(char* filename){
+int database_init(char *filename){
 	/*	Init the stream of the file, return 0 on success	*/
 	if((dbstrm = fopen(filename, "r+")) == NULL){
 		int dbfd = open(filename, O_CREAT | O_EXCL, 0666);

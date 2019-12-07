@@ -1,67 +1,99 @@
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include <unistd.h>
+#include <syslog.h>
 #include <sys/types.h>
+#include <sys/file.h>
+#include <sys/socket.h>	//I shouldn't use it
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <errno.h>
 
-#include "try.h"
+#define DAEMON
 
+#include "helper.h"
 #include "database.h"
 #include "connection.h"
 
 void *request_handler(void *);
 
 int main(int argc, char *argv[]){
-	int logfd;
-	FILE *log;
 	pid_t pid, sid;
-	if (argc != 2){
-		printf("Usage: [filename]\n");
-		exit("EXIT_SUCCESS");
+	pid = fork();
+	if (pid == -1){
+		fprintf(stderr, "%m");
+		exit(EXIT_FAILURE);
 	}
-try(
-	logfd = open("etc/cinemad.log", O_WRONLY | O_APPEND | O_CREAT | O_TRUNC, 0666), (-1)
-)
-try(
-	log = fdopen(logfd, "a"), (NULL)
-)
-try(	
-	pid = fork(), (-1)
-)
 	if (pid != 0){
 		exit(EXIT_SUCCESS);
 	}
-	// we're not the session leader of our old process group
-	stderr = log;
 try(
 	sid = setsid(), (-1)
 )
-	// we're the session leader of our process new group
+	syslog(LOG_DEBUG, "Session created");
 try(	
 	pid = fork(), (-1)
 )
 	if (pid != 0){
 		exit(EXIT_SUCCESS);
 	}
-	// we're not the session leader of our new process group and we lost control of terminal
+	syslog(LOG_DEBUG, "Process group leader terminated, lost constrol of terminal");
+	char *cdir;
 try(
-	chdir("/"), (-1)
+	msprintf(&cdir, "%s%s", getenv("HOME"), "/.cinema"), (-1)
 )
+try(
+	chdir(cdir), (-1)
+)
+try(
+	setenv("PWD", cdir, 1), (!0)
+)
+	free(cdir);
+	syslog(LOG_DEBUG, "Current working directory and env's pwd changed to %s", getenv("HOME"));
 	umask(0);
-	close(STDIN_FILENO);
-	close(STDOUT_FILENO);
-	close(STDERR_FILENO);
-	// the process is now a deamon
-
+	syslog(LOG_DEBUG, "Resetted umask");
+try(
+	fclose(stdin), (EOF)
+)
+try(
+	fclose(stdout), (EOF)
+)
+try(	
+	fclose(stderr), (EOF)
+)
+	syslog(LOG_DEBUG, "Standard streams closed");
+try(
+	mkdir(".tmp", 0700), (-1 * (errno != EEXIST))
+)
+	int pidfd;
+try(
+	pidfd = open(".tmp/cinemad.pid", O_CREAT, 0600), (-1)
+)
+try(
+	flock(pidfd, LOCK_EX), (-1)	//instead of semget & ftok to avoid mix SysV and POSIX
+)
+try(
+	mkdir("etc", 0700), (-1 * (errno != EEXIST))
+)
 	/*	Start do his job	*/
 	pthread_t *tid = NULL;
-	int tc = 0;		//thread counter
-	char *ip:
+	int tc = 0;	//thread counter
+	char *pidq;	//pid query
+	char *ip;
 	char *port;
 try(
-	database_init(argv[1]), (1)
+	database_init("etc/data.dat"), (1)
 )
+	syslog(LOG_INFO, "Database file loaded");
+try(
+	msprintf(&pidq, "%s %d", "SET PID FROM CONFIG AS", getpid()), (-1)
+)
+try(	
+	database_execute(pidq), (NULL)
+)
+	free(pidq);
 try(
 	ip = database_execute("GET IP FROM NETWORK"), (NULL)
 )
@@ -69,30 +101,31 @@ try(
 	port = database_execute("GET PORT FROM NETWORK"), (NULL)
 )
 try(
-	connection_listener_start(data->ip, atoi(data->port)), (-1)
+	connection_listener_start(ip, atoi(port)), (-1)
 )
+	syslog(LOG_INFO, "Listener socket started");
 	do{
 		int fd;
 try(
 		fd = connection_accepted_getfd(), (-1)
 )
-		tn++;
+		tc++;
 try(
-		tid = realloc(tid, sizeof(pthread_t) * tn), (NULL)
+		tid = realloc(tid, sizeof(pthread_t) * tc), (NULL)
 )
 try(
-		pthread_create(&tid[tn - 1], NULL, request_handler, (void *)(long)fd), (!0)
+		pthread_create(&tid[tc - 1], NULL, request_handler, (void *)(long)fd), (!0)
 )
 	} while (1);
-	for (int i = 0; i < tn; i++){
+	for (int i = 0; i < tc; i++){
 try(
 		pthread_join(tid[i], NULL), (!0)
 )
+	}
 try(
 	connection_listener_stop(), (-1)
 )
 	free(tid);
-	close(logfd);
 	return 0;
 }
 
