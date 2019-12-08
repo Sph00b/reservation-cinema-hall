@@ -36,13 +36,16 @@ $(OBJ_DIR)/$(DAEMON)/%.c.o: %.c
 	$(MKDIR_P) $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-.PHONY: clean
-.PHONY: remove
+.PHONY: clean rebase clean-all
 
 clean:
 	$(RM) -r $(OBJ_DIR)
 
-remove:
+rebase:
+	$(RM) -r $(DMN_DIR)
+	make
+
+clean-all:
 	$(RM) -r $(OBJ_DIR)
 	$(RM) -r $(DMN_DIR)
 

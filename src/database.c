@@ -8,11 +8,15 @@
 #include <errno.h>
 #include <pthread.h>
 
+
+#include <syslog.h>
+
 #define WORDLEN 16
 
 char *msg_succ = "OPERATION SUCCEDED";
 char *msg_fail = "OPERATION FAILED";
 char *msg_err = "DATABASE FAILURE";
+
 char *msg_init[] = {
 	"ADD NETWORK",
 	"ADD IP FROM NETWORK",
@@ -21,7 +25,7 @@ char *msg_init[] = {
 	"SET PORT FROM NETWORK AS 55555",
 	"ADD CONFIG",
 	"ADD PID FROM CONFIG",
-	"SET PID FROM CONFIG AS -1",
+	"SET PID FROM CONFIG AS 0",
 	"ADD ROWS FROM CONFIG",
 	"SET ROWS FROM CONFIG AS 1",
 	"ADD COLUMNS FROM CONFIG",
@@ -95,8 +99,6 @@ struct info *get_info(const char **query){
 	return info;;
 }
 
-/*I'm seriously thinking of use the line terminator character for parsing*/
-
 int get_offset(const struct info *info){
 	/* return -1 on error*/
 	char *section;
@@ -119,10 +121,10 @@ int get_offset(const struct info *info){
 	if ((key = (char *)malloc(sizeof(char) * WORDLEN)) == NULL){
 		return -1;
 	}
-	strcat(section, "<");
+	strcpy(section, "<\0");
 	strcat(section, info->section);
 	strcat(section, ">");
-	strcat(key, "[");
+	strcpy(key, "[\0");
 	strcat(key, info->key);
 	strcat(key, "]");
 	while(!prcrd){
@@ -131,7 +133,7 @@ int get_offset(const struct info *info){
 		}
 		rltv_off += bufflen;
 		if (!psctn){
-			if(psctn = strstr(buff, section)){
+			if((psctn = strstr(buff, section)) != NULL){
 				int offset = rltv_off + (psctn - buff) / sizeof(char) + strlen(section);
 				fseek(dbstrm, offset, SEEK_SET);
 				rltv_off -= bufflen - offset;
@@ -150,8 +152,6 @@ int get_offset(const struct info *info){
 }
 
 int get(char **dest, const struct info *src){
-	int ret = 0;
-	int err = 0;
 	int offset;
 	char *msg;
 	if (src == NULL){
@@ -160,65 +160,50 @@ int get(char **dest, const struct info *src){
 	if ((msg = (char *)malloc(sizeof(char) * (WORDLEN + 1))) == NULL){
 		return 1;
 	}
-	while((err = pthread_mutex_lock(&mutex)) && errno == EINTR);	//try lock
-	if (err){
-		return -1;
+	if ((offset = get_offset(src)) == -1){
+		return 1;
 	}
-	if (!ret && (offset = get_offset(src)) == -1){
-		ret = 1;
+	if (fseek(dbstrm, offset, SEEK_SET) == -1){
+		return 1;
 	}
-	if (!ret && fseek(dbstrm, offset, SEEK_SET) == -1){
-		ret = 1;
-	}
-	if (!ret && fgets(msg, WORDLEN, dbstrm) == NULL){
-		ret = 1;
-	}
-	while((err = pthread_mutex_unlock(&mutex)) && errno == EINTR);	//try unlock
-	if (err){
-		return -1;
+	if (fgets(msg, WORDLEN, dbstrm) == NULL){
+		return 1;
 	}
 	*dest = malloc(sizeof(msg));
 	strcpy(*dest, msg);
-	return ret;
+	return 0;
 }
 
 int set(const struct info *src){
-	int ret = 0;
-	int err = 0;
-	int offset;
 	char *msg;
+	int offset;
 	if (src == NULL){
+		return 1;
+	}
+	if (strlen(src->value) > WORDLEN){
 		return 1;
 	}
 	if ((msg = (char *)malloc(sizeof(char) * (WORDLEN + 1))) == NULL){
 		return 1;
 	}
 	memset(msg, ' ', WORDLEN);
+	msg[WORDLEN] = 0;
 	strcpy(msg, src->value);
 	if (strlen(msg) < WORDLEN){
 		msg[strlen(msg)] = ' ';
 	}
-	while((err = pthread_mutex_lock(&mutex)) && errno == EINTR);	//try lock
-	if (err){
-		return -1;
+	if ((offset = get_offset(src)) == -1){
+		return 1;
 	}
-	if (!ret && (offset = get_offset(src)) == -1){
-		ret = 1;
+	if (fseek(dbstrm, offset, SEEK_SET) == -1){
+		return 1;
 	}
-	if (!ret && fseek(dbstrm, offset, SEEK_SET) == -1){
-		ret = 1;
+	if (fprintf(dbstrm, "%s", msg) < 0){
+		return 1;
 	}
-	if (!ret && fprintf(dbstrm, "%s", msg) < 0){
-		ret = 1;
-	}
-	if (!ret){
-		fflush(dbstrm);
-	}
-	while((err = pthread_mutex_unlock(&mutex)) && errno == EINTR);	//try unlock
-	if (err){
-		return -1;
-	}
-	return ret;
+	fflush(dbstrm);
+	free(msg);
+	return 0;
 }
 
 int add(const struct info *src){
@@ -227,17 +212,20 @@ int add(const struct info *src){
 	if (src == NULL){
 		return 1;
 	}
+	if (strlen(src->section) > WORDLEN - 2){
+		return 1;
+	}
 	if (src->key){
-		len += WORDLEN;
+		len *= 2;
+		if (strlen(src->key) > WORDLEN - 2){
+			return 1;
+		}
 	}
 	if ((content = (char *)malloc(sizeof(char) * (len + 1))) == NULL){
 		return 1;
 	}
-	if (strlen(src->section) > WORDLEN - 2){
-		free(content);
-		return 1;
-	}
 	memset(content, ' ', len);
+	content[len] = 0;
 	if (src->key){
 		content[0] = '[';
 		strcpy(content + 1, src->key);
@@ -252,6 +240,7 @@ int add(const struct info *src){
 		return 1;
 	}
 	fflush(dbstrm);
+	free(content);
 	return 0;
 }
 
