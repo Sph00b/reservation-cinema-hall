@@ -43,8 +43,8 @@ pthread_mutex_t mutex;
 /*	IDK how to name it	*/
 struct info{
 	const char *section;
-	const char *key;
 	const char *value;
+	const char* key;
 };
 
 /*Buggy*/
@@ -76,7 +76,7 @@ struct info *get_info(const char **query){
 	if (strcmp("FROM", tmp)){
 		return NULL;
 	}
-	if ((info->section = strtok(NULL, " ")) == NULL){
+	if ((info->section = strtok(NULL, " ")) == NULL) {
 		return NULL;
 	}
 	if (((info->value = strtok(NULL, " ")) != NULL)){
@@ -134,6 +134,7 @@ int get_offset(const struct info *info){
 		rltv_off += bufflen;
 		if (!psctn){
 			if((psctn = strstr(buff, section)) != NULL){
+			if ((psctn = strstr(buff, section)) != NULL) {
 				int offset = rltv_off + (psctn - buff) / sizeof(char) + strlen(section);
 				fseek(dbstrm, offset, SEEK_SET);
 				rltv_off -= bufflen - offset;
