@@ -8,71 +8,75 @@
 #include <errno.h>
 #include <pthread.h>
 
-
-#include <syslog.h>
-
 #define WORDLEN 16
 
 FILE* dbstrm = NULL;	//stream to the database
-short rows = 0;		//number of seat's rows
-short columns = 0;	//number of seat's columns
+short rows = 0;			//number of seat's rows
+short columns = 0;		//number of seat's columns
 
 pthread_mutex_t mutex;
 
 /*	IDK how to name it	*/
+
 struct info {
 	const char* section;
 	const char* key;
 	const char* value;
 };
 
-/*Buggy memory leack*/
+/* get_info return NULL on sys failure or on unexpected string*/
 
 struct info* get_info(const char* str) {
 	struct info* info;
-	char *buff;
+	char* buff;
+	int ntoken = 1;
 	if (str == NULL) {
 		return NULL;
 	}
 	if ((info = (struct info*) malloc(sizeof(struct info))) == NULL) {
 		return NULL;
 	}
+	for (int i = 0; i < strlen(str); i++) {
+		if (str[i] == ' ') {
+			ntoken++;
+		}
+	}
 	if ((buff = strdup(str)) == NULL) {
+		free(info);
 		return NULL;
 	}
-	if ((info->key = strtok(buff, " ")) == NULL) {
-		return NULL;
-	}
-	char* tmp = strtok(NULL, " ");
-	if (tmp == NULL) {
-		info->section = info->key;
+	buff = strtok(buff, " ");
+	switch (ntoken) {
+	case 1:
+		info->section = buff;
 		info->key = NULL;
+		info->value = NULL;
 		return info;
+	case 3:
+		info->key = buff;
+		if (strcmp(strtok(NULL, " "), "FROM")) {
+			break;
+		}
+		info->section = strtok(NULL, " ");
+		info->value = NULL;
+		return info;
+	case 5:
+		info->key = buff;
+		if (strcmp(strtok(NULL, " "), "FROM")) {
+			break;
+		}
+		info->section = strtok(NULL, " ");
+		if (strcmp(strtok(NULL, " "), "AS")) {
+			break;
+		}
+		info->value = strtok(NULL, " ");
+		return info;
+	default:
+		break;
 	}
-	if (strcmp("FROM", tmp)) {
-		return NULL;
-	}
-	if ((info->section = strtok(NULL, " ")) == NULL) {
-		return NULL;
-	}
-	if (((info->value = strtok(NULL, " ")) != NULL)) {
-		if (strcmp("AS", info->value)) {
-			return info;
-		}
-		if ((info->value = strtok(NULL, " ")) == NULL) {
-			return NULL;
-		}
-		if (strtok(NULL, " ")) {
-			return NULL;
-		}
-		if (strlen(info->value) > WORDLEN) {
-			return NULL;
-		}
-		if (strstr(info->value, " ") - info->value < strlen(info->value)) {
-			return NULL;
-		}
-	}
-	return info;;
+	free(info);
+	free(buff);
+	return NULL;
 }
 
 int get_offset(const struct info* info) {
@@ -151,34 +155,37 @@ int get(const struct info* src, char** dest) {
 }
 
 int set(const struct info* src) {
-	char* msg;
+	char* value;
 	int offset;
-	if (src == NULL) {
+	if (src == NULL || src->key == NULL || src->section == NULL || src->value == NULL) {
 		return 1;
 	}
 	if (strlen(src->value) > WORDLEN) {
 		return 1;
 	}
-	if ((msg = (char*)malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
+	if ((value = (char*)malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
 		return 1;
 	}
-	memset(msg, ' ', WORDLEN);
-	msg[WORDLEN] = 0;
-	strcpy(msg, src->value);
-	if (strlen(msg) < WORDLEN) {
-		msg[strlen(msg)] = ' ';
+	memset(value, ' ', WORDLEN);
+	value[WORDLEN] = '\0';
+	strcpy(value, src->value);
+	if (strlen(value) < WORDLEN) {
+		value[strlen(value)] = ' ';
 	}
 	if ((offset = get_offset(src)) == -1) {
+		free(value);
 		return 1;
 	}
 	if (fseek(dbstrm, offset, SEEK_SET) == -1) {
+		free(value);
 		return 1;
 	}
-	if (fprintf(dbstrm, "%s", msg) < 0) {
+	if (fprintf(dbstrm, "%s", value) < 0) {
+		free(value);
 		return 1;
 	}
 	fflush(dbstrm);
-	free(msg);
+	free(value);
 	return 0;
 }
 
@@ -228,18 +235,23 @@ char* database_execute(const char* query) {
 	else {
 		if (strlen(query) > 5) {
 			struct info* qinfo = get_info(query + 4);
-			if (!strncmp(query, "ADD ", 4)) {
-				ret = add(qinfo);
+			if (qinfo == NULL) {
+				ret = 1;
 			}
-			else if (!strncmp(query, "SET ", 4)) {
-				ret = set(qinfo);
-			}
-			else if (!strncmp(query, "GET ", 4)) {
-				char* result;
-				ret = get(qinfo, &result);
-				if (!ret) {
-					strtok(result, " ");	//this should be deleted and handled elsewere
-					return result;
+			else{
+				if (!strncmp(query, "ADD ", 4)) {
+					ret = add(qinfo);
+				}
+				else if (!strncmp(query, "SET ", 4)) {
+					ret = set(qinfo);
+				}
+				else if (!strncmp(query, "GET ", 4)) {
+					char* result;
+					ret = get(qinfo, &result);
+					if (!ret) {
+						strtok(result, " ");	//this should be deleted and handled elsewere
+						return result;
+					}
 				}
 			}
 		}
@@ -291,6 +303,7 @@ int not_database_create(const char* filename) {
 int database_init(const char* filename) {
 	/*	Init the stream of the file, return 0 on success	*/
 	if ((dbstrm = fopen(filename, "r+")) == NULL) {
+		//return 1;
 		if (not_database_create(filename)) {	//shouldn't be here
 			return 1;
 		}
