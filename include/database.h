@@ -9,8 +9,13 @@
  *				SET [KEY] FROM [SECTION] AS [VALUE]
  * */
 
-/*	Initiazliza database from file or create a new one, return 0 on success	*/
-extern int database_init(char *filename);
-/*	Execute a query and retrive the result, return NULL on failure	*/
-/*	I should change it to an int method	*/
+#define DBMSG_SUCC "OPERATION SUCCEDE2D"
+#define DBMSG_FAIL "OPERATION FAILED"
+#define DBMSG_ERR "DATABASE FAILURE"
+
+/*	Initiazliza database from file return 0 on success return 1 on failure and set properly errno	*/
+extern int database_init(const char *filename);
+/*	Close database return 0 on success	*/
+extern int database_close();
+/*	Execute a query and retrive the result	*/
 extern char* database_execute(const char *query);

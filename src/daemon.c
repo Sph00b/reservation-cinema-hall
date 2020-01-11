@@ -87,7 +87,9 @@ try(
 try(
 	recv(fd, buff, 1024, 0), (-1)
 )
-	printf("%s\n", buff);
+if (buff[strlen(buff) - 1] == '\n') {
+		buff[strlen(buff) - 1] = '\0';
+	}
 try(
 	msg = database_execute(buff), (NULL)
 )
