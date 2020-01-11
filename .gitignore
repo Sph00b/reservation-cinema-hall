@@ -1,14 +1,5 @@
 
-bin/cinema_server
-build/cinemad/src/asprintf.c.o
-build/cinemad/src/connection.c.o
-build/cinemad/src/daemon.c.o
-build/cinemad/src/database.c.o
-build/src/asprintf.c.o
-build/src/connection.c.o
-build/src/database.c.o
-build/src/server.c.o
-test/dbtest.c
-test/f.dat
-test/Makefile
-test/test
+bin/
+build/
+test/
+.vs/
