@@ -10,14 +10,18 @@
 #include <signal.h>
 #include <pthread.h>
 
-#include "helper.h"
 #include "asprintf.h"
 #include "database.h"
+
+#define try(foo, err_value)\
+	if ((foo) == (err_value)){\
+		fprintf(stderr, "%m\n");\
+		exit(EXIT_FAILURE);\
+	}
 
 int parseCmdLine(int argc, char *argv[], short *op);
 void daemon_start();
 int daemon_stop();
-char *getpath(const char *rltvp);
 
 int main(int argc, char *argv[]){
 	/*Add status, start, stop, change ip and port, change configuration*/
@@ -47,30 +51,15 @@ try(
 }
 
 int daemon_stop(){
-	/*send a SIGTERM*/
-	char *pfilename;
-	char *dfilename;
+
+	/*	Stub	*/
+	system("killall -s KILL cinemad");
+	return 0;
+	/*			*/
+
+	/* retirve pid with a query */
+	/*send a SIGTERM to pid*/
 	char *pid;
-	int pidfd;
-try(
-	asprintf(&pfilename, "%s%s", getenv("HOME"), "/.cinema/.tmp/cinemad.pid"), (-1)
-)
-try(
-	pidfd = open(pfilename, 0600), (-1)
-)
-	if (flock(pidfd, LOCK_EX | LOCK_NB) == 0){
-		printf("Server already stopped\n");
-		flock(pidfd, LOCK_UN);
-		return 0;
-	}
-	free(pfilename);
-try(
-	asprintf(&dfilename, "%s%s", getenv("HOME"), "/.cinema/etc/data.dat"), (-1)
-)
-try(
-	database_init(dfilename), (1)
-)
-	free(dfilename);
 try(
 	pid = database_execute("GET PID FROM CONFIG"), (NULL)
 )

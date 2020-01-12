@@ -4,58 +4,66 @@
 #include <unistd.h>
 #include <syslog.h>
 #include <sys/types.h>
-#include <sys/file.h>
 #include <sys/socket.h>	//I shouldn't use it
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <errno.h>
 
-#define DAEMON
-
-#include "helper.h"
 #include "asprintf.h"
 #include "database.h"
 #include "connection.h"
 
+#define try(foo, err_value)\
+	if ((foo) == (err_value)){\
+		syslog(LOG_ERR, "%m");\
+		exit(EXIT_FAILURE);\
+	}
+
 void *request_handler(void *);
-void daemonize();
+int daemonize();
 int dbcreate();
 
 int main(int argc, char *argv[]){
-	daemonize();
-	syslog(LOG_DEBUG, "Process demonized");
 	pthread_t *tid = NULL;
 	int tc = 0;	//thread counter
-	char *pidq;	//pid query
+	int ret;
 	char *ip;
 	char *port;
-	if (database_init("etc/data.dat")) {
-		if (errno == ENOENT) {
-			dbcreate();
-		}
-		else {
-			fprintf(stderr, "%m\n");
-		}
+	char* qpid;	//process id query
+try(
+	daemonize(), (1)
+)
+try(
+	mkdir("etc", 0775), (-1 * (errno != EEXIST))
+)
+try(
+	ret = database_init("etc/data.dat"), (1 * (errno != ENOENT))
+)
+	if (ret && errno == ENOENT) {
+try(
+		dbcreate(), (1)
+)
 	}
-	syslog(LOG_INFO, "Database file loaded");
 try(
-	asprintf(&pidq, "%s %d", "SET PID FROM CONFIG AS", getpid()), (-1)
-)
-try(	
-	database_execute(pidq), (NULL)
-)
-	free(pidq);
-try(
-	ip = database_execute("GET IP FROM NETWORK"), (NULL)
+	asprintf(&qpid, "%s %d", "SET PID FROM CONFIG AS", getpid()), (-1)
 )
 try(
-	port = database_execute("GET PORT FROM NETWORK"), (NULL)
+	strcmp(database_execute(qpid), DBMSG_FAIL), (0)
+)
+	free(qpid);
+	ip = database_execute("GET IP FROM NETWORK");
+try(
+	strcmp(ip, DBMSG_FAIL), (0)
+)
+	port = database_execute("GET PORT FROM NETWORK");
+try(
+	strcmp(port, DBMSG_FAIL), (0)
 )
 try(
 	connection_listener_start(ip, atoi(port)), (-1)
 )
-	syslog(LOG_INFO, "Listener socket started");
+	syslog(LOG_INFO, "cinemad started");
 	do{
 		int fd;
 try(
@@ -108,64 +116,52 @@ try(
 	pthread_exit(0);
 }
 
-void daemonize(){
-	pid_t pid, sid;
-	pid = fork();
-	if (pid == -1){
-		fprintf(stderr, "%m");
-		exit(EXIT_FAILURE);
+int daemonize(){
+	pid_t pid;	//process id
+	pid_t sid;	//session id
+	char* wdir;	//working directory
+	/* run process in backgound */
+	if ((pid = fork()) == -1){
+		return 1;
 	}
 	if (pid != 0){
 		exit(EXIT_SUCCESS);
 	}
-try(
-	sid = setsid(), (-1)
-)
-	syslog(LOG_DEBUG, "Session created");
-try(	
-	pid = fork(), (-1)
-)
-	if (pid != 0){
+	/* create a new session where process is group leader */
+	if ((sid = setsid()) == -1) {
+		return 1;
+	}
+	/* fork and kill group leader, lose control of terminal */
+	if ((pid = fork()) == -1) {
+		return 1;
+	}
+	if (pid != 0) {
 		exit(EXIT_SUCCESS);
 	}
-	syslog(LOG_DEBUG, "Process group leader terminated, lost constrol of terminal");
-	char *cdir;
-try(
-	asprintf(&cdir, "%s%s", getenv("HOME"), "/.cinema"), (-1)
-)
-try(
-	chdir(cdir), (-1)
-)
-try(
-	setenv("PWD", cdir, 1), (!0)
-)
-	free(cdir);
-	syslog(LOG_DEBUG, "Current working directory and env's pwd changed to %s", getenv("PWD"));
+	/* close standars stream */
+	if (fclose(stdin) == EOF) {
+		return 1;
+	}
+	if (fclose(stdout) == EOF) {
+		return 1;
+	}
+	if (fclose(stderr) == EOF) {
+		return 1;
+	}
+	/* change working directory */
+	if (asprintf(&wdir, "%s%s", getenv("HOME"), "/.cinema") == -1) {
+		return 1;
+	}
+	if (chdir(wdir) == -1) {
+		return 1;
+	}
+	if (setenv("PWD", wdir, 1)) {
+		return 1;
+	}
+	free(wdir);
+	/* reset umask */
 	umask(0);
-	syslog(LOG_DEBUG, "Resetted umask");
-try(
-	fclose(stdin), (EOF)
-)
-try(
-	fclose(stdout), (EOF)
-)
-try(	
-	fclose(stderr), (EOF)
-)
-	syslog(LOG_DEBUG, "Standard streams closed");
-try(
-	mkdir(".tmp", 0775), (-1 * (errno != EEXIST))
-)
-	int pidfd;
-try(
-	pidfd = open(".tmp/cinemad.pid", O_CREAT, 0600), (-1)
-)
-try(
-	flock(pidfd, LOCK_EX | LOCK_NB), (-1)	//instead of semget & ftok to avoid mix SysV and POSIX
-)
-try(
-	mkdir("etc", 0775), (-1 * (errno != EEXIST))
-)
+	return 0;
 }
 
 int dbcreate() {

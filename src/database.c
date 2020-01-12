@@ -5,6 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/file.h>
 #include <errno.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -286,6 +287,9 @@ char* database_execute(const char* query) {
 int database_init(const char* filename) {
 	/*	Init the stream of the file, return 0 on success	*/
 	if ((dbstrm = fopen(filename, "r+")) == NULL) {
+		return 1;
+	}
+	if (flock(fileno(dbstrm), LOCK_EX | LOCK_NB) == -1) {	//instead of semget & ftok to avoid mix SysV and POSIX, replace with fcntl
 		return 1;
 	}
 	if (pthread_mutex_init(&mutex, NULL)) {
