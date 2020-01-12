@@ -91,7 +91,7 @@ if (buff[strlen(buff) - 1] == '\n') {
 		buff[strlen(buff) - 1] = '\0';
 	}
 try(
-	msg = database_execute(buff), (NULL)
+	msg = database_execute(buff), (DBMSG_FAIL)
 )
 try(
 	send(fd, msg, strlen(msg), 0), (-1)

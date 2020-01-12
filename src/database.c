@@ -7,16 +7,21 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <pthread.h>
+#include <stdint.h>
 
 #define WORDLEN 16
 
 FILE* dbstrm = NULL;	//stream to the database
-short rows = 0;			//number of seat's rows
-short columns = 0;		//number of seat's columns
+char* dbcache = NULL;	//database buffer cache
+uint8_t dbit = 1;		//dirty bit
+uint8_t rows = 0;		//number of seat's rows
+uint8_t columns = 0;	//number of seat's columns
 
 pthread_mutex_t mutex;
 
-/*	IDK how to name it	*/
+/*	IDK how to name
+	undefined behaviour if the strings pointed are longer than WORDLEN
+*/
 
 struct info {
 	const char* section;
@@ -24,7 +29,7 @@ struct info {
 	const char* value;
 };
 
-/* get_info return NULL on sys failure or on unexpected string*/
+/* return NULL on sys failure or on unexpected string*/
 
 struct info* get_info(const char* str) {
 	struct info* info;
@@ -79,88 +84,138 @@ struct info* get_info(const char* str) {
 	return NULL;
 }
 
+/* return -1 on sys failure or if the searched section/key is not found*/
+
 int get_offset(const struct info* info) {
 	/* return -1 on error*/
-	char* section;
-	char* key;
-	char* buff;
-	int bufflen = 4096;
-	int rltv_off = -bufflen;
-	int rcrd_off = 0;
-	char* psctn = NULL;
-	char* prcrd = NULL;
-	if (fseek(dbstrm, 0, SEEK_SET) == -1) {
+	char* tmp;
+	if (info == NULL) {
 		return -1;
 	}
-	if ((buff = (char*)malloc(sizeof(char) * bufflen)) == NULL) {
+	if (info->section == NULL) {
 		return -1;
 	}
-	if ((section = (char*)malloc(sizeof(char) * WORDLEN)) == NULL) {
+	if (info->key == NULL) {
 		return -1;
 	}
-	if ((key = (char*)malloc(sizeof(char) * WORDLEN)) == NULL) {
-		return -1;
-	}
-	strcpy(section, "<\0");
-	strcat(section, info->section);
-	strcat(section, ">");
-	strcpy(key, "[\0");
-	strcat(key, info->key);
-	strcat(key, "]");
-	while (!prcrd) {
-		if (fgets(buff, bufflen, dbstrm) == NULL) {
+	if (dbit) {
+		int len;
+		if (fseek(dbstrm, 0, SEEK_END) == -1) {
 			return -1;
 		}
-		rltv_off += bufflen;
-		if (!psctn) {
-			if ((psctn = strstr(buff, section)) != NULL) {
-				int offset = rltv_off + (psctn - buff) / sizeof(char) + strlen(section);
-				fseek(dbstrm, offset, SEEK_SET);
-				rltv_off -= bufflen - offset;
-			}
+		if ((len = ftell(dbstrm)) == -1) {
+			return -1;
 		}
-		else {
-			char* psctn_next = strstr(buff, "<");
-			prcrd = strstr(buff, key);
-			if (psctn_next && prcrd && psctn_next < prcrd) {
-				return -1;
-			}
+		free(dbcache);
+		if ((dbcache = (char*) malloc(sizeof(char) * len)) == NULL) {
+			return -1;
 		}
+		if (fseek(dbstrm, 0, SEEK_SET) == -1) {
+			return -1;
+		}
+		if (fgets(dbcache, len, dbstrm) == NULL) {
+			return -1;
+		}
+		dbit = 0;
 	}
-	rcrd_off = (prcrd - buff) / sizeof(char);
-	return rltv_off + rcrd_off + WORDLEN;
+	tmp = dbcache;
+	do {
+		if ((tmp = strstr(dbcache, info->section)) == NULL) {
+			return -1;
+		}
+	} while (*(tmp - 1) == '<' && *(tmp + 1) == '>');
+	do {
+		if ((tmp = strstr(dbcache, info->key)) == NULL) {
+			return -1;
+		}
+	} while (*(tmp - 1) == '[' && *(tmp + 1) == ']');
+	return ((tmp - dbcache) / sizeof(char)) + WORDLEN;
 }
 
-int get(const struct info* src, char** dest) {
+int add(const struct info* info) {
+	char* buff;
+	if (info == NULL) {
+		return 1;
+	}
+	if (info->section == NULL) {
+		return 1;
+	}
+	if (strlen(info->section) > WORDLEN - 2) {
+		return 1;
+	}
+	if (info->key == NULL) {
+		if ((buff = (char*)malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
+			return 1;
+		}
+		memset(buff, ' ', WORDLEN);
+		buff[0] = '<';
+		strcpy(buff + 1, info->section);
+		buff[strlen(buff)] = '>';
+		buff[WORDLEN] = 0;
+	}
+	else {
+		/*TODO:
+		move the seek to the last position of the section
+		make room for data if the section is not in tail
+		*/
+		if (strlen(info->key) > WORDLEN - 2) {
+			return 1;
+		}
+		if ((buff = (char*)malloc(sizeof(char) * (2 * WORDLEN + 1))) == NULL) {
+			return 1;
+		}
+		memset(buff, ' ', WORDLEN * 2);
+		buff[0] = '[';
+		strcpy(buff + 1, info->key);
+		buff[strlen(buff)] = ']';
+		buff[WORDLEN * 2] = 0;
+	}
+	if (fprintf(dbstrm, buff) < 0) {
+		free(buff);
+		return 1;
+	}
+	fflush(dbstrm);
+	free(buff);
+	return 0;
+}
+
+int get(const struct info* info, char** dest) {
 	int offset;
-	char* msg;
-	if (src == NULL) {
+	if (info == NULL) {
 		return 1;
 	}
-	if ((msg = (char*)malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
-		return 1;
-	}
-	if ((offset = get_offset(src)) == -1) {
+	if ((offset = get_offset(info)) == -1) {
 		return 1;
 	}
 	if (fseek(dbstrm, offset, SEEK_SET) == -1) {
 		return 1;
 	}
-	if (fgets(msg, WORDLEN, dbstrm) == NULL) {
+	if ((*dest = (char*) malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
 		return 1;
 	}
-	*dest = malloc(sizeof(msg));
-	strcpy(*dest, msg);
+	if (fgets(*dest, WORDLEN, dbstrm) == NULL) {
+		free(*dest);
+		return 1;
+	}
 	return 0;
 }
 
-int set(const struct info* src) {
+int set(const struct info* info) {
 	char* value;
 	int offset;
-	if (src == NULL || src->key == NULL || src->section == NULL || src->value == NULL) {
+	if (info == NULL) {
 		return 1;
 	}
-	if (strlen(src->value) > WORDLEN) {
+	if (info->value == NULL) {
+		return 1;
+	}
+	if ((offset = get_offset(info)) == -1) {
+		return 1;
+	}
+	if (fseek(dbstrm, offset, SEEK_SET) == -1) {
+		return 1;
+	}
+	if (strlen(info->value) > WORDLEN) {
 		return 1;
 	}
 	if ((value = (char*)malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
@@ -168,17 +223,9 @@ int set(const struct info* src) {
 	}
 	memset(value, ' ', WORDLEN);
 	value[WORDLEN] = '\0';
-	strcpy(value, src->value);
+	strcpy(value, info->value);
 	if (strlen(value) < WORDLEN) {
 		value[strlen(value)] = ' ';
-	}
-	if ((offset = get_offset(src)) == -1) {
-		free(value);
-		return 1;
-	}
-	if (fseek(dbstrm, offset, SEEK_SET) == -1) {
-		free(value);
-		return 1;
 	}
 	if (fprintf(dbstrm, "%s", value) < 0) {
 		free(value);
@@ -186,44 +233,7 @@ int set(const struct info* src) {
 	}
 	fflush(dbstrm);
 	free(value);
-	return 0;
-}
-
-int add(const struct info* src) {
-	char* content;
-	int len = WORDLEN;
-	if (src == NULL) {
-		return 1;
-	}
-	if (strlen(src->section) > WORDLEN - 2) {
-		return 1;
-	}
-	if (src->key) {
-		len *= 2;
-		if (strlen(src->key) > WORDLEN - 2) {
-			return 1;
-		}
-	}
-	if ((content = (char*)malloc(sizeof(char) * (len + 1))) == NULL) {
-		return 1;
-	}
-	memset(content, ' ', len);
-	content[len] = 0;
-	if (src->key) {
-		content[0] = '[';
-		strcpy(content + 1, src->key);
-		content[strlen(content)] = ']';
-	}
-	else {
-		content[0] = '<';
-		strcpy(content + 1, src->section);
-		content[strlen(content)] = '>';
-	}
-	if (fprintf(dbstrm, content) < 0) {
-		return 1;
-	}
-	fflush(dbstrm);
-	free(content);
+	dbit = 1;
 	return 0;
 }
 
