@@ -14,8 +14,6 @@
 FILE* dbstrm = NULL;	//stream to the database
 char* dbcache = NULL;	//database buffer cache
 uint8_t dbit = 1;		//dirty bit
-uint8_t rows = 0;		//number of seat's rows
-uint8_t columns = 0;	//number of seat's columns
 
 pthread_mutex_t mutex;
 
@@ -28,6 +26,30 @@ struct info {
 	const char* key;
 	const char* value;
 };
+
+int refresh_cache() {
+	if (dbit) {
+		int len;
+		if (fseek(dbstrm, 0, SEEK_END) == -1) {
+			return 1;
+		}
+		if ((len = ftell(dbstrm)) == -1) {
+			return 1;
+		}
+		free(dbcache);
+		if ((dbcache = (char*)malloc(sizeof(char) * len)) == NULL) {
+			return 1;
+		}
+		if (fseek(dbstrm, 0, SEEK_SET) == -1) {
+			return 1;
+		}
+		if (fgets(dbcache, len, dbstrm) == NULL) {
+			return 1;
+		}
+		dbit = 0;
+	}
+	return 0;
+}
 
 /* return NULL on sys failure or on unexpected string*/
 
@@ -98,27 +120,9 @@ int get_offset(const struct info* info) {
 	if (info->key == NULL) {
 		return -1;
 	}
-	if (dbit) {
-		int len;
-		if (fseek(dbstrm, 0, SEEK_END) == -1) {
-			return -1;
-		}
-		if ((len = ftell(dbstrm)) == -1) {
-			return -1;
-		}
-		free(dbcache);
-		if ((dbcache = (char*) malloc(sizeof(char) * len)) == NULL) {
-			return -1;
-		}
-		if (fseek(dbstrm, 0, SEEK_SET) == -1) {
-			return -1;
-		}
-		if (fgets(dbcache, len, dbstrm) == NULL) {
-			return -1;
-		}
-		dbit = 0;
+	if (refresh_cache()) {
+		return -1;
 	}
-	tmp = dbcache;
 	do {
 		if ((tmp = strstr(dbcache, info->section)) == NULL) {
 			return -1;
@@ -279,47 +283,11 @@ char* database_execute(const char* query) {
 	}
 }
 
-int not_database_create(const char* filename) {
-	char* msg_init[] = {
-	"ADD NETWORK",
-	"ADD IP FROM NETWORK",
-	"SET IP FROM NETWORK AS 127.0.0.1",
-	"ADD PORT FROM NETWORK",
-	"SET PORT FROM NETWORK AS 55555",
-	"ADD CONFIG",
-	"ADD PID FROM CONFIG",
-	"SET PID FROM CONFIG AS 0",
-	"ADD ROWS FROM CONFIG",
-	"SET ROWS FROM CONFIG AS 1",
-	"ADD COLUMNS FROM CONFIG",
-	"SET COLUMNS FROM CONFIG AS 1",
-	"ADD DATA",
-	NULL
-	};
-	int dbfd = open(filename, O_CREAT | O_EXCL, 0666);
-	close(dbfd);
-	if ((dbstrm = fopen(filename, "r+")) == NULL) {
-		return 1;
-	}
-	for (int i = 0; msg_init[i]; i++) {
-		if (!strcmp(DBMSG_ERR, database_execute(msg_init[i]))) {
-			remove(filename);
-			return 1;
-		}
-	}
-	return 0;
-}
-
 int database_init(const char* filename) {
 	/*	Init the stream of the file, return 0 on success	*/
 	if ((dbstrm = fopen(filename, "r+")) == NULL) {
-		//return 1;
-		if (not_database_create(filename)) {	//shouldn't be here
-			return 1;
-		}
+		return 1;
 	}
-	rows = atoi(database_execute("GET ROWS FROM CONFIG"));
-	columns = atoi(database_execute("GET COLUMNS FROM CONFIG"));
 	if (pthread_mutex_init(&mutex, NULL)) {
 		return 1;
 	}

@@ -13,9 +13,9 @@
 #define DBMSG_FAIL "OPERATION FAILED"
 #define DBMSG_ERR "DATABASE FAILURE"
 
-/*	Initiazliza database from file return 0 on success return 1 on failure and set properly errno	*/
+/*	Initiazliza database from file return 1 and set properly errno on error	*/
 extern int database_init(const char *filename);
-/*	Close database return 0 on success	*/
+/*	Close database return EOF and set properly errno on error	*/
 extern int database_close();
-/*	Execute a query and retrive the result	*/
+/*	Execute a query return DBMSG_ERR and set properly errno on error	*/
 extern char* database_execute(const char *query);

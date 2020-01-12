@@ -20,6 +20,7 @@
 
 void *request_handler(void *);
 void daemonize();
+int dbcreate();
 
 int main(int argc, char *argv[]){
 	daemonize();
@@ -29,9 +30,14 @@ int main(int argc, char *argv[]){
 	char *pidq;	//pid query
 	char *ip;
 	char *port;
-try(
-	database_init("etc/data.dat"), (1)
-)
+	if (database_init("etc/data.dat")) {
+		if (errno == ENOENT) {
+			dbcreate();
+		}
+		else {
+			fprintf(stderr, "%m\n");
+		}
+	}
 	syslog(LOG_INFO, "Database file loaded");
 try(
 	asprintf(&pidq, "%s %d", "SET PID FROM CONFIG AS", getpid()), (-1)
@@ -74,7 +80,6 @@ try(
 	free(tid);
 	return 0;
 }
-
 
 void *request_handler(void *arg){
 	/*	todo: implement a timeout system	*/
@@ -161,4 +166,33 @@ try(
 try(
 	mkdir("etc", 0775), (-1 * (errno != EEXIST))
 )
+}
+
+int dbcreate() {
+	char* msg_init[] = {
+	"ADD NETWORK",
+	"ADD IP FROM NETWORK",
+	"SET IP FROM NETWORK AS 127.0.0.1",
+	"ADD PORT FROM NETWORK",
+	"SET PORT FROM NETWORK AS 55555",
+	"ADD CONFIG",
+	"ADD PID FROM CONFIG",
+	"SET PID FROM CONFIG AS 0",
+	"ADD ROWS FROM CONFIG",
+	"SET ROWS FROM CONFIG AS 1",
+	"ADD COLUMNS FROM CONFIG",
+	"SET COLUMNS FROM CONFIG AS 1",
+	"ADD DATA",
+	NULL
+	};
+	int dbfd = open("etc/data.dat", O_CREAT | O_EXCL, 0666);
+	close(dbfd);
+	database_init("etc/data.dat");
+	for (int i = 0; msg_init[i]; i++) {
+		if (!strcmp(DBMSG_ERR, database_execute(msg_init[i]))) {
+			remove("etc/data.dat");
+			return 1;
+		}
+	}
+	return 0;
 }
