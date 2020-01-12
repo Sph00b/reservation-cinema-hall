@@ -20,6 +20,8 @@
 		exit(EXIT_FAILURE);\
 	}
 
+database_t db;
+
 void *request_handler(void *);
 int daemonize();
 int dbcreate();
@@ -38,25 +40,25 @@ try(
 	mkdir("etc", 0775), (-1 * (errno != EEXIST))
 )
 try(
-	ret = database_init("etc/data.dat"), (1 * (errno != ENOENT))
+	ret = database_init(&db, "etc/data.dat"), (1 * (errno != ENOENT))
 )
 	if (ret && errno == ENOENT) {
 try(
-		dbcreate(), (1)
+		dbcreate(&db, "etc/data.dat"), (1)
 )
 	}
 try(
 	asprintf(&qpid, "%s %d", "SET PID FROM CONFIG AS", getpid()), (-1)
 )
 try(
-	strcmp(database_execute(qpid), DBMSG_FAIL), (0)
+	strcmp(database_execute(&db, qpid), DBMSG_FAIL), (0)
 )
 	free(qpid);
-	ip = database_execute("GET IP FROM NETWORK");
+	ip = database_execute(&db, "GET IP FROM NETWORK");
 try(
 	strcmp(ip, DBMSG_FAIL), (0)
 )
-	port = database_execute("GET PORT FROM NETWORK");
+	port = database_execute(&db, "GET PORT FROM NETWORK");
 try(
 	strcmp(port, DBMSG_FAIL), (0)
 )
@@ -104,7 +106,7 @@ if (buff[strlen(buff) - 1] == '\n') {
 		buff[strlen(buff) - 1] = '\0';
 	}
 try(
-	msg = database_execute(buff), (DBMSG_FAIL)
+	msg = database_execute(&db, buff), (DBMSG_FAIL)
 )
 try(
 	send(fd, msg, strlen(msg), 0), (-1)
@@ -164,7 +166,7 @@ int daemonize(){
 	return 0;
 }
 
-int dbcreate() {
+int dbcreate(database_t *database, const char* filename) {
 	char* msg_init[] = {
 	"ADD NETWORK",
 	"ADD IP FROM NETWORK",
@@ -181,12 +183,12 @@ int dbcreate() {
 	"ADD DATA",
 	NULL
 	};
-	int dbfd = open("etc/data.dat", O_CREAT | O_EXCL, 0666);
+	int dbfd = open(filename, O_CREAT | O_EXCL, 0666);
 	close(dbfd);
-	database_init("etc/data.dat");
+	database_init(database, filename);
 	for (int i = 0; msg_init[i]; i++) {
-		if (!strcmp(DBMSG_ERR, database_execute(msg_init[i]))) {
-			remove("etc/data.dat");
+		if (!strcmp(DBMSG_ERR, database_execute(database, msg_init[i]))) {
+			remove(filename);
 			return 1;
 		}
 	}

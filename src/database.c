@@ -12,12 +12,6 @@
 
 #define WORDLEN 16
 
-FILE* dbstrm = NULL;	//stream to the database
-char* dbcache = NULL;	//database buffer cache
-uint8_t dbit = 1;		//dirty bit
-
-pthread_mutex_t mutex;
-
 /*	IDK how to name
 	undefined behaviour if the strings pointed are longer than WORDLEN
 */
@@ -28,26 +22,26 @@ struct info {
 	const char* value;
 };
 
-int refresh_cache() {
-	if (dbit) {
+int refresh_cache(database_t* database) {
+	if ((*database)->dbit) {
 		int len;
-		if (fseek(dbstrm, 0, SEEK_END) == -1) {
+		if (fseek((*database)->dbstrm, 0, SEEK_END) == -1) {
 			return 1;
 		}
-		if ((len = ftell(dbstrm)) == -1) {
+		if ((len = ftell((*database)->dbstrm)) == -1) {
 			return 1;
 		}
-		free(dbcache);
-		if ((dbcache = (char*)malloc(sizeof(char) * len)) == NULL) {
+		free((*database)->dbcache);
+		if (((*database)->dbcache = (char*)malloc(sizeof(char) * len)) == NULL) {
 			return 1;
 		}
-		if (fseek(dbstrm, 0, SEEK_SET) == -1) {
+		if (fseek((*database)->dbstrm, 0, SEEK_SET) == -1) {
 			return 1;
 		}
-		if (fgets(dbcache, len, dbstrm) == NULL) {
+		if (fgets((*database)->dbcache, len, (*database)->dbstrm) == NULL) {
 			return 1;
 		}
-		dbit = 0;
+		(*database)->dbit = 0;
 	}
 	return 0;
 }
@@ -109,7 +103,7 @@ struct info* get_info(const char* str) {
 
 /* return -1 on sys failure or if the searched section/key is not found*/
 
-int get_offset(const struct info* info) {
+int get_offset(database_t* database, const struct info* info) {
 	/* return -1 on error*/
 	char* tmp;
 	if (info == NULL) {
@@ -121,24 +115,27 @@ int get_offset(const struct info* info) {
 	if (info->key == NULL) {
 		return -1;
 	}
-	if (refresh_cache()) {
+	if (refresh_cache(database)) {
 		return -1;
 	}
 	do {
-		if ((tmp = strstr(dbcache, info->section)) == NULL) {
+		if ((tmp = strstr((*database)->dbcache, info->section)) == NULL) {
 			return -1;
 		}
 	} while (*(tmp - 1) == '<' && *(tmp + 1) == '>');
 	do {
-		if ((tmp = strstr(dbcache, info->key)) == NULL) {
+		if ((tmp = strstr((*database)->dbcache, info->key)) == NULL) {
 			return -1;
 		}
 	} while (*(tmp - 1) == '[' && *(tmp + 1) == ']');
-	return ((tmp - dbcache) / sizeof(char)) + WORDLEN;
+	return ((tmp - (*database)->dbcache) / sizeof(char)) + WORDLEN;
 }
 
-int add(const struct info* info) {
+int add(database_t* database, const struct info* info) {
 	char* buff;
+	if (*database == NULL) {
+		return 1;
+	}
 	if (info == NULL) {
 		return 1;
 	}
@@ -175,37 +172,37 @@ int add(const struct info* info) {
 		buff[strlen(buff)] = ']';
 		buff[WORDLEN * 2] = 0;
 	}
-	if (fprintf(dbstrm, buff) < 0) {
+	if (fprintf((*database)->dbstrm, buff) < 0) {
 		free(buff);
 		return 1;
 	}
-	fflush(dbstrm);
+	fflush((*database)->dbstrm);
 	free(buff);
 	return 0;
 }
 
-int get(const struct info* info, char** dest) {
+int get(database_t* database, const struct info* info, char** dest) {
 	int offset;
 	if (info == NULL) {
 		return 1;
 	}
-	if ((offset = get_offset(info)) == -1) {
+	if ((offset = get_offset(database, info)) == -1) {
 		return 1;
 	}
-	if (fseek(dbstrm, offset, SEEK_SET) == -1) {
+	if (fseek((*database)->dbstrm, offset, SEEK_SET) == -1) {
 		return 1;
 	}
 	if ((*dest = (char*) malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
 		return 1;
 	}
-	if (fgets(*dest, WORDLEN, dbstrm) == NULL) {
+	if (fgets(*dest, WORDLEN, (*database)->dbstrm) == NULL) {
 		free(*dest);
 		return 1;
 	}
 	return 0;
-}
+}\
 
-int set(const struct info* info) {
+int set(database_t* database, const struct info* info) {
 	char* value;
 	int offset;
 	if (info == NULL) {
@@ -214,10 +211,10 @@ int set(const struct info* info) {
 	if (info->value == NULL) {
 		return 1;
 	}
-	if ((offset = get_offset(info)) == -1) {
+	if ((offset = get_offset(database, info)) == -1) {
 		return 1;
 	}
-	if (fseek(dbstrm, offset, SEEK_SET) == -1) {
+	if (fseek((*database)->dbstrm, offset, SEEK_SET) == -1) {
 		return 1;
 	}
 	if (strlen(info->value) > WORDLEN) {
@@ -232,46 +229,45 @@ int set(const struct info* info) {
 	if (strlen(value) < WORDLEN) {
 		value[strlen(value)] = ' ';
 	}
-	if (fprintf(dbstrm, "%s", value) < 0) {
+	if (fprintf((*database)->dbstrm, "%s", value) < 0) {
 		free(value);
 		return 1;
 	}
-	fflush(dbstrm);
+	fflush((*database)->dbstrm);
 	free(value);
-	dbit = 1;
+	(*database)->dbit = 1;
 	return 0;
 }
 
-char* database_execute(const char* query) {
-	int ret = -1;
-	if (dbstrm == NULL) {
-		errno = EBADF;
+char* database_execute(database_t *database, const char* query) {
+	int ret = 1;
+	if (*database == NULL) {
+		errno;	//TODO: set properly errno
+		return DBMSG_ERR;
 	}
-	else {
-		if (strlen(query) > 5) {
-			struct info* qinfo = get_info(query + 4);
-			if (qinfo == NULL) {
-				ret = 1;
-			}
-			else{
-				if (!strncmp(query, "ADD ", 4)) {
-					ret = add(qinfo);
-				}
-				else if (!strncmp(query, "SET ", 4)) {
-					ret = set(qinfo);
-				}
-				else if (!strncmp(query, "GET ", 4)) {
-					char* result;
-					ret = get(qinfo, &result);
-					if (!ret) {
-						strtok(result, " ");	//this should be deleted and handled elsewere
-						return result;
-					}
-				}
-			}
+	if (query == NULL) {
+		return DBMSG_FAIL;
+	}
+	if (strlen(query) > 5) {
+		struct info* qinfo = get_info(query + 4);
+		if (qinfo == NULL) {
+			ret = 1;
 		}
 		else {
-			ret = 1;
+			if (!strncmp(query, "ADD ", 4)) {
+				ret = add(database, qinfo);
+			}
+			else if (!strncmp(query, "SET ", 4)) {
+				ret = set(database, qinfo);
+			}
+			else if (!strncmp(query, "GET ", 4)) {
+				char* result;
+				ret = get(database, qinfo, &result);
+				if (!ret) {
+					strtok(result, " ");	//this should be deleted and handled elsewere
+					return result;
+				}
+			}
 		}
 	}
 	switch (ret) {
@@ -284,23 +280,36 @@ char* database_execute(const char* query) {
 	}
 }
 
-int database_init(const char* filename) {
-	/*	Init the stream of the file, return 0 on success	*/
-	if ((dbstrm = fopen(filename, "r+")) == NULL) {
+int database_init(database_t *database, const char* filename) {
+	if ((*database = (database_t) malloc(sizeof(database_t))) == NULL) {
 		return 1;
 	}
-	if (flock(fileno(dbstrm), LOCK_EX | LOCK_NB) == -1) {	//instead of semget & ftok to avoid mix SysV and POSIX, replace with fcntl
+	if (((*database)->dbstrm = fopen(filename, "r+")) == NULL) {
+		free(*database);
 		return 1;
 	}
-	if (pthread_mutex_init(&mutex, NULL)) {
+	if (flock(fileno((*database)->dbstrm), LOCK_EX | LOCK_NB) == -1) {	//instead of semget & ftok to avoid mix SysV and POSIX, replace with fcntl
+		free(*database);
 		return 1;
 	}
-	if (pthread_mutex_unlock(&mutex)) {
+	if (pthread_mutex_init(&(*database)->mutex, NULL)) {
+		free(*database);
 		return 1;
 	}
+	if (pthread_mutex_unlock(&(*database)->mutex)) {
+		free(*database);
+		return 1;
+	}
+	(*database)->dbcache = NULL;
+	(*database)->dbit = 1;
 	return 0;
 }
 
-int database_close() {
-	return fclose(dbstrm);
+int database_close(database_t *database) {
+	if (fclose((*database)->dbstrm)) {
+		return 1;
+	}
+	free((*database)->dbcache);
+	free(*database);
+	return 0;
 }

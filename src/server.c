@@ -60,9 +60,11 @@ int daemon_stop(){
 	/* retirve pid with a query */
 	/*send a SIGTERM to pid*/
 	char *pid;
+/*
 try(
 	pid = database_execute("GET PID FROM CONFIG"), (NULL)
 )
+*/
 try(
 	kill(atoi(pid), SIGKILL), (-1)
 )
