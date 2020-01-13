@@ -24,7 +24,7 @@ database_t db;
 
 void *request_handler(void *);
 int daemonize();
-int dbcreate();
+int dbcreate(database_t*, const char*);
 
 int main(int argc, char *argv[]){
 	pthread_t *tid = NULL;
@@ -88,6 +88,9 @@ try(
 	connection_listener_stop(), (-1)
 )
 	free(tid);
+try(
+	database_close(&db), (!0)
+)
 	return 0;
 }
 

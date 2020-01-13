@@ -17,12 +17,12 @@
 #define DBMSG_FAIL "OPERATION FAILED"
 #define DBMSG_ERR "DATABASE FAILURE"
 
-typedef struct _database {
+typedef struct {
     FILE* dbstrm;	//stream to the database
     char* dbcache;	//database buffer cache
     uint8_t dbit;	//dirty bit
-    pthread_mutex_t mutex;
-} *database_t;
+    pthread_mutex_t* mutex;
+} database_t;
 
 /*	Initiazliza database from file return 1 and set properly errno on error	*/
 extern int database_init(database_t* database, const char *filename);
