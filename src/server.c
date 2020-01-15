@@ -11,7 +11,6 @@
 #include <pthread.h>
 
 #include "asprintf.h"
-#include "database.h"
 
 #define try(foo, err_value)\
 	if ((foo) == (err_value)){\

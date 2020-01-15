@@ -19,8 +19,10 @@
 
 typedef struct {
     FILE* dbstrm;	//stream to the database
+    /* cache varaibles */
     char* dbcache;	//database buffer cache
     uint8_t dbit;	//dirty bit
+    /* concurrence varaibles */
     unsigned reader_count;
     pthread_mutex_t service_queue;
     pthread_mutex_t read_count_access;
@@ -29,7 +31,7 @@ typedef struct {
 
 /*	Initiazliza database from file return 1 and set properly errno on error	*/
 extern int database_init(database_t* database, const char *filename);
-/*	Close database return EOF and set properly errno on error	*/
+/*	Close database return EOF and set properly errno on error */
 extern int database_close(database_t* database);
-/*	Execute a query return DBMSG_ERR and set properly errno on error	*/
-extern char* database_execute(database_t* database, const char *query);
+/*	Execute a query return 1 and set properly errno on error */
+extern int database_execute(database_t* database, const char *query, char **result);

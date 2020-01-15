@@ -10,6 +10,8 @@
 #include <pthread.h>
 #include <stdint.h>
 
+#include "asprintf.h"
+
 #define WORDLEN 16
 
 /*	IDK how to name
@@ -100,7 +102,7 @@ int get_info(struct info** info, const char* str) {
 	return 1;
 }
 
-/* return -1 on sys failure or if the searched section/key is not found*/
+/* return 0 on success, 1 on sys failure, -1 if not found */
 
 int get_offset(database_t* database, const struct info* info) {
 	char* tmp;
@@ -128,6 +130,8 @@ int get_offset(database_t* database, const struct info* info) {
 	} while (*(tmp - 1) == '[' && *(tmp + 1) == ']');
 	return ((tmp - database->dbcache) / sizeof(char)) + WORDLEN;
 }
+
+/* return 0 on success, 1 on sys failure */
 
 int add(database_t* database, const struct info* info) {
 	int ret;
@@ -196,6 +200,8 @@ int add(database_t* database, const struct info* info) {
 	return 0;
 }
 
+/* return 0 on success, 1 on sys failure, -1 if not found */
+
 int get(database_t* database, const struct info* info, char** dest) {
 	int ret;
 	int offset;
@@ -244,6 +250,8 @@ int get(database_t* database, const struct info* info, char** dest) {
 	}
 	return 0;
 }
+
+/* return 0 on success, 1 on sys failure, -1 if not found */
 
 int set(database_t* database, const struct info* info) {
 	int ret;
@@ -299,46 +307,53 @@ int set(database_t* database, const struct info* info) {
 	return 0;
 }
 
-char* database_execute(database_t *database, const char* query) {
-	int ret = 1;
+int database_execute(database_t* database, const char* query, char** result) {
+	int ret = 0;
+	struct info* qinfo = NULL;
 	if (database == NULL) {
+		ret = 1;
 		errno;	//TODO: set properly errno
-		return DBMSG_ERR;
 	}
-	if (query == NULL) {
-		return DBMSG_FAIL;
+	if (!ret && query == NULL) {
+		ret = -1;
 	}
-	if (strlen(query) > 5) {
-		struct info *qinfo = NULL;
-		if (get_info(&qinfo, query + 4)){
-			ret = 1;
+	if (!ret && strlen(query) < 5) {
+		ret = -1;
+	}
+	if (!ret) {
+		ret = get_info(&qinfo, query + 4);
+	}
+	if (!ret) {
+		if (!strncmp(query, "ADD ", 4)) {
+			ret = add(database, qinfo);
+		}
+		else if (!strncmp(query, "SET ", 4)) {
+			ret = set(database, qinfo);
+		}
+		else if (!strncmp(query, "GET ", 4)) {
+			ret = get(database, qinfo, result);
+			if (!ret) {
+				ret = 2;
+			}
 		}
 		else {
-			if (!strncmp(query, "ADD ", 4)) {
-				ret = add(database, qinfo);
-			}
-			else if (!strncmp(query, "SET ", 4)) {
-				ret = set(database, qinfo);
-			}
-			else if (!strncmp(query, "GET ", 4)) {
-				char* result;
-				ret = get(database, qinfo, &result);
-				if (!ret) {
-					strtok(result, " ");	//this should be deleted and handled elsewere
-					free(qinfo);
-					return result;
-				}
-			}
-			free(qinfo);
+			ret = -1;
 		}
+		free(qinfo);
 	}
 	switch (ret) {
+	case -1:
+		*result = DBMSG_FAIL;
+		return 0;
 	case 0:
-		return DBMSG_SUCC;
+		*result = DBMSG_SUCC;
+		return 0;
 	case 1:
-		return DBMSG_FAIL;
+		*result = DBMSG_ERR;
+		return 1;
 	default:
-		return DBMSG_ERR;
+		strtok(*result, " ");	//soulfn't be handled here
+		return 0;
 	}
 }
 

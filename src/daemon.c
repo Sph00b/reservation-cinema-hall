@@ -4,7 +4,7 @@
 #include <unistd.h>
 #include <syslog.h>
 #include <sys/types.h>
-#include <sys/socket.h>	//I shouldn't use it
+#include <sys/socket.h>	//I shouldn't use it (send, recv)
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -30,8 +30,9 @@ int main(int argc, char *argv[]){
 	pthread_t *tid = NULL;
 	int tc = 0;	//thread counter
 	int ret;
-	char *ip;
-	char *port;
+	char* r;
+	char* ip;
+	char* port;
 	char* qpid;	//process id query
 try(
 	daemonize(), (1)
@@ -51,16 +52,14 @@ try(
 	asprintf(&qpid, "%s %d", "SET PID FROM CONFIG AS", getpid()), (-1)
 )
 try(
-	strcmp(database_execute(&db, qpid), DBMSG_FAIL), (0)
+	database_execute(&db, qpid, &r), (1)
 )
 	free(qpid);
-	ip = database_execute(&db, "GET IP FROM NETWORK");
 try(
-	strcmp(ip, DBMSG_FAIL), (0)
+	database_execute(&db, "GET IP FROM NETWORK", &ip), (1)
 )
-	port = database_execute(&db, "GET PORT FROM NETWORK");
 try(
-	strcmp(port, DBMSG_FAIL), (0)
+	database_execute(&db, "GET PORT FROM NETWORK", &port), (1)
 )
 try(
 	connection_listener_start(ip, atoi(port)), (-1)
@@ -94,42 +93,42 @@ try(
 	return 0;
 }
 
-void *request_handler(void *arg){
+void* request_handler(void* arg) {
 	/*	todo: implement a timeout system	*/
 	int fd = (int)(long)arg;
-	char *buff;
-	const char *msg;
-try(
-	buff = malloc(1024), (NULL)
-)
-try(
-	recv(fd, buff, 1024, 0), (-1)
-)
-if (buff[strlen(buff) - 1] == '\n') {
-		buff[strlen(buff) - 1] = '\0';
-	}
-try(
-	msg = database_execute(&db, buff), (DBMSG_FAIL)
-)
-try(
-	send(fd, msg, strlen(msg), 0), (-1)
-)
-try(
-	close(fd), (-1)
-)
-	free(buff);
+	char* buff;
+	char* msg;
+	try(
+		buff = malloc(1024), (NULL)
+		)
+		try(
+			recv(fd, buff, 1024, 0), (-1)
+			)
+		if (buff[strlen(buff) - 1] == '\n') {
+			buff[strlen(buff) - 1] = '\0';
+		}
+	try(
+		database_execute(&db, buff, &msg), (1)
+		)
+		try(
+			send(fd, msg, strlen(msg), 0), (-1)
+			)
+		try(
+			close(fd), (-1)
+			)
+		free(buff);
 	pthread_exit(0);
 }
 
-int daemonize(){
+int daemonize() {
 	pid_t pid;	//process id
 	pid_t sid;	//session id
 	char* wdir;	//working directory
 	/* run process in backgound */
-	if ((pid = fork()) == -1){
+	if ((pid = fork()) == -1) {
 		return 1;
 	}
-	if (pid != 0){
+	if (pid != 0) {
 		exit(EXIT_SUCCESS);
 	}
 	/* create a new session where process is group leader */
@@ -169,7 +168,8 @@ int daemonize(){
 	return 0;
 }
 
-int dbcreate(database_t *database, const char* filename) {
+int dbcreate(database_t* database, const char* filename) {
+	char* r;
 	char* msg_init[] = {
 	"ADD NETWORK",
 	"ADD IP FROM NETWORK",
@@ -190,8 +190,7 @@ int dbcreate(database_t *database, const char* filename) {
 	close(dbfd);
 	database_init(database, filename);
 	for (int i = 0; msg_init[i]; i++) {
-		char* result = database_execute(database, msg_init[i]);
-		if (!strcmp(DBMSG_ERR, result) || !strcmp(DBMSG_FAIL, result)) {
+		if (database_execute(database, msg_init[i], &r)) {
 			remove(filename);
 			return 1;
 		}
