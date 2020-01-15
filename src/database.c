@@ -14,33 +14,47 @@
 
 #define WORDLEN 16
 
+#define LOCK(mutex, ret)\
+			while ((ret = pthread_mutex_lock(mutex)) && errno == EINTR);\
+			if (ret) {\
+				return 1;\
+			}
+
+#define UNLOCK(mutex, ret)\
+			while ((ret = pthread_mutex_unlock(mutex)) && errno == EINTR);\
+			if (ret) {\
+				return 1;\
+			}
+
+
 /*	IDK how to name
 	undefined behaviour if the strings pointed are longer than WORDLEN
 */
 
 struct info {
-	const char* section;
-	const char* key;
-	const char* value;
+	char* section;
+	char* key;
+	char* value;
 };
 
 int refresh_cache(database_t* database) {
+	int len;
 	if (database->dbit) {
-		int len;
 		if (fseek(database->dbstrm, 0, SEEK_END) == -1) {
 			return 1;
 		}
 		if ((len = ftell(database->dbstrm)) == -1) {
 			return 1;
 		}
+		if (fseek(database->dbstrm, 0, SEEK_SET) == -1) {
+			return 1;
+		}
 		free(database->dbcache);
 		if ((database->dbcache = (char*)malloc(sizeof(char) * len)) == NULL) {
 			return 1;
 		}
-		if (fseek(database->dbstrm, 0, SEEK_SET) == -1) {
-			return 1;
-		}
 		if (fgets(database->dbcache, len, database->dbstrm) == NULL) {
+			free(database->dbcache);
 			return 1;
 		}
 		database->dbit = 0;
@@ -48,14 +62,11 @@ int refresh_cache(database_t* database) {
 	return 0;
 }
 
-/* return NULL on sys failure or on unexpected string*/
+/* return 0 on success, 1 on sys failure, -1 if not found */
 
 int get_info(struct info** info, const char* str) {
 	char* buff;
 	int ntoken = 1;
-	if (str == NULL) {
-		return 1;
-	}
 	if ((*info = (struct info*) malloc(sizeof(struct info))) == NULL) {
 		return 1;
 	}
@@ -104,31 +115,28 @@ int get_info(struct info** info, const char* str) {
 
 /* return 0 on success, 1 on sys failure, -1 if not found */
 
-int get_offset(database_t* database, const struct info* info) {
+int get_offset(database_t* database, const struct info* info, unsigned **offset) {
 	char* tmp;
-	if (info == NULL) {
-		return -1;
-	}
-	if (info->section == NULL) {
-		return -1;
-	}
-	if (info->key == NULL) {
-		return -1;
-	}
 	if (refresh_cache(database)) {
-		return -1;
+		return 1;
+	}
+	if ((*offset = (unsigned*) malloc(sizeof(unsigned))) == NULL) {
+		return 1;
 	}
 	do {
 		if ((tmp = strstr(database->dbcache, info->section)) == NULL) {
+			free(*offset);
 			return -1;
 		}
 	} while (*(tmp - 1) == '<' && *(tmp + 1) == '>');
 	do {
 		if ((tmp = strstr(database->dbcache, info->key)) == NULL) {
+			free(*offset);
 			return -1;
 		}
 	} while (*(tmp - 1) == '[' && *(tmp + 1) == ']');
-	return ((tmp - database->dbcache) / sizeof(char)) + WORDLEN;
+	**offset = ((tmp - database->dbcache) / sizeof(char)) + WORDLEN;
+	return 0;
 }
 
 /* return 0 on success, 1 on sys failure */
@@ -136,17 +144,11 @@ int get_offset(database_t* database, const struct info* info) {
 int add(database_t* database, const struct info* info) {
 	int ret;
 	char* buff;
-	if (database == NULL) {
-		return 1;
-	}
-	if (info == NULL) {
-		return 1;
-	}
 	if (info->section == NULL) {
 		return 1;
 	}
 	if (strlen(info->section) > WORDLEN - 2) {
-		return 1;
+		return -1;
 	}
 	if (info->key == NULL) {
 		if ((buff = (char*)malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
@@ -164,7 +166,7 @@ int add(database_t* database, const struct info* info) {
 		make room for data if the section is not in tail
 		*/
 		if (strlen(info->key) > WORDLEN - 2) {
-			return 1;
+			return -1;
 		}
 		if ((buff = (char*)malloc(sizeof(char) * (2 * WORDLEN + 1))) == NULL) {
 			return 1;
@@ -175,27 +177,17 @@ int add(database_t* database, const struct info* info) {
 		buff[strlen(buff)] = ']';
 		buff[WORDLEN * 2] = 0;
 	}
-	while ((ret = pthread_mutex_lock(&database->service_queue)) && errno == EINTR);
-	if (ret) {
-		return 1;
-	}
-	while ((ret = pthread_mutex_lock(&database->memory_access)) && errno == EINTR);
-	if (ret) {
-		return 1;
-	}
-	while ((ret = pthread_mutex_unlock(&database->service_queue)) && errno == EINTR);
-	if (ret) {
-		return 1;
-	}
+	LOCK(&database->mutex_queue, ret);
+	LOCK(&database->mutex_memory, ret);
+	UNLOCK(&database->mutex_queue, ret);
 	if (fprintf(database->dbstrm, buff) < 0) {
+		UNLOCK(&database->mutex_memory, ret);
 		free(buff);
 		return 1;
 	}
 	fflush(database->dbstrm);
-	while ((ret = pthread_mutex_unlock(&database->memory_access)) && errno == EINTR);
-	if (ret) {
-		return 1;
-	}
+	database->dbit = 1;
+	UNLOCK(&database->mutex_memory, ret);
 	free(buff);
 	return 0;
 }
@@ -204,50 +196,31 @@ int add(database_t* database, const struct info* info) {
 
 int get(database_t* database, const struct info* info, char** dest) {
 	int ret;
-	int offset;
-	if (info == NULL) {
+	unsigned* offset = NULL;
+	if ((*dest = (char*)malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
 		return 1;
 	}
-	while ((ret = pthread_mutex_lock(&database->service_queue)) && errno == EINTR);
-	if (ret) {
-		return 1;
-	}
-	while ((ret = pthread_mutex_lock(&database->read_count_access)) && errno == EINTR);
-	if (ret) {
-		return 1;
-	}
+	LOCK(&database->mutex_queue, ret);
+	LOCK(&database->mutex_read_count, ret);
 	if (!database->reader_count) {
-		while ((ret = pthread_mutex_lock(&database->memory_access)) && errno == EINTR);
-		if (ret) {
-			return 1;
-		}
+		LOCK(&database->mutex_memory, ret);
 	}
 	database->reader_count++;
-	while ((ret = pthread_mutex_unlock(&database->service_queue)) && errno == EINTR);
-	if (ret) {
-		return 1;
-	}
-	while ((ret = pthread_mutex_unlock(&database->read_count_access)) && errno == EINTR);
-	if (ret) {
-		return 1;
-	}
-	if ((offset = get_offset(database, info)) == -1) {
-		return 1;
-	}
-	if (fseek(database->dbstrm, offset, SEEK_SET) == -1) {
-		return 1;
-	}
-	if ((*dest = (char*) malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
-		return 1;
-	}
-	if (fgets(*dest, WORDLEN, database->dbstrm) == NULL) {
+	UNLOCK(&database->mutex_queue, ret);
+	UNLOCK(&database->mutex_read_count, ret);
+	if ((ret = get_offset(database, info, &offset))) {
+		UNLOCK(&database->mutex_memory, ret);
 		free(*dest);
+		return ret;
+	}
+	if (snprintf(*dest, WORDLEN, "%s", database->dbcache + *offset) < WORDLEN) {
+		UNLOCK(&database->mutex_memory, ret);
+		free(*dest);
+		free(offset);
 		return 1;
 	}
-	while ((ret = pthread_mutex_unlock(&database->memory_access)) && errno == EINTR);
-	if (ret) {
-		return 1;
-	}
+	UNLOCK(&database->mutex_memory, ret);
+	free(offset);
 	return 0;
 }
 
@@ -255,34 +228,13 @@ int get(database_t* database, const struct info* info, char** dest) {
 
 int set(database_t* database, const struct info* info) {
 	int ret;
-	int offset;
 	char* value;
-	if (info == NULL) {
-		return 1;
-	}
+	unsigned* offset = NULL;
 	if (info->value == NULL) {
-		return 1;
-	}
-	while ((ret = pthread_mutex_lock(&database->service_queue)) && errno == EINTR);
-	if (ret) {
-		return 1;
-	}
-	while ((ret = pthread_mutex_lock(&database->memory_access)) && errno == EINTR);
-	if (ret) {
-		return 1;
-	}
-	while ((ret = pthread_mutex_unlock(&database->service_queue)) && errno == EINTR);
-	if (ret) {
-		return 1;
-	}
-	if ((offset = get_offset(database, info)) == -1) {
-		return 1;
-	}
-	if (fseek(database->dbstrm, offset, SEEK_SET) == -1) {
-		return 1;
+		return -1;
 	}
 	if (strlen(info->value) > WORDLEN) {
-		return 1;
+		return -1;
 	}
 	if ((value = (char*)malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
 		return 1;
@@ -293,17 +245,32 @@ int set(database_t* database, const struct info* info) {
 	if (strlen(value) < WORDLEN) {
 		value[strlen(value)] = ' ';
 	}
-	if (fprintf(database->dbstrm, "%s", value) < 0) {
+	LOCK(&database->mutex_queue, ret);
+	LOCK(&database->mutex_memory, ret);
+	UNLOCK(&database->mutex_queue, ret);
+	if ((ret = get_offset(database, info, &offset))) {
+		UNLOCK(&database->mutex_memory, ret);
 		free(value);
+		free(offset);
+		return ret;
+	}
+	if (fseek(database->dbstrm, *offset, SEEK_SET) == -1) {
+		UNLOCK(&database->mutex_memory, ret);
+		free(value);
+		free(offset);
+		return 1;
+	}
+	if (fprintf(database->dbstrm, "%s", value) < 0) {
+		UNLOCK(&database->mutex_memory, ret);
+		free(value);
+		free(offset);
 		return 1;
 	}
 	fflush(database->dbstrm);
 	database->dbit = 1;
-	while ((ret = pthread_mutex_unlock(&database->memory_access)) && errno == EINTR);
-	if (ret) {
-		return 1;
-	}
+	UNLOCK(&database->mutex_memory, ret);
 	free(value);
+	free(offset);
 	return 0;
 }
 
@@ -322,6 +289,9 @@ int database_execute(database_t* database, const char* query, char** result) {
 	}
 	if (!ret) {
 		ret = get_info(&qinfo, query + 4);
+	}
+	if (ret == -1) {
+		free(qinfo);
 	}
 	if (!ret) {
 		if (!strncmp(query, "ADD ", 4)) {
@@ -352,7 +322,7 @@ int database_execute(database_t* database, const char* query, char** result) {
 		*result = DBMSG_ERR;
 		return 1;
 	default:
-		strtok(*result, " ");	//soulfn't be handled here
+		strtok(*result, " ");	//souldn't be handled here
 		return 0;
 	}
 }
@@ -363,27 +333,18 @@ int database_init(database_t *database, const char* filename) {
 	database->dbit = 1;
 	database->reader_count = 0;
 	/* mutex for each elemnt in the db */
-	if (pthread_mutex_init(&database->service_queue, NULL)) {
+	if (pthread_mutex_init(&database->mutex_queue, NULL)) {
 		return 1;
 	}
-	if (pthread_mutex_init(&database->read_count_access, NULL)) {
+	if (pthread_mutex_init(&database->mutex_read_count, NULL)) {
 		return 1;
 	}
-	if (pthread_mutex_init(&database->memory_access, NULL)) {
+	if (pthread_mutex_init(&database->mutex_memory, NULL)) {
 		return 1;
 	}
-	while ((ret = pthread_mutex_unlock(&database->service_queue)) && errno == EINTR);
-	if (ret) {
-		return 1;
-	}
-	while ((ret = pthread_mutex_unlock(&database->read_count_access)) && errno == EINTR);
-	if (ret) {
-		return 1;
-	}
-	while ((ret = pthread_mutex_unlock(&database->memory_access)) && errno == EINTR);
-	if (ret) {
-		return 1;
-	}
+	UNLOCK(&database->mutex_queue, ret);
+	UNLOCK(&database->mutex_read_count, ret);
+	UNLOCK(&database->mutex_memory, ret);
 	if ((database->dbstrm = fopen(filename, "r+")) == NULL) {
 		return 1;
 	}
@@ -395,8 +356,6 @@ int database_init(database_t *database, const char* filename) {
 }
 
 int database_close(database_t *database) {
-	int ret;
-	ret = fclose(database->dbstrm);
 	free(database->dbcache);
-	return ret;
+	return fclose(database->dbstrm);
 }

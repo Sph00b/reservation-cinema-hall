@@ -64,6 +64,8 @@ try(
 try(
 	connection_listener_start(ip, atoi(port)), (-1)
 )
+	free(ip);
+	free(port);
 	syslog(LOG_INFO, "cinemad started");
 	do{
 		int fd;
@@ -98,25 +100,26 @@ void* request_handler(void* arg) {
 	int fd = (int)(long)arg;
 	char* buff;
 	char* msg;
-	try(
-		buff = malloc(1024), (NULL)
-		)
-		try(
-			recv(fd, buff, 1024, 0), (-1)
-			)
-		if (buff[strlen(buff) - 1] == '\n') {
-			buff[strlen(buff) - 1] = '\0';
-		}
-	try(
-		database_execute(&db, buff, &msg), (1)
-		)
-		try(
-			send(fd, msg, strlen(msg), 0), (-1)
-			)
-		try(
-			close(fd), (-1)
-			)
-		free(buff);
+try(
+	buff = malloc(1024), (NULL)
+)
+try(
+	recv(fd, buff, 1024, 0), (-1)
+)
+	if (buff[strlen(buff) - 1] == '\n') {
+		buff[strlen(buff) - 1] = '\0';
+	}
+try(
+	database_execute(&db, buff, &msg), (1)
+)
+try(
+	send(fd, msg, strlen(msg), 0), (-1)
+)
+try(
+	close(fd), (-1)
+)
+	free(buff);
+	free(msg);
 	pthread_exit(0);
 }
 

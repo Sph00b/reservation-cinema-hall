@@ -24,9 +24,9 @@ typedef struct {
     uint8_t dbit;	//dirty bit
     /* concurrence varaibles */
     unsigned reader_count;
-    pthread_mutex_t service_queue;
-    pthread_mutex_t read_count_access;
-    pthread_mutex_t memory_access;
+    pthread_mutex_t mutex_queue;
+    pthread_mutex_t mutex_read_count;
+    pthread_mutex_t mutex_memory;
 } database_t;
 
 /*	Initiazliza database from file return 1 and set properly errno on error	*/
