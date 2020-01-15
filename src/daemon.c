@@ -190,7 +190,8 @@ int dbcreate(database_t *database, const char* filename) {
 	close(dbfd);
 	database_init(database, filename);
 	for (int i = 0; msg_init[i]; i++) {
-		if (!strcmp(DBMSG_ERR, database_execute(database, msg_init[i]))) {
+		char* result = database_execute(database, msg_init[i]);
+		if (!strcmp(DBMSG_ERR, result) || !strcmp(DBMSG_FAIL, result)) {
 			remove(filename);
 			return 1;
 		}

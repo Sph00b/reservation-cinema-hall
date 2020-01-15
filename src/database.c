@@ -48,15 +48,14 @@ int refresh_cache(database_t* database) {
 
 /* return NULL on sys failure or on unexpected string*/
 
-struct info* get_info(const char* str) {
-	struct info* info;
+int get_info(struct info** info, const char* str) {
 	char* buff;
 	int ntoken = 1;
 	if (str == NULL) {
-		return NULL;
+		return 1;
 	}
-	if ((info = (struct info*) malloc(sizeof(struct info))) == NULL) {
-		return NULL;
+	if ((*info = (struct info*) malloc(sizeof(struct info))) == NULL) {
+		return 1;
 	}
 	for (int i = 0; i < strlen(str); i++) {
 		if (str[i] == ' ') {
@@ -64,47 +63,46 @@ struct info* get_info(const char* str) {
 		}
 	}
 	if ((buff = strdup(str)) == NULL) {
-		free(info);
-		return NULL;
+		free(*info);
+		return 1;
 	}
 	buff = strtok(buff, " ");
 	switch (ntoken) {
 	case 1:
-		info->section = buff;
-		info->key = NULL;
-		info->value = NULL;
-		return info;
+		(*info)->section = buff;
+		(*info)->key = NULL;
+		(*info)->value = NULL;
+		return 0;
 	case 3:
-		info->key = buff;
+		(*info)->key = buff;
 		if (strcmp(strtok(NULL, " "), "FROM")) {
 			break;
 		}
-		info->section = strtok(NULL, " ");
-		info->value = NULL;
-		return info;
+		(*info)->section = strtok(NULL, " ");
+		(*info)->value = NULL;
+		return 0;
 	case 5:
-		info->key = buff;
+		(*info)->key = buff;
 		if (strcmp(strtok(NULL, " "), "FROM")) {
 			break;
 		}
-		info->section = strtok(NULL, " ");
+		(*info)->section = strtok(NULL, " ");
 		if (strcmp(strtok(NULL, " "), "AS")) {
 			break;
 		}
-		info->value = strtok(NULL, " ");
-		return info;
+		(*info)->value = strtok(NULL, " ");
+		return 0;
 	default:
 		break;
 	}
-	free(info);
+	free(*info);
 	free(buff);
-	return NULL;
+	return 1;
 }
 
 /* return -1 on sys failure or if the searched section/key is not found*/
 
 int get_offset(database_t* database, const struct info* info) {
-	/* return -1 on error*/
 	char* tmp;
 	if (info == NULL) {
 		return -1;
@@ -132,6 +130,7 @@ int get_offset(database_t* database, const struct info* info) {
 }
 
 int add(database_t* database, const struct info* info) {
+	int ret;
 	char* buff;
 	if (database == NULL) {
 		return 1;
@@ -172,18 +171,58 @@ int add(database_t* database, const struct info* info) {
 		buff[strlen(buff)] = ']';
 		buff[WORDLEN * 2] = 0;
 	}
+	while ((ret = pthread_mutex_lock(&database->service_queue)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	while ((ret = pthread_mutex_lock(&database->memory_access)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	while ((ret = pthread_mutex_unlock(&database->service_queue)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
 	if (fprintf(database->dbstrm, buff) < 0) {
 		free(buff);
 		return 1;
 	}
 	fflush(database->dbstrm);
+	while ((ret = pthread_mutex_unlock(&database->memory_access)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
 	free(buff);
 	return 0;
 }
 
 int get(database_t* database, const struct info* info, char** dest) {
+	int ret;
 	int offset;
 	if (info == NULL) {
+		return 1;
+	}
+	while ((ret = pthread_mutex_lock(&database->service_queue)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	while ((ret = pthread_mutex_lock(&database->read_count_access)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	if (!database->reader_count) {
+		while ((ret = pthread_mutex_lock(&database->memory_access)) && errno == EINTR);
+		if (ret) {
+			return 1;
+		}
+	}
+	database->reader_count++;
+	while ((ret = pthread_mutex_unlock(&database->service_queue)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	while ((ret = pthread_mutex_unlock(&database->read_count_access)) && errno == EINTR);
+	if (ret) {
 		return 1;
 	}
 	if ((offset = get_offset(database, info)) == -1) {
@@ -199,16 +238,33 @@ int get(database_t* database, const struct info* info, char** dest) {
 		free(*dest);
 		return 1;
 	}
+	while ((ret = pthread_mutex_unlock(&database->memory_access)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
 	return 0;
 }
 
 int set(database_t* database, const struct info* info) {
-	char* value;
+	int ret;
 	int offset;
+	char* value;
 	if (info == NULL) {
 		return 1;
 	}
 	if (info->value == NULL) {
+		return 1;
+	}
+	while ((ret = pthread_mutex_lock(&database->service_queue)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	while ((ret = pthread_mutex_lock(&database->memory_access)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	while ((ret = pthread_mutex_unlock(&database->service_queue)) && errno == EINTR);
+	if (ret) {
 		return 1;
 	}
 	if ((offset = get_offset(database, info)) == -1) {
@@ -234,8 +290,12 @@ int set(database_t* database, const struct info* info) {
 		return 1;
 	}
 	fflush(database->dbstrm);
-	free(value);
 	database->dbit = 1;
+	while ((ret = pthread_mutex_unlock(&database->memory_access)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	free(value);
 	return 0;
 }
 
@@ -249,8 +309,8 @@ char* database_execute(database_t *database, const char* query) {
 		return DBMSG_FAIL;
 	}
 	if (strlen(query) > 5) {
-		struct info* qinfo = get_info(query + 4);
-		if (qinfo == NULL) {
+		struct info *qinfo = NULL;
+		if (get_info(&qinfo, query + 4)){
 			ret = 1;
 		}
 		else {
@@ -265,9 +325,11 @@ char* database_execute(database_t *database, const char* query) {
 				ret = get(database, qinfo, &result);
 				if (!ret) {
 					strtok(result, " ");	//this should be deleted and handled elsewere
+					free(qinfo);
 					return result;
 				}
 			}
+			free(qinfo);
 		}
 	}
 	switch (ret) {
@@ -281,28 +343,37 @@ char* database_execute(database_t *database, const char* query) {
 }
 
 int database_init(database_t *database, const char* filename) {
+	int ret;
 	database->dbcache = NULL;
 	database->dbit = 1;
+	database->reader_count = 0;
+	/* mutex for each elemnt in the db */
+	if (pthread_mutex_init(&database->service_queue, NULL)) {
+		return 1;
+	}
+	if (pthread_mutex_init(&database->read_count_access, NULL)) {
+		return 1;
+	}
+	if (pthread_mutex_init(&database->memory_access, NULL)) {
+		return 1;
+	}
+	while ((ret = pthread_mutex_unlock(&database->service_queue)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	while ((ret = pthread_mutex_unlock(&database->read_count_access)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	while ((ret = pthread_mutex_unlock(&database->memory_access)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
 	if ((database->dbstrm = fopen(filename, "r+")) == NULL) {
 		return 1;
 	}
 	if (flock(fileno(database->dbstrm), LOCK_EX | LOCK_NB) == -1) {	//instead of semget & ftok to avoid mix SysV and POSIX, replace with fcntl
 		fclose(database->dbstrm);
-		return 1;
-	}
-	/* mutex for each elemnt in the db */
-	if ((database->mutex = (pthread_mutex_t*)malloc(sizeof(pthread_mutex_t))) == NULL) {
-		fclose(database->dbstrm);
-		return 1;
-	}
-	if (pthread_mutex_init(database->mutex, NULL)) {
-		fclose(database->dbstrm);
-		free(database->mutex);
-		return 1;
-	}
-	if (pthread_mutex_unlock(database->mutex)) {
-		fclose(database->dbstrm);
-		free(database->mutex);
 		return 1;
 	}
 	return 0;
@@ -312,6 +383,5 @@ int database_close(database_t *database) {
 	int ret;
 	ret = fclose(database->dbstrm);
 	free(database->dbcache);
-	free(database->mutex);
 	return ret;
 }
