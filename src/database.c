@@ -90,7 +90,7 @@ int get_info(struct info** info, const char* str) {
 		return 0;
 	case 3:
 		(*info)->key = buff;
-		if (strcmp(strtok(NULL, " "), "OF")) {
+		if (strcmp(strtok(NULL, " "), "FROM")) {
 			break;
 		}
 		(*info)->section = strtok(NULL, " ");
@@ -98,7 +98,7 @@ int get_info(struct info** info, const char* str) {
 		return 0;
 	case 5:
 		(*info)->key = buff;
-		if (strcmp(strtok(NULL, " "), "OF")) {
+		if (strcmp(strtok(NULL, " "), "FROM")) {
 			break;
 		}
 		(*info)->section = strtok(NULL, " ");
@@ -194,38 +194,6 @@ int add(database_t* database, const struct info* info) {
 	return 0;
 }
 
-/* return 2 on success, 1 on sys failure, -1 if not found */
-
-int get(database_t* database, const struct info* info, char** dest) {
-	int ret;
-	unsigned* offset = NULL;
-	if ((*dest = (char*)malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
-		return 1;
-	}
-	LOCK(&database->mutex_queue, ret);
-	LOCK(&database->mutex_reader_count, ret);
-	if (!database->reader_count) {
-		LOCK(&database->mutex_memory, ret);
-	}
-	database->reader_count++;
-	UNLOCK(&database->mutex_queue, ret);
-	UNLOCK(&database->mutex_reader_count, ret);
-	if ((ret = get_offset(database, info, &offset))) {
-		UNLOCK(&database->mutex_memory, ret);
-		free(*dest);
-		return ret;
-	}
-	if (snprintf(*dest, WORDLEN, "%s", database->dbcache + *offset) < WORDLEN) {
-		UNLOCK(&database->mutex_memory, ret);
-		free(*dest);
-		free(offset);
-		return 1;
-	}
-	UNLOCK(&database->mutex_memory, ret);
-	free(offset);
-	return 2;
-}
-
 /* return 0 on success, 1 on sys failure, -1 if not found */
 
 int set(database_t* database, const struct info* info) {
@@ -276,55 +244,39 @@ int set(database_t* database, const struct info* info) {
 	return 0;
 }
 
-int database_execute(database_t* database, const char* query, char** result) {
-	int ret = 0;
-	struct info* qinfo = NULL;
-	if (database == NULL) {
-		ret = 1;
-		errno;	//TODO: set properly errno
-	}
-	if (!ret && query == NULL) {
-		ret = -1;
-	}
-	if (!ret && strlen(query) < 5) {
-		ret = -1;
-	}
-	if (!ret) {
-		ret = get_info(&qinfo, query + 4);
-	}
-	if (!ret) {
-		if (!strncmp(query, "ADD ", 4)) {
-			ret = add(database, qinfo);
-		}
-		else if (!strncmp(query, "SET ", 4)) {
-			ret = set(database, qinfo);
-		}
-		else if (!strncmp(query, "GET ", 4)) {
-			ret = get(database, qinfo, result);
-		}
-		else {
-			ret = -1;
-		}
-		free(qinfo->section);
-		free(qinfo->key);
-		free(qinfo->value);
-		free(qinfo);
-	}
-	switch (ret) {
-	case -1:
-		*result = DBMSG_FAIL;
-		return 0;
-	case 0:
-		*result = DBMSG_SUCC;
-		return 0;
-	case 1:
-		*result = DBMSG_ERR;
+/* return 2 on success, 1 on sys failure, -1 if not found */
+
+int get(database_t* database, const struct info* info, char** dest) {
+	int ret;
+	unsigned* offset = NULL;
+	if ((*dest = (char*)malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
 		return 1;
-	default:
-		strtok(*result, " ");	//souldn't be handled here
-		return 0;
 	}
+	LOCK(&database->mutex_queue, ret);
+	LOCK(&database->mutex_reader_count, ret);
+	if (!database->reader_count) {
+		LOCK(&database->mutex_memory, ret);
+	}
+	database->reader_count++;
+	UNLOCK(&database->mutex_queue, ret);
+	UNLOCK(&database->mutex_reader_count, ret);
+	if ((ret = get_offset(database, info, &offset))) {
+		UNLOCK(&database->mutex_memory, ret);
+		free(*dest);
+		return ret;
+	}
+	if (snprintf(*dest, WORDLEN, "%s", database->dbcache + *offset) < WORDLEN) {
+		UNLOCK(&database->mutex_memory, ret);
+		free(*dest);
+		free(offset);
+		return 1;
+	}
+	UNLOCK(&database->mutex_memory, ret);
+	free(offset);
+	return 2;
 }
+
+/*	Initiazliza database from file return 1 and set properly errno on error	*/
 
 int database_init(database_t *database, const char* filename) {
 	int ret;
@@ -354,7 +306,58 @@ int database_init(database_t *database, const char* filename) {
 	return 0;
 }
 
+/*	Close database return EOF and set properly errno on error */
+
 int database_close(database_t *database) {
 	free(database->dbcache);
 	return fclose(database->dbstrm);
+}
+
+/*	Execute a query return 1 and set properly errno on error */
+
+int database_execute(database_t* database, const char* query, char** result) {
+	int ret = 0;
+	struct info* qinfo = NULL;
+	if (database == NULL) {
+		ret = 1;
+		errno;	//TODO: set properly errno
+	}
+	if (!ret && query == NULL) {
+		ret = -1;
+	}
+	if (!ret && strlen(query) < 5) {
+		ret = -1;
+	}
+	if (!ret) {
+		ret = get_info(&qinfo, query + 4);
+	}
+	if (!ret) {
+		if (!strncmp(query, "ADD ", 4)) {
+			ret = add(database, qinfo);
+		}
+		else if (!strncmp(query, "SET ", 4)) {
+			ret = set(database, qinfo);
+		}
+		else if (!strncmp(query, "GET ", 4)) {
+			ret = get(database, qinfo, result);
+		}
+		else {
+			ret = -1;
+		}
+		free(qinfo);
+	}
+	switch (ret) {
+	case -1:
+		*result = DBMSG_FAIL;
+		return 0;
+	case 0:
+		*result = DBMSG_SUCC;
+		return 0;
+	case 1:
+		*result = DBMSG_ERR;
+		return 1;
+	default:
+		strtok(*result, " ");	//souldn't be handled here
+		return 0;
+	}
 }

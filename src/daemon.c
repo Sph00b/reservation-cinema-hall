@@ -51,7 +51,7 @@ try(
 	}
 	syslog(LOG_DEBUG, "connected to database");
 try(
-	asprintf(&qpid, "%s %d", "SET PID OFF CONFIG AS", getpid()), (-1)
+	asprintf(&qpid, "%s %d", "SET PID FROM CONFIG AS", getpid()), (-1)
 )
 try(
 	database_execute(&db, qpid, &r), (1)
@@ -59,10 +59,10 @@ try(
 	free(qpid);
 	syslog(LOG_DEBUG, "pid stored: %s", r);
 try(
-	database_execute(&db, "GET IP OF NETWORK", &ip), (1)
+	database_execute(&db, "GET IP FROM NETWORK", &ip), (1)
 )
 try(
-	database_execute(&db, "GET PORT OF NETWORK", &port), (1)
+	database_execute(&db, "GET PORT FROM NETWORK", &port), (1)
 )
 try(
 	connection_listener_start(ip, atoi(port)), (-1)
@@ -179,17 +179,17 @@ int dbcreate(database_t* database, const char* filename) {
 	char* r;
 	char* msg_init[] = {
 	"ADD NETWORK",
-	"ADD IP OF NETWORK",
-	"SET IP OF NETWORK AS 127.0.0.1",
-	"ADD PORT OF NETWORK",
-	"SET PORT OF NETWORK AS 55555",
+	"ADD IP FROM NETWORK",
+	"SET IP FROM NETWORK AS 127.0.0.1",
+	"ADD PORT FROM NETWORK",
+	"SET PORT FROM NETWORK AS 55555",
 	"ADD CONFIG",
-	"ADD PID OF CONFIG",
-	"SET PID OF CONFIG AS 0",
-	"ADD ROWS OF CONFIG",
-	"SET ROWS OF CONFIG AS 1",
-	"ADD COLUMNS OF CONFIG",
-	"SET COLUMNS OF CONFIG AS 1",
+	"ADD PID FROM CONFIG",
+	"SET PID FROM CONFIG AS 0",
+	"ADD ROWS FROM CONFIG",
+	"SET ROWS FROM CONFIG AS 1",
+	"ADD COLUMNS FROM CONFIG",
+	"SET COLUMNS FROM CONFIG AS 1",
 	"ADD DATA",
 	NULL
 	};

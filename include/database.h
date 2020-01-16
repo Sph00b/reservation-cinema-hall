@@ -8,9 +8,9 @@
  *	query language:
  *	
  *				ADD [SECTION]
- *				ADD [KEY] OF [SECTION]
- *				GET [KEY] OF [SECTION]
- *				SET [KEY] OF [SECTION] AS [VALUE]
+ *				ADD [KEY] FROM [SECTION]
+ *				GET [KEY] FROM [SECTION]
+ *				SET [KEY] FROM [SECTION] AS [VALUE]
  * */
 
 #define DBMSG_SUCC "OPERATION SUCCEDED"
