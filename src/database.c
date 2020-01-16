@@ -1,18 +1,14 @@
 #include "database.h"
 
 #include <stdio.h>
+#include <pthread.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/file.h>
 #include <errno.h>
-#include <pthread.h>
-#include <stdint.h>
-
-#include "asprintf.h"
-
-#include "syslog.h"
 
 #define WORDLEN 16
 
@@ -147,7 +143,7 @@ int add(database_t* database, const struct info* info) {
 	int ret;
 	char* buff;
 	if (info->section == NULL) {
-		return 1;
+		return -1;
 	}
 	if (strlen(info->section) > WORDLEN - 2) {
 		return -1;
@@ -280,6 +276,12 @@ int get(database_t* database, const struct info* info, char** dest) {
 
 int database_init(database_t *database, const char* filename) {
 	int ret;
+	if (database == NULL) {
+		return 1;
+	}
+	if (filename == NULL) {
+		return 1;
+	}
 	database->dbcache = NULL;
 	database->dbit = 1;
 	database->reader_count = 0;
@@ -309,6 +311,9 @@ int database_init(database_t *database, const char* filename) {
 /*	Close database return EOF and set properly errno on error */
 
 int database_close(database_t *database) {
+	if (database == NULL) {
+		return 1;
+	}
 	free(database->dbcache);
 	return fclose(database->dbstrm);
 }
@@ -320,9 +325,12 @@ int database_execute(database_t* database, const char* query, char** result) {
 	struct info* qinfo = NULL;
 	if (database == NULL) {
 		ret = 1;
-		errno;	//TODO: set properly errno
+		errno = EINVAL;
 	}
 	if (!ret && query == NULL) {
+		ret = -1;
+	}
+	if (!ret && result == NULL) {
 		ret = -1;
 	}
 	if (!ret && strlen(query) < 5) {

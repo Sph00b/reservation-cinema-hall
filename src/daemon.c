@@ -21,6 +21,7 @@
 	}
 
 database_t db;
+connection_t con;
 
 void *request_handler(void *);
 int daemonize();
@@ -65,7 +66,7 @@ try(
 	database_execute(&db, "GET PORT FROM NETWORK", &port), (1)
 )
 try(
-	connection_listener_start(ip, atoi(port)), (-1)
+	connection_listener_start(&con, ip, atoi(port)), (1)
 )
 	syslog(LOG_DEBUG, "connected to the network");
 	free(ip);
@@ -74,7 +75,7 @@ try(
 	do{
 		int fd;
 try(
-		fd = connection_accepted_getfd(), (-1)
+		connection_accepted_getfd(&con, &fd), (1)
 )
 		tc++;
 try(
@@ -90,7 +91,7 @@ try(
 )
 	}
 try(
-	connection_listener_stop(), (-1)
+	connection_listener_stop(&con), (-1)
 )
 	free(tid);
 try(
