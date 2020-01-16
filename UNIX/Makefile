@@ -13,19 +13,20 @@ BIN_DIR ?= ./bin
 SRC_DIR ?= ./src
 INC_DIR ?= ./include
 OBJ_DIR ?= ./build
+LIB_DIR ?= ../lib
 
-SRCS := $(shell find $(SRC_DIR) ! -name daemon.c -name *.c)
-OBJS := $(SRCS:%=$(OBJ_DIR)/%.o)
+SRCS := $(shell find $(SRC_DIR) $(LIB_DIR)/$(SRC_DIR) ! -name daemon.c -name *.c)
+OBJS := $(SRCS:%=$(OBJ_DIR)/$(TARGET)/%.o)
 
-DMN_SRCS := $(shell find $(SRC_DIR) ! -name server.c -name *.c)
+DMN_SRCS := $(shell find $(SRC_DIR) $(LIB_DIR)/$(SRC_DIR) ! -name server.c -name *.c)
 DMN_OBJS := $(DMN_SRCS:%=$(OBJ_DIR)/$(DAEMON)/%.o)
 
-CFLAGS ?= -Wall $(addprefix -I,$(INC_DIR))
+CFLAGS ?= -Wall $(addprefix -I,$(INC_DIR)) $(addprefix -I,$(LIB_DIR)/$(INC_DIR))
 LFLAGS ?= -pthread
 
 $(BIN_DIR)/$(TARGET): $(OBJS) $(DMN_DIR)/$(BIN_DIR)/$(DAEMON)
 	$(CC) $(LFLAGS) $(OBJS) -o $@
-$(OBJ_DIR)/%.c.o: %.c
+$(OBJ_DIR)/$(TARGET)/%.c.o: %.c
 	$(MKDIR_P) $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
