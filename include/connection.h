@@ -1,5 +1,6 @@
 #pragma once
-#include <inttypes.h>
+
+#include <stdint.h>
 
 extern int connection_listener_start(const char*, uint16_t);
 extern int connection_listener_stop();

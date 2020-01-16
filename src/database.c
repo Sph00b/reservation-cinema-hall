@@ -12,6 +12,8 @@
 
 #include "asprintf.h"
 
+#include "syslog.h"
+
 #define WORDLEN 16
 
 #define LOCK(mutex, ret)\
@@ -88,7 +90,7 @@ int get_info(struct info** info, const char* str) {
 		return 0;
 	case 3:
 		(*info)->key = buff;
-		if (strcmp(strtok(NULL, " "), "FROM")) {
+		if (strcmp(strtok(NULL, " "), "OF")) {
 			break;
 		}
 		(*info)->section = strtok(NULL, " ");
@@ -96,7 +98,7 @@ int get_info(struct info** info, const char* str) {
 		return 0;
 	case 5:
 		(*info)->key = buff;
-		if (strcmp(strtok(NULL, " "), "FROM")) {
+		if (strcmp(strtok(NULL, " "), "OF")) {
 			break;
 		}
 		(*info)->section = strtok(NULL, " ");
@@ -110,7 +112,7 @@ int get_info(struct info** info, const char* str) {
 	}
 	free(*info);
 	free(buff);
-	return 1;
+	return -1;
 }
 
 /* return 0 on success, 1 on sys failure, -1 if not found */
@@ -192,7 +194,7 @@ int add(database_t* database, const struct info* info) {
 	return 0;
 }
 
-/* return 0 on success, 1 on sys failure, -1 if not found */
+/* return 2 on success, 1 on sys failure, -1 if not found */
 
 int get(database_t* database, const struct info* info, char** dest) {
 	int ret;
@@ -201,13 +203,13 @@ int get(database_t* database, const struct info* info, char** dest) {
 		return 1;
 	}
 	LOCK(&database->mutex_queue, ret);
-	LOCK(&database->mutex_read_count, ret);
+	LOCK(&database->mutex_reader_count, ret);
 	if (!database->reader_count) {
 		LOCK(&database->mutex_memory, ret);
 	}
 	database->reader_count++;
 	UNLOCK(&database->mutex_queue, ret);
-	UNLOCK(&database->mutex_read_count, ret);
+	UNLOCK(&database->mutex_reader_count, ret);
 	if ((ret = get_offset(database, info, &offset))) {
 		UNLOCK(&database->mutex_memory, ret);
 		free(*dest);
@@ -221,7 +223,7 @@ int get(database_t* database, const struct info* info, char** dest) {
 	}
 	UNLOCK(&database->mutex_memory, ret);
 	free(offset);
-	return 0;
+	return 2;
 }
 
 /* return 0 on success, 1 on sys failure, -1 if not found */
@@ -290,9 +292,6 @@ int database_execute(database_t* database, const char* query, char** result) {
 	if (!ret) {
 		ret = get_info(&qinfo, query + 4);
 	}
-	if (ret == -1) {
-		free(qinfo);
-	}
 	if (!ret) {
 		if (!strncmp(query, "ADD ", 4)) {
 			ret = add(database, qinfo);
@@ -302,13 +301,13 @@ int database_execute(database_t* database, const char* query, char** result) {
 		}
 		else if (!strncmp(query, "GET ", 4)) {
 			ret = get(database, qinfo, result);
-			if (!ret) {
-				ret = 2;
-			}
 		}
 		else {
 			ret = -1;
 		}
+		free(qinfo->section);
+		free(qinfo->key);
+		free(qinfo->value);
 		free(qinfo);
 	}
 	switch (ret) {
@@ -336,14 +335,14 @@ int database_init(database_t *database, const char* filename) {
 	if (pthread_mutex_init(&database->mutex_queue, NULL)) {
 		return 1;
 	}
-	if (pthread_mutex_init(&database->mutex_read_count, NULL)) {
+	if (pthread_mutex_init(&database->mutex_reader_count, NULL)) {
 		return 1;
 	}
 	if (pthread_mutex_init(&database->mutex_memory, NULL)) {
 		return 1;
 	}
 	UNLOCK(&database->mutex_queue, ret);
-	UNLOCK(&database->mutex_read_count, ret);
+	UNLOCK(&database->mutex_reader_count, ret);
 	UNLOCK(&database->mutex_memory, ret);
 	if ((database->dbstrm = fopen(filename, "r+")) == NULL) {
 		return 1;

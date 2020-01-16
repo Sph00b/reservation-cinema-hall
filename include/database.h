@@ -1,16 +1,16 @@
 #pragma once
 
 #include <stdio.h>
-#include <pthread.h>
 #include <stdint.h>
+#include <pthread.h>
 
 /*
- *	query language (too similar to SQL, chidish):
+ *	query language:
  *	
  *				ADD [SECTION]
- *				ADD [KEY] FROM [SECTION]
- *				GET [KEY] FROM [SECTION]
- *				SET [KEY] FROM [SECTION] AS [VALUE]
+ *				ADD [KEY] OF [SECTION]
+ *				GET [KEY] OF [SECTION]
+ *				SET [KEY] OF [SECTION] AS [VALUE]
  * */
 
 #define DBMSG_SUCC "OPERATION SUCCEDED"
@@ -25,7 +25,7 @@ typedef struct {
     /* concurrence varaibles */
     unsigned reader_count;
     pthread_mutex_t mutex_queue;
-    pthread_mutex_t mutex_read_count;
+    pthread_mutex_t mutex_reader_count;
     pthread_mutex_t mutex_memory;
 } database_t;
 
