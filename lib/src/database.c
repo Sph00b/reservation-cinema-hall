@@ -63,8 +63,10 @@ int refresh_cache(database_t* database) {
 /* return 0 on success, 1 on sys failure, -1 if not found */
 
 int get_info(struct info** info, const char* str) {
-	char* buff;
+	int ret = 0;
 	int ntoken = 1;
+	char* buff;
+	char* saveptr;
 	if ((*info = (struct info*) malloc(sizeof(struct info))) == NULL) {
 		return 1;
 	}
@@ -77,38 +79,36 @@ int get_info(struct info** info, const char* str) {
 		free(*info);
 		return 1;
 	}
-	buff = strtok(buff, " ");
-	switch (ntoken) {
-	case 1:
-		(*info)->section = buff;
+	buff = strtok_r(buff, " ", &saveptr);
+	if (ntoken == 1) {
+		(*info)->section = strdup(buff);
 		(*info)->key = NULL;
 		(*info)->value = NULL;
-		return 0;
-	case 3:
-		(*info)->key = buff;
-		if (strcmp(strtok(NULL, " "), "FROM")) {
-			break;
-		}
-		(*info)->section = strtok(NULL, " ");
-		(*info)->value = NULL;
-		return 0;
-	case 5:
-		(*info)->key = buff;
-		if (strcmp(strtok(NULL, " "), "FROM")) {
-			break;
-		}
-		(*info)->section = strtok(NULL, " ");
-		if (strcmp(strtok(NULL, " "), "AS")) {
-			break;
-		}
-		(*info)->value = strtok(NULL, " ");
-		return 0;
-	default:
-		break;
 	}
-	free(*info);
+	if (ntoken == 3 || ntoken == 5) {
+		(*info)->key = strdup(buff);
+		if (!strcmp(strtok_r(NULL, " ", &saveptr), "FROM")) {
+			(*info)->section = strdup(strtok_r(NULL, " ", &saveptr));
+			(*info)->value = NULL;
+		}
+		else {
+			ret = 1;
+		}
+	}
+	if (ntoken == 5) {
+		if (!strcmp(strtok_r(NULL, " ", &saveptr), "AS")) {
+			(*info)->value = strdup(strtok_r(NULL, " ", &saveptr));
+		}
+		else {
+			ret = 1;
+		}
+	}
 	free(buff);
-	return -1;
+	if (ret) {
+		free(*info);
+		return -1;
+	}
+	return 0;
 }
 
 /* return 0 on success, 1 on sys failure, -1 if not found */

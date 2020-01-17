@@ -4,7 +4,6 @@
 #include <unistd.h>
 #include <syslog.h>
 #include <sys/types.h>
-#include <sys/socket.h>	//I shouldn't use it (send, recv)
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -73,16 +72,16 @@ try(
 	free(port);
 	syslog(LOG_INFO, "serving");
 	do{
-		int fd;
+		connection_t accepted_connection;
 try(
-		connection_accepted_getfd(&con, &fd), (1)
+		connection_get_accepted(&con, &accepted_connection), (1)
 )
 		tc++;
 try(
 		tid = realloc(tid, sizeof(pthread_t) * tc), (NULL)
 )
 try(
-		pthread_create(&tid[tc - 1], NULL, request_handler, (void *)(long)fd), (!0)
+		pthread_create(&tid[tc - 1], NULL, request_handler, (void*)&accepted_connection) , (!0)
 )
 	} while (1);
 	for (int i = 0; i < tc; i++){
@@ -91,7 +90,7 @@ try(
 )
 	}
 try(
-	connection_listener_stop(&con), (-1)
+	connection_close(&con), (-1)
 )
 	free(tid);
 try(
@@ -102,26 +101,21 @@ try(
 
 void* request_handler(void* arg) {
 	/*	todo: implement a timeout system	*/
-	int fd = (int)(long)arg;
+	connection_t* connection;
+	connection = (connection_t*)arg;
 	char* buff;
 	char* msg;
 try(
-	buff = malloc(1024), (NULL)
+	connection_recv(connection, &buff), (1)
 )
-try(
-	recv(fd, buff, 1024, 0), (-1)
-)
-	if (buff[strlen(buff) - 1] == '\n') {
-		buff[strlen(buff) - 1] = '\0';
-	}
 try(
 	database_execute(&db, buff, &msg), (1)
 )
 try(
-	send(fd, msg, strlen(msg), 0), (-1)
+	connection_send(connection, msg), (1)
 )
 try(
-	close(fd), (-1)
+	connection_close(connection), (1)
 )
 	free(buff);
 	free(msg);
