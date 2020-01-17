@@ -10,7 +10,7 @@
 #include <errno.h>
 
 #define BACKLOG 4096
-#define MSG_LEN 4096
+#define MSG_LEN 64
 
 int connection_listener_start(connection_t* connection, const char* address, const uint16_t port){
 	struct in_addr haddr;		//host address

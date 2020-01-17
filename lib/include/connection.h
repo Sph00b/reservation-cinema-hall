@@ -6,7 +6,7 @@
 
 typedef int connection_t;
 
-/* Initiazliza connection return 1 and set properly errno on error */
+/* Initiazlize connection return 1 and set properly errno on error */
 
 extern int connection_listener_start(connection_t*, const char*, const uint16_t);
 

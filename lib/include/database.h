@@ -29,7 +29,7 @@ typedef struct {
     pthread_mutex_t mutex_memory;
 } database_t;
 
-/*	Initiazliza database from file return 1 and set properly errno on error	*/
+/*	Initiazlize database from file return 1 and set properly errno on error	*/
 extern int database_init(database_t* database, const char *filename);
 /*	Close database return EOF and set properly errno on error */
 extern int database_close(database_t* database);

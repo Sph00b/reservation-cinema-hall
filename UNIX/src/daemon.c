@@ -15,7 +15,7 @@
 
 #define try(foo, err_value)\
 	if ((foo) == (err_value)){\
-		syslog(LOG_ERR, "%m");\
+		syslog(LOG_ERR, "%m was generated from statment %s", #foo);\
 		exit(EXIT_FAILURE);\
 	}
 
