@@ -1,5 +1,6 @@
 #include "connection.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -11,7 +12,7 @@
 #define BACKLOG 4096
 #define MSG_LEN 4096
 
-int connection_listener_start(connection_t* connection, const char* address, uint16_t port){
+int connection_listener_start(connection_t* connection, const char* address, const uint16_t port){
 	struct in_addr haddr;		//host address
 	struct sockaddr_in saddr;	//socket address
 	if (!inet_aton(address, &haddr)) {
@@ -62,10 +63,10 @@ int connection_recv(const connection_t* connection, char** buff) {
 		return 1;
 	}
 	if ((*buff)[len - 1] == '\n') {
-		(*buff)[len - 1] = 0;
 		len--;
 	}
-	if (realloc(*buff, len) == NULL) {
+	(*buff)[len] = 0;
+	if (realloc(*buff, strlen(*buff) + 1) == NULL) {
 		free(*buff);
 		return 1;
 	}
