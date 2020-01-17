@@ -2,3 +2,4 @@ UNIX/bin/
 UNIX/build/
 UNIX/test/
 .vs/
+.ide/
