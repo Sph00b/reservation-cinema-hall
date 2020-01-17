@@ -132,7 +132,6 @@ int get_offset(database_t* database, const struct info* info, unsigned **offset)
 /* return 0 on success, 1 on sys failure */
 
 int add(database_t* database, const struct info* info) {
-	int ret;
 	char* buff;
 	if (info->section == NULL) {
 		return -1;
@@ -246,7 +245,7 @@ int get(database_t* database, const struct info* info, char** dest) {
 /*	Initiazliza database from file return 1 and set properly errno on error	*/
 
 int database_init(database_t *database, const char* filename) {
-	int ret;
+	int ret = 0;
 	if (database == NULL) {
 		return 1;
 	}
@@ -293,6 +292,7 @@ int database_close(database_t *database) {
 
 int database_execute(database_t* database, const char* query, char** result) {
 	int ret = 0;
+	int mret = 0;
 	struct info* qinfo = NULL;
 	if (database == NULL) {
 		ret = 1;
@@ -312,41 +312,44 @@ int database_execute(database_t* database, const char* query, char** result) {
 	}
 	if (!ret) {
 		if (!strncmp(query, "ADD ", 4)) {
-			LOCK(&database->mutex_queue, ret);
-			LOCK(&database->mutex_memory, ret);
-			UNLOCK(&database->mutex_queue, ret);
-			if (!ret) {
+			LOCK(&database->mutex_queue, mret);
+			LOCK(&database->mutex_memory, mret);
+			UNLOCK(&database->mutex_queue, mret);
+			if (!mret) {
 				ret = add(database, qinfo);
 			}
-			UNLOCK(&database->mutex_memory, ret);
+			UNLOCK(&database->mutex_memory, mret);
 		}
 		else if (!strncmp(query, "SET ", 4)) {
-			LOCK(&database->mutex_queue, ret);
-			LOCK(&database->mutex_memory, ret);
-			UNLOCK(&database->mutex_queue, ret);
-			if (!ret) {
+			LOCK(&database->mutex_queue, mret);
+			LOCK(&database->mutex_memory, mret);
+			UNLOCK(&database->mutex_queue, mret);
+			if (!mret) {
 				ret = set(database, qinfo);
 			}
-			UNLOCK(&database->mutex_memory, ret);
+			UNLOCK(&database->mutex_memory, mret);
 		}
 		else if (!strncmp(query, "GET ", 4)) {
-			LOCK(&database->mutex_queue, ret);
-			LOCK(&database->mutex_reader_count, ret);
+			LOCK(&database->mutex_queue, mret);
+			LOCK(&database->mutex_reader_count, mret);
 			if (!database->reader_count) {
-				LOCK(&database->mutex_memory, ret);
+				LOCK(&database->mutex_memory, mret);
 			}
 			database->reader_count++;
-			UNLOCK(&database->mutex_queue, ret);
-			UNLOCK(&database->mutex_reader_count, ret);
-			if (!ret) {
+			UNLOCK(&database->mutex_queue, mret);
+			UNLOCK(&database->mutex_reader_count, mret);
+			if (!mret) {
 				ret = get(database, qinfo, result);
 			}
-			LOCK(&database->mutex_reader_count, ret);
+			LOCK(&database->mutex_reader_count, mret);
 			database->reader_count--;
 			if (!database->reader_count) {
-				UNLOCK(&database->mutex_memory, ret);
+				UNLOCK(&database->mutex_memory, mret);
 			}
-			UNLOCK(&database->mutex_reader_count, ret);
+			UNLOCK(&database->mutex_reader_count, mret);
+			if (ret == 2 && mret) {
+				free(result);
+			}
 		}
 		else {
 			ret = -1;
@@ -355,6 +358,9 @@ int database_execute(database_t* database, const char* query, char** result) {
 		free(qinfo->key);
 		free(qinfo->value);
 		free(qinfo);
+	}
+	if (mret == 1) {
+		ret = 1;
 	}
 	switch (ret) {
 	case -1:
