@@ -6,19 +6,27 @@
 #include <tchar.h>
 #endif
 
+#define WS_CSTYLE WS_OVERLAPPEDWINDOW ^ WS_THICKFRAME ^ WS_MAXIMIZEBOX
+
 //	Variabili globali:
 HINSTANCE hInst;		// Istanza corrente
 LPTSTR szTitle;			// Testo della barra del titolo
 LPTSTR szWindowClass;	// Nome della classe della finestra principale
 
 LPTSTR pID;		//ID codice di prenotazione
+HWND hButton1;
+HWND hButton2;
+HWND hButton3;
+HWND hEdit;
+HWND* hButtonS;	//Pointer to seat buttons rep
 
 // Dichiarazioni con prototipo di funzioni incluse in questo modulo di codice:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
-
+void				buttonViewMngr();
+void errorhandler();
 
 int APIENTRY WinMain(_In_ HINSTANCE hInstance, 
 					_In_opt_ HINSTANCE hPrevInstance, 
@@ -27,27 +35,32 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance,
 
 	UNREFERENCED_PARAMETER(hPrevInstance);
 	UNREFERENCED_PARAMETER(lpCmdLine);
-
-	pID = savLoad();
+	
+	if (InitSavefile(TEXT("PrenotazioneCinema"))) {
+		errorhandler();
+	}
 
 	// Inizializzare le stringhe globali
 	szTitle = TEXT("Prenotazione");
 	szWindowClass = TEXT("generic_class");
+	pID = savLoad();
+	//retrive number of seats and rows
+	hButtonS = (HWND*)malloc(10 * sizeof(HWND));
 	if (!MyRegisterClass(hInstance)) {
 		return 0;
 	}
 
 #ifdef _DEBUG
-	_tprintf(TEXT("WINDOW CLASS SUCCESFULLY REGITRATED\n"));
+	_tprintf(TEXT("WINDOW CLASS REGITRATED\n"));
 #endif
 
 	// Eseguire l'inizializzazione dall'applicazione:
 	if (!InitInstance(hInstance, nCmdShow)) {
-		return FALSE;
+		return 0;
 	}
 
 #ifdef _DEBUG
-	_tprintf(TEXT("WINDOW SUCCESFULLY INITIALIZATED\n"));
+	_tprintf(TEXT("WINDOW INITIALIZATED\n"));
 #endif
 	MSG msg;
 
@@ -124,81 +137,78 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 #endif
 
 	//	Create Button
-	HWND hButton1 = CreateWindow(
-		"BUTTON",										//	PREDEFINED CLASS 
-		"Prenota",										//	Button text 
-		WS_TABSTOP | WS_CHILD,							//	Styles 
-		210,											//	x position 
-		300,											//	y position 
-		210,											//	Button width
-		60,												//	Button height
-		hWnd,											//	PARENT WINDOW window
-		NULL,											//	NO MENU
-		hInstance,										//	INSTANCE
-		NULL);											//	NO PARAMETER
-
-	if (!hButton1) {
+	hButton1 = CreateWindow(
+		TEXT("BUTTON"),					//	PREDEFINED CLASS 
+		TEXT("Prenota"),				//	Button text 
+		WS_CHILD,						//	Styles 
+		210, 300,						//	x,y position
+		210, 60,						//	w,h size
+		hWnd, NULL, hInstance,			//	PARENT WINDOW, MENU, INSTANCE
+		NULL							//	PARAMETER
+	);
+	if (!hButton1)
 		return FALSE;
-	}
 
 	//	Create Button
-	HWND hButton2 = CreateWindow(
-		"BUTTON",												//	PREDEFINED CLASS 
-		"Modifica prenotazione",								//	Button text 
-		WS_CHILD | WS_VISIBLE,									//	Styles 
-		70,														//	x position 
-		300,													//	y position 
-		210,													//	Button width
-		60,														//	Button height
-		hWnd,													//	PARENT WINDOW window
-		NULL,													//	NO MENU
-		hInstance,												//	INSTANCE
-		NULL);													//	NO PARAMETER
-
-	if (!hButton2) {
+	hButton2 = CreateWindow(
+		TEXT("BUTTON"),					//	PREDEFINED CLASS 
+		TEXT("Modifica prenotazione"),	//	Button text 
+		WS_CHILD,						//	Styles 
+		70, 300,						//	x,y POSITION
+		210, 60,						//	w,h SIZE
+		hWnd, NULL, hInstance,			//	PARENT WINDOW, MENU, INSTANCE
+		NULL							//	PARAMETER
+	);
+	if (!hButton2)
 		return FALSE;
-	}
 
 	//	Create Button
-	HWND hButton3 = CreateWindow(
-		"BUTTON",												//	PREDEFINED CLASS 
-		"Elimina prenotazione",									//	Button text 
-		WS_VISIBLE | WS_CHILD,									//	Styles 
-		350,													//	x position 
-		300,													//	y position 
-		210,													//	Button width
-		60,														//	Button height
-		hWnd,													//	PARENT WINDOW window
-		NULL,													//	NO MENU
-		hInstance,												//	INSTANCE
-		NULL);													//	NO PARAMETER
-
-	if (!hButton3) {
+	hButton3 = CreateWindow(
+		TEXT("BUTTON"),					//	PREDEFINED CLASS
+		TEXT("Elimina prenotazione"),	//	Button text 
+		WS_CHILD,						//	Styles 
+		350, 300,						//	x,y position
+		210, 60,						//	w,h size
+		hWnd, NULL, hInstance,			//	PARENT WINDOW, MENU, INSTANCE
+		NULL							//	PARAMETER
+	);
+	if (!hButton3)
 		return FALSE;
-	}
 
 #ifdef _DEBUG
-	_tprintf(TEXT("BUTTONS SUCCESFULLY CREATED\n"));
+	_tprintf(TEXT("BUTTONS CREATED\n"));
 #endif
 
-	//	Create Textxbox
+	//	Create Label
 
-	HWND hEdit = CreateWindowEx(
-		WS_EX_CLIENTEDGE,
-		"Static",
-		pID,
-		WS_CHILD | WS_VISIBLE | ES_AUTOVSCROLL | ES_AUTOHSCROLL,
-		210,
-		20,
-		210,
-		20,
-		hWnd,													//	PARENT WINDOW window
-		NULL,
-		hInstance,
-		NULL);
-
-	if (!hEdit) {
+	hEdit = CreateWindowEx(
+		WS_EX_CLIENTEDGE,					//	EX style
+		TEXT("STATIC"),						//	PREDEFINED CLASS
+		pID,								//	text 
+		WS_CHILD | WS_VISIBLE | SS_CENTER,	//	Styles 
+		210, 20,							//	x,y position
+		210, 20,							//	w,h size
+		hWnd, NULL, hInstance,				//	PARENT WINDOW, MENU, INSTANCE
+		NULL								//	PARAMETER
+	);
+	if (!hEdit)
 		return FALSE;
+
+#ifdef _DEBUG
+	_tprintf(TEXT("TEXTBOX CREATED\n"));
+#endif
+
+	//	Create seat Buttons
+	for (int i = 0; i < 10; i++) {
+		hButtonS[i] = CreateWindow(
+			TEXT("BUTTON"),							//	PREDEFINED CLASS
+			TEXT(""),								//	text 
+			WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,	//	Styles 
+			(10 + 1.25 * i * 32), 60,				//	x,y position
+			32, 32,									//	w,h size
+			hWnd, NULL, hInstance,					//	PARENT WINDOW, MENU, INSTANCE
+			NULL									//	PARAMETER
+		);
 	}
 
 #ifdef _DEBUG
@@ -241,13 +251,52 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 #ifdef _DEBUG
 		_tprintf(TEXT("RECEIVED PAINT MESSAGE\n"));
 #endif
-		{
-			PAINTSTRUCT ps;
-			HDC hdc = BeginPaint(hWnd, &ps);
-			//	TODO: Aggiungere qui il codice di disegno che usa HDC...
-			EndPaint(hWnd, &ps);
+		PAINTSTRUCT ps;
+		HDC hdc = BeginPaint(hWnd, &ps);
+		//	TODO: Aggiungere qui il codice di disegno che usa HDC...
+		EndPaint(hWnd, &ps);
+		if (!_tcscmp(pID, TEXT(""))) {
+			ShowWindow(hButton1, SW_SHOWNORMAL);
+			ShowWindow(hButton2, SW_HIDE);
+			ShowWindow(hButton3, SW_HIDE);
 		}
-		break;
+		else {
+			ShowWindow(hButton1, SW_HIDE);
+			ShowWindow(hButton2, SW_SHOWNORMAL);
+			ShowWindow(hButton3, SW_SHOWNORMAL);
+		}
+		return DefWindowProc(hWnd, message, wParam, lParam);
+
+	case WM_COMMAND:
+		if (wParam == BN_CLICKED) {
+#ifdef _DEBUG
+			printf(TEXT("RECEIVED WM_COMMAND MESSAGE ON BUTTON %d\n"), lParam);
+#endif
+			if ((HWND)lParam == hButton1) {
+				savStore(TEXT("TEST"));
+			}
+			if ((HWND)lParam == hButton2) {
+				if (_tcscmp(pID, TEXT("TEST")))
+					savStore(TEXT("TEST"));
+				else
+					savStore(TEXT("MTEST"));
+			}
+			if ((HWND)lParam == hButton3) {
+				savStore(TEXT(""));
+			}
+			pID = savLoad();
+			SendMessage(hEdit, WM_SETTEXT, _tcslen(pID), (LPARAM)pID);
+			RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+			break;
+	}
+		return DefWindowProc(hWnd, message, wParam, lParam);
+
+	case WM_DRAWITEM:
+#ifdef _DEBUG
+		printf(TEXT("RECEIVED WM_DRAWITEM MESSAGE\n"));
+#endif
+		(LPDRAWITEMSTRUCT)lParam;
+		return DefWindowProc(hWnd, message, wParam, lParam);
 
 	case WM_DESTROY:
 #ifdef _DEBUG
@@ -257,6 +306,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		break;
 
 	default:
+#ifdef _DEBUG
+		_tprintf(TEXT("RECEIVED GENERIC MESSAGE %d\n"), message);
+#endif
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	}
 	return 0;
@@ -280,4 +332,32 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 	}
 	return (INT_PTR)FALSE;
+}
+
+void buttonViewMngr() {
+	if (!_tcscmp(pID, TEXT(""))) {
+		ShowWindow(hButton1, SW_SHOWNORMAL);
+		ShowWindow(hButton2, SW_HIDE);
+		ShowWindow(hButton3, SW_HIDE);
+	}
+	else {
+		ShowWindow(hButton1, SW_HIDE);
+		ShowWindow(hButton2, SW_SHOWNORMAL);
+		ShowWindow(hButton3, SW_SHOWNORMAL);
+	}
+}
+
+void errorhandler() {
+	LPTSTR p_errmsg = NULL;
+	FormatMessage(
+		FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+		NULL,
+		GetLastError(),
+		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		(LPTSTR)&p_errmsg,
+		0,
+		NULL
+	);
+	_ftprintf(stderr, TEXT("%s\n"), p_errmsg);
+	exit(EXIT_FAILURE);
 }

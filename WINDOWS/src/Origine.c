@@ -24,27 +24,7 @@ Implementazioni:		Server lato Unix Client lato Windows
 #include "savefile.h"
 #include "connection.h"
 
-#include "asprintf.h"
-
-inline void errorhandler() {
-	LPTSTR p_errmsg = NULL;
-	FormatMessage(
-		FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-		NULL,
-		GetLastError(),
-		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-		(LPTSTR)&p_errmsg,
-		0,
-		NULL
-	);
-	_ftprintf(stderr, TEXT("%s\n"), p_errmsg);
-	exit(EXIT_FAILURE);
-}
-
 int _tmain(int argc, LPTSTR* argv) {
-	if (InitSavefile(TEXT("PrenotazioneCinema"))) {
-		errorhandler();
-	}
 	if (!WinMain(GetModuleHandle(NULL), NULL, argv, SW_SHOWNORMAL)) {
 		errorhandler();
 	}

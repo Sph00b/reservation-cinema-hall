@@ -61,6 +61,7 @@ int InitSavefile(LPCTSTR lpName) {
 #ifdef _DEBUG
 	_tprintf(TEXT("SAVEFILE INITIALIZED\n"));
 #endif
+	hSaveFile = htmp;
 	return 0;
 }
 
@@ -68,10 +69,10 @@ BOOL savStore(LPCTSTR lpBuffer) {
 	DWORD dwBytesWritten = 0;
 	SetFilePointer(hSaveFile, 0, NULL, FILE_BEGIN);
 	SetEndOfFile(hSaveFile);
-	WriteFile(hSaveFile, lpBuffer, _tcslen(lpBuffer), &dwBytesWritten, NULL);
+	WriteFile(hSaveFile, lpBuffer, _tcslen(lpBuffer) * sizeof(TCHAR), &dwBytesWritten, NULL);
 	if (_tcslen(lpBuffer) == dwBytesWritten) {
 #ifdef _DEBUG
-	printf("DATA STORED IN THE SAVEFILE\n");
+		_tprintf(TEXT("DATA STORED IN THE SAVEFILE\n"));
 #endif
 		return TRUE;
 	}
@@ -91,7 +92,7 @@ LPTSTR savLoad() {
 	ReadFile(hSaveFile, lpBuffer, dwBytesReadable, &dwBytesRead, NULL);
 	if (dwBytesReadable == dwBytesRead) {
 #ifdef _DEBUG
-	printf(TEXT("DATA LOADED FROM THE SAVEFILE\n"));
+		_tprintf(TEXT("DATA LOADED FROM THE SAVEFILE\n"));
 #endif
 		return lpBuffer;
 	}
