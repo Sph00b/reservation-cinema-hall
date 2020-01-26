@@ -2,6 +2,13 @@
 
 #include <stdarg.h>
 
-int vasprintf(char **str, const char *format, va_list ap);
+#ifdef _WIN32
+#include <Windows.h>
+#endif
 
-int asprintf(char **str, const char *format, ...);
+#ifdef __unix__
+#define LPTSTR char*
+#define LPCTSTR const char*
+#endif
+
+int asprintf(LPTSTR* str, LPCTSTR format, ...);

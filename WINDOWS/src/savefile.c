@@ -1,39 +1,51 @@
 #include "savefile.h"
+#include <stdio.h>
+#include <Windows.h>
+#include <tchar.h>
 
-#define DEBUG
+#include "asprintf.h"
+
 #define MAX_SIZE 32
 
-void getPath(LPTSTR* path, LPCTSTR var, LPCTSTR dir) {
-	size_t size = GetEnvironmentVariable(var, NULL, 0) + _tcslen(TEXT("\\")) + _tcslen(dir);
-	*path = malloc(size);
-	GetEnvironmentVariable(var, *path, size);
-	_tcscat_s(*path, size, TEXT("\\"));
-	_tcscat_s(*path, size, dir);
-}
-
-void getSaveFileName(LPTSTR* filename, LPCTSTR path) {
-	size_t size = _tcslen(path) + _tcslen(TEXT("\\")) + _tcslen(TEXT("sav.dat")) + sizeof(TCHAR);
-	*filename = malloc(size);
-	_tcscpy_s(*filename, size, path);
-	_tcscat_s(*filename, size, TEXT("\\"));
-	_tcscat_s(*filename, size, TEXT("sav.dat"));
-}
-
-HANDLE getSavefile(LPCTSTR pname) {
-	LPTSTR path;
-	getPath(&path, TEXT("APPDATA"), "PrenotazioneCinema");							// pname);
-	if (!CreateDirectory(path, NULL) && GetLastError() != ERROR_ALREADY_EXISTS) {
-		_ftprintf(stderr, TEXT("Program directory unreachable, errcode: %d"), GetLastError());
-		getch();
-		exit(GetLastError());
+int MyGetEnvironmentVariable(LPCTSTR lpName, LPTSTR* lpBuffer) {
+	DWORD len = 0;
+	if (lpBuffer == NULL) {
+		return 1;
 	}
-#ifdef DEBUG
-	printf("SAVEFILE DIRECTORY READY\n");
+	if (!(len = GetEnvironmentVariable(lpName, *lpBuffer, len))) {
+		return 1;
+	}
+	if ((*lpBuffer = (LPTSTR) malloc(sizeof(TCHAR) * len)) == NULL) {
+		return 1;
+	}
+	if (!GetEnvironmentVariable(lpName, *lpBuffer, len)) {
+		free(*lpBuffer);
+		lpBuffer = NULL;
+		return 1;
+	}
+	return 0;
+}
+
+int InitSavefile(LPCTSTR lpName) {
+	LPTSTR env_var;
+	LPTSTR path;
+	HANDLE htmp;
+	MyGetEnvironmentVariable(TEXT("APPDATA"), &env_var);
+	if (asprintf(&path, TEXT("%s\\%s"), env_var, lpName) == -1) {
+		free(env_var);
+		return 1;
+	}
+	if (!CreateDirectory(path, NULL) && GetLastError() != ERROR_ALREADY_EXISTS) {
+		free(path);
+		free(env_var);
+		return 1;
+	}
+#ifdef _DEBUG
+	_tprintf(TEXT("SAVEFILE DIRECTORY READY\n"));
 #endif
-	LPTSTR filename;
-	getSaveFileName(&filename, path);
-	HANDLE savefile = CreateFile(
-		filename,
+	asprintf(&path, TEXT("%s\\%s"), path, TEXT("sav.dat"));
+	htmp = CreateFile(
+		path,
 		GENERIC_READ | GENERIC_WRITE,
 		0,
 		NULL,
@@ -41,23 +53,15 @@ HANDLE getSavefile(LPCTSTR pname) {
 		FILE_ATTRIBUTE_HIDDEN,
 		NULL
 	);
-	if (savefile == INVALID_HANDLE_VALUE) {
-		_ftprintf(stderr, TEXT("Save data can't be load, errcode: %d"), GetLastError());
-		getch();
-		exit(GetLastError());
+	free(path);
+	free(env_var);
+	if (htmp == INVALID_HANDLE_VALUE) {
+		return 1;
 	}
-#ifdef DEBUG
-	printf("SAVEFILE READY\n");
+#ifdef _DEBUG
+	_tprintf(TEXT("SAVEFILE INITIALIZED\n"));
 #endif
-	return savefile;
-}
-
-BOOL InitSavefile(LPCTSTR pname) {
-	hSaveFile = getSavefile(pname);
-#ifdef DEBUG
-	printf("SAVEFILE INITIALIZED\n");
-#endif
-	return TRUE;
+	return 0;
 }
 
 BOOL savStore(LPCTSTR lpBuffer) {
@@ -66,8 +70,8 @@ BOOL savStore(LPCTSTR lpBuffer) {
 	SetEndOfFile(hSaveFile);
 	WriteFile(hSaveFile, lpBuffer, _tcslen(lpBuffer), &dwBytesWritten, NULL);
 	if (_tcslen(lpBuffer) == dwBytesWritten) {
-#ifdef DEBUG
-		printf("DATA STORED IN THE SAVEFILE\n");
+#ifdef _DEBUG
+	printf("DATA STORED IN THE SAVEFILE\n");
 #endif
 		return TRUE;
 	}
@@ -86,8 +90,8 @@ LPTSTR savLoad() {
 	SetFilePointer(hSaveFile, 0, NULL, FILE_BEGIN);
 	ReadFile(hSaveFile, lpBuffer, dwBytesReadable, &dwBytesRead, NULL);
 	if (dwBytesReadable == dwBytesRead) {
-#ifdef DEBUG
-		printf("DATA LOADED FROM THE SAVEFILE\n");
+#ifdef _DEBUG
+	printf(TEXT("DATA LOADED FROM THE SAVEFILE\n"));
 #endif
 		return lpBuffer;
 	}
