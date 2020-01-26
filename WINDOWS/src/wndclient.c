@@ -1,5 +1,7 @@
+#include "connection.h"
 #include "wndclient.h"
 #include "framework.h"
+#include "savefile.h"
 
 #ifdef _DEBUG
 #include <stdio.h>
@@ -12,6 +14,8 @@
 HINSTANCE hInst;		// Istanza corrente
 LPTSTR szTitle;			// Testo della barra del titolo
 LPTSTR szWindowClass;	// Nome della classe della finestra principale
+int rows;
+int columns;
 
 LPTSTR pID;		//ID codice di prenotazione
 HWND hButton1;
@@ -35,16 +39,24 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance,
 	UNREFERENCED_PARAMETER(hPrevInstance);
 	UNREFERENCED_PARAMETER(lpCmdLine);
 	
-	if (InitSavefile(TEXT("PrenotazioneCinema"))) {
-		errorhandler();
-	}
+	LPTSTR buffer;
 
-	// Inizializzare le stringhe globali
+	if (InitSavefile(TEXT("PrenotazioneCinema"))) {
+		return 0;
+	}
+	//	Inizializzare le stringhe globali
 	szTitle = TEXT("Prenotazione");
 	szWindowClass = TEXT("generic_class");
 	pID = savLoad();
-	//retrive number of seats and rows
-	hButtonS = (HWND*)malloc(10 * sizeof(HWND));
+	//	Retrive number of seats and rows
+	query_server(TEXT("GET ROWS FROM CONFIG"), &buffer);
+	rows = _tstoi(buffer);
+	free(buffer);
+	query_server(TEXT("GET COLUMNS FROM CONFIG"), &buffer);
+	columns = _tstoi(buffer);
+	free(buffer);
+	//	Initialize seats buttons
+	hButtonS = (HWND*)malloc(rows * columns * sizeof(HWND));
 	if (!MyRegisterClass(hInstance)) {
 		return 0;
 	}
@@ -198,7 +210,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 #endif
 
 	//	Create seat Buttons
-	for (int i = 0; i < 10; i++) {
+	for (int i = 0; i < rows * columns; i++) {
 		hButtonS[i] = CreateWindow(
 			TEXT("BUTTON"),							//	PREDEFINED CLASS
 			TEXT(""),								//	text 
@@ -314,17 +326,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 }
 
 // Gestore di messaggi per la finestra Informazioni su.
-INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
-{
+INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
 	UNREFERENCED_PARAMETER(lParam);
-	switch (message)
-	{
+	switch (message) {
 	case WM_INITDIALOG:
 		return (INT_PTR)TRUE;
 
 	case WM_COMMAND:
-		if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
-		{
+		if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL) {
 			EndDialog(hDlg, LOWORD(wParam));
 			return (INT_PTR)TRUE;
 		}
@@ -344,4 +353,27 @@ void buttonViewMngr() {
 		ShowWindow(hButton2, SW_SHOWNORMAL);
 		ShowWindow(hButton3, SW_SHOWNORMAL);
 	}
+}
+
+int query_server(LPCTSTR query, LPTSTR* result) {
+	connection_t cntn;
+	if (connection_init(&cntn, TEXT("127.0.0.1"), 55555)) {
+		return 1;
+	}
+	if (connetcion_connect(&cntn)) {
+		return 1;
+	}
+	if (connection_send(&cntn, query) == -1) {
+		return 1;
+	}
+	while (connection_recv(&cntn, result) == -1) {
+		return 1;
+	}
+#ifdef _DEBUG
+	_tprintf(TEXT("QUERY: %s\nRESULT: %s\n"), query, *result);
+#endif
+	if (connection_close(&cntn) == -1) {
+		return 1;
+	}
+	return 0;
 }

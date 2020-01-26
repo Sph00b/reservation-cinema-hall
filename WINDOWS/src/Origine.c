@@ -17,58 +17,25 @@ Pending request:
 Implementazioni:		Server lato Unix Client lato Windows
 */
 
-#include "connection.h"
-#include "savefile.h"
 #include "wndclient.h"
 #include <stdio.h>
 #include <Windows.h>
 #include <WinBase.h>
 
-void connection_example();
 void errorhandler(int);
 
 int _tmain(int argc, LPTSTR* argv) {
-	connection_example();
-	if (!WinMain(GetModuleHandle(NULL), NULL, argv, SW_SHOWNORMAL)) {
+	int ret;
+	if (ret = WinMain(GetModuleHandle(NULL), NULL, argv, SW_SHOWNORMAL) == 0) {
 		errorhandler(GetLastError());
+	}
+	else if (ret == -1) {
+		errorhandler(WSAGetLastError());
 	}
 #ifdef _DEBUG
 	_tprintf(TEXT("\nPROCESS TERMINATED PRESS ENTER TO QUIT\n"));
 #endif
 	if (getc(stdin)) return 0;	/**/
-	return 0;
-}
-
-void connection_example() {
-	connection_t cntn;
-	LPTSTR buffer;
-	if (connection_init(&cntn, TEXT("127.0.0.1"), 55555)) {
-		errorhandler(WSAGetLastError());
-	}
-	if (connetcion_connect(&cntn)) {
-		errorhandler(WSAGetLastError());
-	}
-	if ((buffer = (TCHAR*)malloc(sizeof(TCHAR) * 64)) == NULL) {
-		errorhandler(WSAGetLastError());
-	}
-	memset(buffer, 0, 64);
-	printf("inserire la stringa da spedire: ");
-	fgets(buffer, 64, stdin);
-	buffer[strlen(buffer) - 1] = 0;
-
-	/*	send string to echo server, and retrive response	*/
-
-	if (connection_send(&cntn, buffer) == -1) {
-		errorhandler(WSAGetLastError());
-	}
-	free(buffer);
-	while (connection_recv(&cntn, &buffer) == -1) {
-		errorhandler(WSAGetLastError());
-	}
-	/*	output exhoed string	*/
-
-	printf("risposta del server: %s\n", buffer);
-	connection_close(&cntn);
 	return 0;
 }
 

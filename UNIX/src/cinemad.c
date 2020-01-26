@@ -68,7 +68,7 @@ try(
 	connection_init(&con, ip, atoi(port)), (-1)
 )
 try(
-	connection_listener_start(&con), (1)
+	connection_listener_start(&con), (-1)
 )
 	syslog(LOG_DEBUG, "connected to the network");
 	free(ip);
@@ -77,7 +77,7 @@ try(
 	do{
 		connection_t accepted_connection;
 try(
-		connection_get_accepted(&con, &accepted_connection), (1)
+		connection_get_accepted(&con, &accepted_connection), (-1)
 )
 		tc++;
 try(
@@ -109,16 +109,16 @@ void* request_handler(void* arg) {
 	char* buff;
 	char* msg;
 try(
-	connection_recv(connection, &buff), (1)
+	connection_recv(connection, &buff), (-1)
 )
 try(
-	database_execute(&db, buff, &msg), (1)
+	database_execute(&db, buff, &msg), (-1)
 )
 try(
-	connection_send(connection, msg), (1)
+	connection_send(connection, msg), (-1)
 )
 try(
-	connection_close(connection), (1)
+	connection_close(connection), (-1)
 )
 	free(buff);
 	free(msg);
