@@ -26,7 +26,6 @@ BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 void				buttonViewMngr();
-void errorhandler();
 
 int APIENTRY WinMain(_In_ HINSTANCE hInstance, 
 					_In_opt_ HINSTANCE hPrevInstance, 
@@ -345,19 +344,4 @@ void buttonViewMngr() {
 		ShowWindow(hButton2, SW_SHOWNORMAL);
 		ShowWindow(hButton3, SW_SHOWNORMAL);
 	}
-}
-
-void errorhandler() {
-	LPTSTR p_errmsg = NULL;
-	FormatMessage(
-		FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-		NULL,
-		GetLastError(),
-		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-		(LPTSTR)&p_errmsg,
-		0,
-		NULL
-	);
-	_ftprintf(stderr, TEXT("%s\n"), p_errmsg);
-	exit(EXIT_FAILURE);
 }

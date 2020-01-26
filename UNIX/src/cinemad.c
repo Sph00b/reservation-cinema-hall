@@ -65,7 +65,10 @@ try(
 	database_execute(&db, "GET PORT FROM NETWORK", &port), (1)
 )
 try(
-	connection_listener_start(&con, ip, atoi(port)), (1)
+	connection_init(&con, ip, atoi(port)), (-1)
+)
+try(
+	connection_listener_start(&con), (1)
 )
 	syslog(LOG_DEBUG, "connected to the network");
 	free(ip);
