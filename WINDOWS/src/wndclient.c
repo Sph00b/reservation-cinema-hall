@@ -49,10 +49,14 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance,
 	szWindowClass = TEXT("generic_class");
 	pID = savLoad();
 	//	Retrive number of seats and rows
-	query_server(TEXT("GET ROWS FROM CONFIG"), &buffer);
+	if (query_server(TEXT("GET ROWS FROM CONFIG"), &buffer)) {
+		return 0;
+	}
 	rows = _tstoi(buffer);
 	free(buffer);
-	query_server(TEXT("GET COLUMNS FROM CONFIG"), &buffer);
+	if (query_server(TEXT("GET COLUMNS FROM CONFIG"), &buffer)) {
+		return 0;
+	}
 	columns = _tstoi(buffer);
 	free(buffer);
 	//	Initialize seats buttons

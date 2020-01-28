@@ -19,28 +19,45 @@
 		exit(EXIT_FAILURE);\
 	}
 
-database_t db;
-connection_t con;
+/*	Data structures	*/
 
-void *request_handler(void *);
+struct connection_info {
+	char* address;
+	char* port;
+};
+
+/*	Global variables	*/
+
+database_t db;
+
+/*	Prototype declarations of functions included in this code module	*/
+
+void* connection_manager(void* arg);
+void* request_handler(void* arg);
 int daemonize();
-int dbcreate(database_t*, const char*);
+int dbcreate(database_t* database, const char* filename);
 
 int main(int argc, char *argv[]){
-	pthread_t *tid = NULL;
-	int tc = 0;	//thread counter
+	pthread_t internet_manager_tid;
+	pthread_t internal_manager_tid;
+	struct connection_info internet_info;
+	struct connection_info internal_info;
 	int ret;
 	char* r;
-	char* ip;
-	char* port;
-	char* qpid;	//process id query
+	
+	/*	Daemonize	*/
 try(
 	daemonize(), (1)
 )
 	syslog(LOG_DEBUG, "demonized");
+	/*	Create directory tree	*/
 try(
 	mkdir("etc", 0775), (-1 * (errno != EEXIST))
 )
+try(
+	mkdir("tmp", 0775), (-1 * (errno != EEXIST))
+)
+	/*	Start database	*/
 try(
 	ret = database_init(&db, "etc/data.dat"), (1 * (errno != ENOENT))
 )
@@ -50,6 +67,8 @@ try(
 )
 	}
 	syslog(LOG_DEBUG, "connected to database");
+	/*	Register PID in database	*/
+	char* qpid;
 try(
 	asprintf(&qpid, "%s %d", "SET PID FROM CONFIG AS", getpid()), (-1)
 )
@@ -58,23 +77,61 @@ try(
 )
 	free(qpid);
 	syslog(LOG_DEBUG, "pid stored: %s", r);
+	/*	Prepare connection info variabales	*/
 try(
-	database_execute(&db, "GET IP FROM NETWORK", &ip), (1)
+	database_execute(&db, "GET IP FROM NETWORK", &internet_info.address), (1)
 )
 try(
-	database_execute(&db, "GET PORT FROM NETWORK", &port), (1)
+	database_execute(&db, "GET PORT FROM NETWORK", &internet_info.port), (1)
 )
 try(
-	connection_init(&con, ip, atoi(port)), (-1)
+	asprintf(&internal_info.address, "%s%s", getenv("HOME"), "/.cinema/tmp/socket"), (-1)
 )
 try(
-	connection_listener_start(&con), (-1)
+	asprintf(&internal_info.port, "0"), (-1)
 )
-	syslog(LOG_DEBUG, "connected to the network");
-	free(ip);
-	free(port);
+	/*	Start connection manager threads	*/
+try(
+	pthread_create(&internet_manager_tid, NULL, connection_manager, (void*)&internet_info), (!0)
+)
+try(
+	pthread_create(&internal_manager_tid, NULL, connection_manager, (void*)&internal_info), (!0)
+)
 	syslog(LOG_INFO, "serving");
-	do{
+	/*	Wait for threads return	*/
+try(
+	pthread_join(internet_manager_tid, NULL), (!0)
+)
+try(
+	pthread_join(internal_manager_tid, NULL), (!0)
+)
+	/*	Close database	*/
+try(
+	database_close(&db), (!0)
+)
+	return 0;
+}
+
+void* connection_manager(void* arg) {
+	connection_t con;
+	pthread_t* tid = NULL;
+	int tc = 0;	//thread counter
+	struct connection_info* cinfo;
+	cinfo = (struct connection_info*)arg;
+try(
+	connection_init(&con, cinfo->address, atoi(cinfo->port)), (-1)
+)
+try(
+	connection_listen(&con), (-1)
+)
+	/*doesn't work
+	free(cinfo->address);
+	free(cinfo->port);
+	*/
+try(
+	tid = (pthread_t*)malloc(sizeof(pthread_t)), (NULL)
+)
+	do {
 		connection_t accepted_connection;
 try(
 		connection_get_accepted(&con, &accepted_connection), (-1)
@@ -84,10 +141,10 @@ try(
 		tid = realloc(tid, sizeof(pthread_t) * tc), (NULL)
 )
 try(
-		pthread_create(&tid[tc - 1], NULL, request_handler, (void*)&accepted_connection) , (!0)
+		pthread_create(&tid[tc - 1], NULL, request_handler, (void*)&accepted_connection), (!0)
 )
 	} while (1);
-	for (int i = 0; i < tc; i++){
+	for (int i = 0; i < tc; i++) {
 try(
 		pthread_join(tid[i], NULL), (!0)
 )
@@ -95,11 +152,6 @@ try(
 try(
 	connection_close(&con), (-1)
 )
-	free(tid);
-try(
-	database_close(&db), (!0)
-)
-	return 0;
 }
 
 void* request_handler(void* arg) {

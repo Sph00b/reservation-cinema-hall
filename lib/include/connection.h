@@ -11,7 +11,7 @@
 #include <WS2tcpip.h>
 typedef struct {
 	SOCKET socket;
-	struct sockaddr addr;
+	struct sockaddr* addr;
 	socklen_t addrlen;
 	WSADATA WSAData;
 } connection_t;
@@ -23,7 +23,7 @@ typedef struct {
 #define SOCKET_ERROR  -1
 typedef struct {
 	int socket;
-	struct sockaddr addr;
+	struct sockaddr* addr;
 	socklen_t addrlen;
 } connection_t;
 #endif
@@ -48,7 +48,7 @@ extern int connection_send(const connection_t*, LPCTSTR);
 
 /* Initiazlize connection return 1 and set properly errno on error */
 
-extern int connection_listener_start(connection_t*);
+extern int connection_listen(connection_t*);
 
 /* Get an accepted connection return 1 and set properly errno on error */
 

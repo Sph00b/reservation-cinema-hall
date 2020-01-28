@@ -3,13 +3,9 @@
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/file.h>
-#include <sys/stat.h>
 #include <signal.h>
-#include <pthread.h>
 
+#include "connection.h"
 #include "asprintf.h"
 
 #define try(foo, err_value)\
@@ -18,52 +14,66 @@
 		exit(EXIT_FAILURE);\
 	}
 
-int parseCmdLine(int argc, char *argv[], short *op);
-void daemon_start();
+int daemon_start();
 int daemon_stop();
+int daemon_restart();
+int daemon_query(char*, char**);
 
 int main(int argc, char *argv[]){
-	/*Add status, start, stop, change ip and port, change configuration*/
-	short op;
+	if (argc == 2 && !strncasecmp(argv[1], "start", 5)) {
 try(
-	parseCmdLine(argc, argv, &op), (1)
+		daemon_start(), (1)
 )
-	switch(op){
-case(0):
-	daemon_start();
-case(1):
-	daemon_stop();
-default:
-	break;
+	}
+	else if (argc == 2 && !strncasecmp(argv[1], "stop", 4)) {
+try(
+		daemon_stop(), (1)
+)
+	}
+	else if (argc == 2 && !strncasecmp(argv[1], "restart", 7)) {
+try(
+		daemon_restart(), (1)
+)
+	}
+	else if (argc == 3 && !strncasecmp(argv[1], "query", 5)) {
+		char* buff;
+try(
+		daemon_query(argv[2], &buff), (1)
+)
+		printf("%s\n", buff);
+	}
+	else {
+		printf("Usage:\t cinemactl [COMMAND]\n\n");
+		exit(EXIT_SUCCESS);
 	}
 	return 0;
 }
 
-void daemon_start(){
+int daemon_start(){
+	pid_t pid;
 	char *filename;
-try(
-	asprintf(&filename, "%s%s", getenv("HOME"), "/.cinema/bin/cinemad"), (-1)
-)
-try(
-	execl(filename, "cinemad", NULL), (-1)
-)
+	if (asprintf(&filename, "%s%s", getenv("HOME"), "/.cinema/bin/cinemad") == -1) {
+		return 1;
+	}
+	pid = fork();
+switch (pid) {
+case 0:
+	if (execl(filename, "cinemad", NULL) == -1) {
+		return 1;
+	}
+case -1:
+	return 1;
+default:
+	return 0;
+	}
+
 }
 
 int daemon_stop(){
-
-	/*	Stub	*/
-	system("killall -s KILL cinemad");
-	return 0;
-	/*			*/
-
-	/* retirve pid with a query */
-	/*send a SIGTERM to pid*/
-	char *pid;
-/*
+	char* pid;
 try(
-	pid = database_execute("GET PID FROM CONFIG"), (NULL)
+	daemon_query("GET PID FROM CONFIG", &pid), (1)
 )
-*/
 try(
 	kill(atoi(pid), SIGKILL), (-1)
 )
@@ -71,22 +81,34 @@ try(
 	return 0;
 }
 
-int parseCmdLine(int argc, char *argv[], short *op){
-	if (argc < 2){
-		printf("Usage:\t name [COMMAND] [-h]\n\n");
-		exit(EXIT_SUCCESS);
+int daemon_restart() {
+	if (daemon_stop()) {
+		return 1;
 	}
-	for (int n = 1; n < argc; n++){
-		if (!strncasecmp(argv[n], "-start", 6)){
-			*op = 0;
-		}
-		else if (!strncasecmp(argv[n], "-stop", 5)){
-			*op = 1;
-		}
-		else{
-			printf("Usage:\t name [COMMAND] [-h]\n\n");
-			exit(EXIT_SUCCESS);
-		}
+	if (daemon_start()) {
+		return 1;
+	}
+	return 0;
+}
+
+int daemon_query(char* query, char** result) {
+	connection_t con;
+	char* filename;
+	if (asprintf(&filename, "%s%s", getenv("HOME"), "/.cinema/tmp/socket") == -1) {
+		return 1;
+	}
+	if (connection_init(&con, filename, 0) == -1) {
+		return 1;
+	}
+	free(filename);
+	if (connetcion_connect(&con) == -1) {
+		return 1;
+	}
+	if (connection_send(&con, query) == -1) {
+		return 1;
+	}
+	if (connection_recv(&con, result) == -1) {
+		return 1;
 	}
 	return 0;
 }
