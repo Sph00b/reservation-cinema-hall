@@ -30,22 +30,21 @@ struct connection_info {
 /*	Global variables	*/
 
 database_t db;
-pthread_t internet_mngr_tid;
-pthread_t internal_mngr_tid;
 
 /*	Prototype declarations of functions included in this code module	*/
 
-void* signal_mngr(void* arg);
 void* connection_mngr(void* arg);
 void* request_handler(void* arg);
+void quit(int);
 int daemonize();
 int dbcreate(database_t* database, const char* filename);
 
 int main(int argc, char *argv[]){
-	sigset_t sigset;
-	pthread_t singal_mngr_tid;
+	pthread_t internet_mngr_tid;
+	pthread_t internal_mngr_tid;
 	struct connection_info internet_info;
 	struct connection_info internal_info;
+	sigset_t sigset;
 	int ret;
 	char* r;
 	
@@ -60,10 +59,6 @@ try(
 )
 try(
 	pthread_sigmask(SIG_BLOCK, &sigset, NULL), (!0)
-)
-/*	Start singal manager thread	*/
-try(
-	pthread_create(&singal_mngr_tid, NULL, signal_mngr, NULL), (!0)
 )
 	/*	Create directory tree	*/
 try(
@@ -113,15 +108,30 @@ try(
 	pthread_create(&internal_mngr_tid, NULL, connection_mngr, (void*)&internal_info), (!0)
 )
 	syslog(LOG_INFO, "serving");
+	/*	Wait for SIGTERM becomes pending	*/
+	int sig;
+try(
+	sigemptyset(&sigset), (-1)
+)
+try(
+	sigaddset(&sigset, SIGTERM), (-1)
+)
+try(
+	sigwait(&sigset, &sig), (!0)
+)
+	/*	Send SIGUSR1 signal to connection manager threads	*/
+try(
+	pthread_kill(internet_mngr_tid, SIGUSR1), (!0)
+)
+try(
+	pthread_kill(internal_mngr_tid, SIGUSR1), (!0)
+)
 	/*	Wait for threads return	*/
 try(
 	pthread_join(internet_mngr_tid, NULL), (!0)
 )
 try(
 	pthread_join(internal_mngr_tid, NULL), (!0)
-)
-try(
-	pthread_join(singal_mngr_tid, NULL), (!0)
 )
 	/*	Close database	*/
 try(
@@ -130,12 +140,38 @@ try(
 	return 0;
 }
 
+void quit(int sig) {
+	exit(0);
+}
+
 void* connection_mngr(void* arg) {
+	struct connection_info* cinfo;
 	connection_t con;
 	pthread_t* tid = NULL;
 	int tc = 0;	//thread counter
-	struct connection_info* cinfo;
 	cinfo = (struct connection_info*)arg;
+
+	/*	Handle SIGUSR1 signal	*/
+	sigset_t sigset;
+	struct sigaction sigact;
+try(
+	sigemptyset(&sigset), (-1)
+)
+try(
+	sigaddset(&sigset, SIGUSR1), (-1)
+)
+try(
+	pthread_sigmask(SIG_UNBLOCK, &sigset, NULL), (!0)
+)
+	sigact.sa_handler = quit;
+try(
+	sigemptyset(&sigact.sa_mask), (-1)
+)
+	sigact.sa_flags = 0;
+try(
+	sigaction(SIGUSR1, &sigact, NULL), (-1)
+)
+	/*	Setup connection	*/
 try(
 	connection_init(&con, cinfo->address, atoi(cinfo->port)), (-1)
 )
@@ -192,23 +228,6 @@ try(
 )
 	free(buff);
 	free(msg);
-	pthread_exit(0);
-}
-
-void* signal_mngr(void* arg) {
-	sigset_t set;
-	int sig;
-try(
-	sigemptyset(&set), (-1)
-)
-try(
-	sigaddset(&set, SIGTERM), (-1)
-)
-try(
-	sigwait(&set, &sig), (!0)
-)
-	syslog(LOG_DEBUG, "Get signal %d", sig);
-	exit(0);
 	pthread_exit(0);
 }
 
