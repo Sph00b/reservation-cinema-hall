@@ -16,6 +16,7 @@
 
 int daemon_start();
 int daemon_stop();
+int daemon_status();
 int daemon_restart();
 int daemon_query(char*, char**);
 
@@ -30,6 +31,11 @@ try(
 		daemon_stop(), (1)
 )
 	}
+else if (argc == 2 && !strncasecmp(argv[1], "status", 6)) {
+try(
+		daemon_status(), (1)
+)
+}
 	else if (argc == 2 && !strncasecmp(argv[1], "restart", 7)) {
 try(
 		daemon_restart(), (1)
@@ -43,7 +49,13 @@ try(
 		printf("%s\n", buff);
 	}
 	else {
-		printf("Usage:\t cinemactl [COMMAND]\n\n");
+		printf("\nUsage:\n cinemactl [COMMAND]\n\n\
+			\rCommands:\n\
+			\r start\n\
+			\r stop\n\
+			\r status\n\
+			\r restart\n\
+			\r query [...]\n\n");
 		exit(EXIT_SUCCESS);
 	}
 	return 0;
@@ -59,11 +71,14 @@ int daemon_start(){
 switch (pid) {
 case 0:
 	if (execl(filename, "cinemad", NULL) == -1) {
+		free(filename);
 		return 1;
 	}
 case -1:
+	free(filename);
 	return 1;
 default:
+	free(filename);
 	return 0;
 	}
 
@@ -75,7 +90,7 @@ try(
 	daemon_query("GET PID FROM CONFIG", &pid), (1)
 )
 try(
-	kill(atoi(pid), SIGKILL), (-1)
+	kill(atoi(pid), SIGTERM), (-1)
 )
 	printf("Server stopped\n");
 	return 0;
@@ -87,6 +102,37 @@ int daemon_restart() {
 	}
 	if (daemon_start()) {
 		return 1;
+	}
+	printf("Server restarted\n");
+	return 0;
+}
+
+int daemon_status() {
+	char* pid;
+	char* icon;
+	char* status;
+	if (daemon_query("GET PID FROM CONFIG", &pid) == 1)	{
+		if (asprintf(&icon, "%s", "●") == -1) {
+			return 1;
+		}
+		if (asprintf(&status, "%s", "inactive (dead)") == -1) {
+			free(icon);
+			return 1;
+		}
+		printf("%s cinemad - The Reservation Cinema Server\n\
+		\r   Active: %s\n", icon, status);
+	}
+	else {
+		if (asprintf(&icon, "%s", "\e[0;92m●\e[0m") == -1) {
+			return 1;
+		}
+		/*	Need to ckeck to str*time function	*/
+		if (asprintf(&status, "%s", "\e[1;92mactive (running)\e[0m since") == -1) {
+			return 1;
+		}
+		printf("%s cinemad - The Reservation Cinema Server\n\
+		\r   Active: %s\n\
+		\r Main PID: %s (cinemad)\n", icon, status, pid);
 	}
 	return 0;
 }

@@ -126,6 +126,7 @@ int connection_recv(const connection_t* connection, LPTSTR* buff) {
 	if (!MultiByteToWideChar(CP_UTF8, 0, (LPCCH)utf8_buff, -1, *buff, str_len)) {
 		free(buff);
 		free(utf8_buff);
+		buff = NULL;
 		return -1;
 	}
 	free(utf8_buff);

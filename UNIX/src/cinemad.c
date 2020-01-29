@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <signal.h>
 #include <errno.h>
 
 #include "asprintf.h"
@@ -29,17 +30,20 @@ struct connection_info {
 /*	Global variables	*/
 
 database_t db;
+pthread_t internet_mngr_tid;
+pthread_t internal_mngr_tid;
 
 /*	Prototype declarations of functions included in this code module	*/
 
-void* connection_manager(void* arg);
+void* signal_mngr(void* arg);
+void* connection_mngr(void* arg);
 void* request_handler(void* arg);
 int daemonize();
 int dbcreate(database_t* database, const char* filename);
 
 int main(int argc, char *argv[]){
-	pthread_t internet_manager_tid;
-	pthread_t internal_manager_tid;
+	sigset_t sigset;
+	pthread_t singal_mngr_tid;
 	struct connection_info internet_info;
 	struct connection_info internal_info;
 	int ret;
@@ -50,6 +54,17 @@ try(
 	daemonize(), (1)
 )
 	syslog(LOG_DEBUG, "demonized");
+	/*	Ignore all signals	*/
+try(
+	sigfillset(&sigset), (-1)
+)
+try(
+	pthread_sigmask(SIG_BLOCK, &sigset, NULL), (!0)
+)
+/*	Start singal manager thread	*/
+try(
+	pthread_create(&singal_mngr_tid, NULL, signal_mngr, NULL), (!0)
+)
 	/*	Create directory tree	*/
 try(
 	mkdir("etc", 0775), (-1 * (errno != EEXIST))
@@ -92,18 +107,21 @@ try(
 )
 	/*	Start connection manager threads	*/
 try(
-	pthread_create(&internet_manager_tid, NULL, connection_manager, (void*)&internet_info), (!0)
+	pthread_create(&internet_mngr_tid, NULL, connection_mngr, (void*)&internet_info), (!0)
 )
 try(
-	pthread_create(&internal_manager_tid, NULL, connection_manager, (void*)&internal_info), (!0)
+	pthread_create(&internal_mngr_tid, NULL, connection_mngr, (void*)&internal_info), (!0)
 )
 	syslog(LOG_INFO, "serving");
 	/*	Wait for threads return	*/
 try(
-	pthread_join(internet_manager_tid, NULL), (!0)
+	pthread_join(internet_mngr_tid, NULL), (!0)
 )
 try(
-	pthread_join(internal_manager_tid, NULL), (!0)
+	pthread_join(internal_mngr_tid, NULL), (!0)
+)
+try(
+	pthread_join(singal_mngr_tid, NULL), (!0)
 )
 	/*	Close database	*/
 try(
@@ -112,7 +130,7 @@ try(
 	return 0;
 }
 
-void* connection_manager(void* arg) {
+void* connection_mngr(void* arg) {
 	connection_t con;
 	pthread_t* tid = NULL;
 	int tc = 0;	//thread counter
@@ -155,7 +173,7 @@ try(
 }
 
 void* request_handler(void* arg) {
-	/*	todo: implement a timeout system	*/
+	/*	todo: implement a timeout system alarm(time)?	*/
 	connection_t* connection;
 	connection = (connection_t*)arg;
 	char* buff;
@@ -177,22 +195,28 @@ try(
 	pthread_exit(0);
 }
 
+void* signal_mngr(void* arg) {
+	sigset_t set;
+	int sig;
+try(
+	sigemptyset(&set), (-1)
+)
+try(
+	sigaddset(&set, SIGTERM), (-1)
+)
+try(
+	sigwait(&set, &sig), (!0)
+)
+	syslog(LOG_DEBUG, "Get signal %d", sig);
+	exit(0);
+	pthread_exit(0);
+}
+
 int daemonize() {
 	pid_t pid;	//process id
 	pid_t sid;	//session id
 	char* wdir;	//working directory
 	/* run process in backgound */
-	if ((pid = fork()) == -1) {
-		return 1;
-	}
-	if (pid != 0) {
-		exit(EXIT_SUCCESS);
-	}
-	/* create a new session where process is group leader */
-	if ((sid = setsid()) == -1) {
-		return 1;
-	}
-	/* fork and kill group leader, lose control of terminal */
 	if ((pid = fork()) == -1) {
 		return 1;
 	}
@@ -208,6 +232,17 @@ int daemonize() {
 	}
 	if (fclose(stderr) == EOF) {
 		return 1;
+	}
+	/* create a new session where process is group leader */
+	if ((sid = setsid()) == -1) {
+		return 1;
+	}
+	/* fork and kill group leader, lose control of terminal */
+	if ((pid = fork()) == -1) {
+		return 1;
+	}
+	if (pid != 0) {
+		exit(EXIT_SUCCESS);
 	}
 	/* change working directory */
 	if (asprintf(&wdir, "%s%s", getenv("HOME"), "/.cinema") == -1) {
