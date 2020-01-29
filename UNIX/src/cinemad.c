@@ -141,7 +141,8 @@ try(
 }
 
 void quit(int sig) {
-	exit(0);
+	NULL;
+	//exit(0);
 }
 
 void* connection_mngr(void* arg) {
@@ -149,6 +150,8 @@ void* connection_mngr(void* arg) {
 	connection_t con;
 	pthread_t* tid = NULL;
 	int tc = 0;	//thread counter
+	int ret;
+
 	cinfo = (struct connection_info*)arg;
 
 	/*	Handle SIGUSR1 signal	*/
@@ -188,8 +191,11 @@ try(
 	do {
 		connection_t accepted_connection;
 try(
-		connection_get_accepted(&con, &accepted_connection), (-1)
+		ret = connection_get_accepted(&con, &accepted_connection), (-1 * (errno != EINTR))
 )
+		if (ret == -1 && errno == EINTR) {
+			break;
+		}
 		tc++;
 try(
 		tid = realloc(tid, sizeof(pthread_t) * tc), (NULL)
@@ -203,9 +209,11 @@ try(
 		pthread_join(tid[i], NULL), (!0)
 )
 	}
+	free(tid);
 try(
 	connection_close(&con), (-1)
 )
+	pthread_exit(0);
 }
 
 void* request_handler(void* arg) {
