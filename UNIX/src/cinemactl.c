@@ -92,7 +92,6 @@ try(
 try(
 	kill(atoi(pid), SIGTERM), (-1)
 )
-	printf("Server stopped\n");
 	return 0;
 }
 
