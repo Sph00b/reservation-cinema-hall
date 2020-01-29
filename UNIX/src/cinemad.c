@@ -13,6 +13,7 @@
 #include "asprintf.h"
 #include "database.h"
 #include "connection.h"
+#include "stack.h"
 
 #define try(foo, err_value)\
 	if ((foo) == (err_value)){\
@@ -23,6 +24,7 @@
 /*	Data structures	*/
 
 struct connection_info {
+	connection_t* pconnection;
 	char* address;
 	char* port;
 };
@@ -30,35 +32,47 @@ struct connection_info {
 /*	Global variables	*/
 
 database_t db;
+_stack_t tid_stack;
 
 /*	Prototype declarations of functions included in this code module	*/
 
+void* thread_joiner(void* arg);
 void* connection_mngr(void* arg);
 void* request_handler(void* arg);
-void quit(int);
 int daemonize();
 int dbcreate(database_t* database, const char* filename);
 
+void timeout(int sig) {
+	pthread_exit(0);
+}
+
 int main(int argc, char *argv[]){
+	pthread_t joiner_tid;
 	pthread_t internet_mngr_tid;
 	pthread_t internal_mngr_tid;
+	connection_t internet_con;
+	connection_t internal_con;
 	struct connection_info internet_info;
 	struct connection_info internal_info;
 	sigset_t sigset;
-	int ret;
-	char* r;
+	long server_status = 1;
 	
-	/*	Daemonize	*/
-try(
-	daemonize(), (1)
-)
-	syslog(LOG_DEBUG, "demonized");
 	/*	Ignore all signals	*/
 try(
 	sigfillset(&sigset), (-1)
 )
 try(
 	pthread_sigmask(SIG_BLOCK, &sigset, NULL), (!0)
+)
+	/*	Daemonize	*/
+try(
+	daemonize(), (1)
+)
+	syslog(LOG_DEBUG, "demonized");
+	/*	Start joiner thread	*/
+	tid_stack = NULL;
+try(
+	pthread_create(&joiner_tid, NULL, thread_joiner, (void*)&server_status), (!0)
 )
 	/*	Create directory tree	*/
 try(
@@ -68,6 +82,7 @@ try(
 	mkdir("tmp", 0775), (-1 * (errno != EEXIST))
 )
 	/*	Start database	*/
+	int ret;
 try(
 	ret = database_init(&db, "etc/data.dat"), (1 * (errno != ENOENT))
 )
@@ -76,18 +91,21 @@ try(
 		dbcreate(&db, "etc/data.dat"), (1)
 )
 	}
-	syslog(LOG_DEBUG, "connected to database");
+	syslog(LOG_DEBUG, "Connected to database");
 	/*	Register PID in database	*/
 	char* qpid;
+	char* result;
 try(
 	asprintf(&qpid, "%s %d", "SET PID FROM CONFIG AS", getpid()), (-1)
 )
 try(
-	database_execute(&db, qpid, &r), (1)
+	database_execute(&db, qpid, &result), (1)
 )
 	free(qpid);
-	syslog(LOG_DEBUG, "pid stored: %s", r);
+	syslog(LOG_DEBUG, "PID stored: %s", result);
 	/*	Prepare connection info variabales	*/
+	internet_info.pconnection = &internet_con;
+	internal_info.pconnection = &internal_con;
 try(
 	database_execute(&db, "GET IP FROM NETWORK", &internet_info.address), (1)
 )
@@ -107,7 +125,7 @@ try(
 try(
 	pthread_create(&internal_mngr_tid, NULL, connection_mngr, (void*)&internal_info), (!0)
 )
-	syslog(LOG_INFO, "serving");
+	syslog(LOG_INFO, "Service started");
 	/*	Wait for SIGTERM becomes pending	*/
 	int sig;
 try(
@@ -119,12 +137,12 @@ try(
 try(
 	sigwait(&sigset, &sig), (!0)
 )
-	/*	Send SIGUSR1 signal to connection manager threads	*/
+	/*	Send SIGALRM signal to connection manager threads	*/
 try(
-	pthread_kill(internet_mngr_tid, SIGUSR1), (!0)
+	pthread_kill(internet_mngr_tid, SIGALRM), (!0)
 )
 try(
-	pthread_kill(internal_mngr_tid, SIGUSR1), (!0)
+	pthread_kill(internal_mngr_tid, SIGALRM), (!0)
 )
 	/*	Wait for threads return	*/
 try(
@@ -133,87 +151,89 @@ try(
 try(
 	pthread_join(internal_mngr_tid, NULL), (!0)
 )
-	/*	Close database	*/
+	server_status = 0;
+try(
+	pthread_join(joiner_tid, NULL), (!0)
+)
+	/*	Free memory	*/
+	free(internet_info.address);
+	free(internet_info.port);
+	free(internal_info.address);
+	free(internal_info.port);
+	/*	Close connections and database	*/
+try(
+	connection_close(&internet_con), (-1)
+)
+try(
+	connection_close(&internal_con), (-1)
+)
 try(
 	database_close(&db), (!0)
 )
+	syslog(LOG_INFO, "Service stopped");
 	return 0;
 }
 
-void quit(int sig) {
-	NULL;
-	//exit(0);
+void* thread_joiner(void* arg) {
+	long* server_status = (long*)arg;
+	while (*server_status) {
+		while(!stack_is_empty(&tid_stack)){
+try(
+			pthread_join(*(pthread_t*)stack_pop(&tid_stack), NULL), (!0)
+)
+		}
+	}
+	pthread_exit(0);
 }
 
 void* connection_mngr(void* arg) {
 	struct connection_info* cinfo;
-	connection_t con;
-	pthread_t* tid = NULL;
-	int tc = 0;	//thread counter
-	int ret;
-
 	cinfo = (struct connection_info*)arg;
 
-	/*	Handle SIGUSR1 signal	*/
+	/*	Handle SIGALRM signal	*/
 	sigset_t sigset;
 	struct sigaction sigact;
 try(
 	sigemptyset(&sigset), (-1)
 )
 try(
-	sigaddset(&sigset, SIGUSR1), (-1)
+	sigaddset(&sigset, SIGALRM), (-1)
 )
 try(
 	pthread_sigmask(SIG_UNBLOCK, &sigset, NULL), (!0)
 )
-	sigact.sa_handler = quit;
+	sigact.sa_handler = timeout;
 try(
 	sigemptyset(&sigact.sa_mask), (-1)
 )
 	sigact.sa_flags = 0;
 try(
-	sigaction(SIGUSR1, &sigact, NULL), (-1)
+	sigaction(SIGALRM, &sigact, NULL), (-1)
 )
 	/*	Setup connection	*/
 try(
-	connection_init(&con, cinfo->address, atoi(cinfo->port)), (-1)
+	connection_init(cinfo->pconnection, cinfo->address, atoi(cinfo->port)), (-1)
 )
 try(
-	connection_listen(&con), (-1)
+	connection_listen(cinfo->pconnection), (-1)
 )
-	/*doesn't work
-	free(cinfo->address);
-	free(cinfo->port);
-	*/
-try(
-	tid = (pthread_t*)malloc(sizeof(pthread_t)), (NULL)
-)
+	/*	Start threads to handle request	*/
 	do {
 		connection_t accepted_connection;
+		pthread_t* tid;
 try(
-		ret = connection_get_accepted(&con, &accepted_connection), (-1 * (errno != EINTR))
-)
-		if (ret == -1 && errno == EINTR) {
-			break;
-		}
-		tc++;
-try(
-		tid = realloc(tid, sizeof(pthread_t) * tc), (NULL)
+		connection_get_accepted(cinfo->pconnection, &accepted_connection), (-1)
 )
 try(
-		pthread_create(&tid[tc - 1], NULL, request_handler, (void*)&accepted_connection), (!0)
+		tid = (pthread_t*)malloc(sizeof(pthread_t)), (NULL)
+)
+try(
+		stack_push(&tid_stack, (void*)tid), (1)
+)
+try(
+		pthread_create(tid, NULL, request_handler, (void*)&accepted_connection), (!0)
 )
 	} while (1);
-	for (int i = 0; i < tc; i++) {
-try(
-		pthread_join(tid[i], NULL), (!0)
-)
-	}
-	free(tid);
-try(
-	connection_close(&con), (-1)
-)
-	pthread_exit(0);
 }
 
 void* request_handler(void* arg) {
