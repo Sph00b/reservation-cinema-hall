@@ -13,9 +13,7 @@
 #define WORDLEN 16
 
 #define LOCK(mutex, ret) if (!ret) while ((ret = pthread_mutex_lock(mutex)) && errno == EINTR);
-
 #define UNLOCK(mutex, ret) if (!ret) while ((ret = pthread_mutex_unlock(mutex)) && errno == EINTR);
-
 
 /*	IDK how to name
 	undefined behaviour if the strings pointed are longer than WORDLEN
@@ -246,28 +244,15 @@ int get(database_t* database, const struct info* info, char** dest) {
 
 int database_init(database_t *database, const char* filename) {
 	int ret = 0;
-	if (database == NULL) {
-		return 1;
-	}
-	if (filename == NULL) {
-		return 1;
-	}
 	database->dbcache = NULL;
 	database->dbit = 1;
-	database->reader_count = 0;
-	/* mutex for each elemnt in the db */
-	if (pthread_mutex_init(&database->mutex_queue, NULL)) {
+	if ((database->lock = (pthread_rwlock_t*)malloc(sizeof(pthread_rwlock_t))) == NULL) {
 		return 1;
 	}
-	if (pthread_mutex_init(&database->mutex_reader_count, NULL)) {
+	while ((ret = pthread_rwlock_init(database->lock, NULL)) && errno == EINTR);
+	if (ret && errno == EINTR) {
 		return 1;
 	}
-	if (pthread_mutex_init(&database->mutex_memory, NULL)) {
-		return 1;
-	}
-	UNLOCK(&database->mutex_queue, ret);
-	UNLOCK(&database->mutex_reader_count, ret);
-	UNLOCK(&database->mutex_memory, ret);
 	if ((database->dbstrm = fopen(filename, "r+")) == NULL) {
 		return 1;
 	}
@@ -281,9 +266,16 @@ int database_init(database_t *database, const char* filename) {
 /*	Close database return EOF and set properly errno on error */
 
 int database_close(database_t *database) {
-	if (database == NULL) {
+	int ret;
+	while ((ret = pthread_rwlock_wrlock(database->lock)) && errno == EINTR);
+	if (ret && errno == EINTR) {
 		return 1;
 	}
+	while ((ret = pthread_rwlock_destroy(database->lock)) && errno == EINTR);
+	if (ret && errno == EINTR) {
+		return 1;
+	}
+	free(database->lock);
 	free(database->dbcache);
 	return fclose(database->dbstrm);
 }
@@ -312,43 +304,24 @@ int database_execute(database_t* database, const char* query, char** result) {
 	}
 	if (!ret) {
 		if (!strncmp(query, "ADD ", 4)) {
-			LOCK(&database->mutex_queue, mret);
-			LOCK(&database->mutex_memory, mret);
-			UNLOCK(&database->mutex_queue, mret);
+			while ((mret = pthread_rwlock_wrlock(database->lock)) && errno == EINTR);
 			if (!mret) {
 				ret = add(database, qinfo);
+				while ((mret = pthread_rwlock_unlock(database->lock)) && errno == EINTR);
 			}
-			UNLOCK(&database->mutex_memory, mret);
 		}
 		else if (!strncmp(query, "SET ", 4)) {
-			LOCK(&database->mutex_queue, mret);
-			LOCK(&database->mutex_memory, mret);
-			UNLOCK(&database->mutex_queue, mret);
+			while ((mret = pthread_rwlock_wrlock(database->lock)) && errno == EINTR);
 			if (!mret) {
 				ret = set(database, qinfo);
+				while ((mret = pthread_rwlock_unlock(database->lock)) && errno == EINTR);
 			}
-			UNLOCK(&database->mutex_memory, mret);
 		}
 		else if (!strncmp(query, "GET ", 4)) {
-			LOCK(&database->mutex_queue, mret);
-			LOCK(&database->mutex_reader_count, mret);
-			if (!database->reader_count) {
-				LOCK(&database->mutex_memory, mret);
-			}
-			database->reader_count++;
-			UNLOCK(&database->mutex_queue, mret);
-			UNLOCK(&database->mutex_reader_count, mret);
+			while ((mret = pthread_rwlock_rdlock(database->lock)) && errno == EINTR);
 			if (!mret) {
 				ret = get(database, qinfo, result);
-			}
-			LOCK(&database->mutex_reader_count, mret);
-			database->reader_count--;
-			if (!database->reader_count) {
-				UNLOCK(&database->mutex_memory, mret);
-			}
-			UNLOCK(&database->mutex_reader_count, mret);
-			if (ret == 2 && mret) {
-				free(result);
+				while ((mret = pthread_rwlock_unlock(database->lock)) && errno == EINTR);
 			}
 		}
 		else {
@@ -359,7 +332,7 @@ int database_execute(database_t* database, const char* query, char** result) {
 		free(qinfo->value);
 		free(qinfo);
 	}
-	if (mret == 1) {
+	if (mret) {
 		ret = 1;
 	}
 	switch (ret) {

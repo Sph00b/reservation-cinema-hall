@@ -21,6 +21,8 @@
 		exit(EXIT_FAILURE);\
 	}
 
+#define SECONDS 5
+
 /*	Data structures	*/
 
 struct connection_info {
@@ -33,16 +35,19 @@ struct connection_info {
 
 database_t db;
 _stack_t tid_stack;
+pthread_mutex_t m_tid_stack;
 
 /*	Prototype declarations of functions included in this code module	*/
 
 void* thread_joiner(void* arg);
+void* thread_timer(void* arg);
 void* connection_mngr(void* arg);
 void* request_handler(void* arg);
 int daemonize();
 int dbcreate(database_t* database, const char* filename);
 
 void timeout(int sig) {
+	syslog(LOG_DEBUG, "Timeout");
 	pthread_exit(0);
 }
 
@@ -54,10 +59,10 @@ int main(int argc, char *argv[]){
 	connection_t internal_con;
 	struct connection_info internet_info;
 	struct connection_info internal_info;
-	sigset_t sigset;
 	long server_status = 1;
-	
+	int ret;
 	/*	Ignore all signals	*/
+	sigset_t sigset;
 try(
 	sigfillset(&sigset), (-1)
 )
@@ -69,6 +74,13 @@ try(
 	daemonize(), (1)
 )
 	syslog(LOG_DEBUG, "demonized");
+	/*	Setup mutex	*/
+try(
+	pthread_mutex_init(&m_tid_stack, NULL), (!0)
+)
+try(
+	pthread_mutex_unlock(&m_tid_stack), (!0)
+)
 	/*	Start joiner thread	*/
 	tid_stack = NULL;
 try(
@@ -82,7 +94,6 @@ try(
 	mkdir("tmp", 0775), (-1 * (errno != EEXIST))
 )
 	/*	Start database	*/
-	int ret;
 try(
 	ret = database_init(&db, "etc/data.dat"), (1 * (errno != ENOENT))
 )
@@ -179,10 +190,32 @@ void* thread_joiner(void* arg) {
 	while (*server_status) {
 		while(!stack_is_empty(&tid_stack)){
 try(
+			pthread_mutex_lock(&m_tid_stack), (!0)
+)
+try(
 			pthread_join(*(pthread_t*)stack_pop(&tid_stack), NULL), (!0)
 )
+try(
+			pthread_mutex_unlock(&m_tid_stack), (!0)
+)
 		}
+		sleep(1);
 	}
+	pthread_exit(0);
+}
+
+void* thread_timer(void* parent_tid) {
+	/*	Ignore signals	*/
+	sigset_t sigset;
+try(
+	sigfillset(&sigset), (-1)
+)
+try(
+	pthread_sigmask(SIG_BLOCK, &sigset, NULL), (!0)
+)
+	/*	Send timeout signal after SECONDS to caller thread	*/
+	sleep(SECONDS);
+	pthread_kill((pthread_t)parent_tid, SIGALRM);
 	pthread_exit(0);
 }
 
@@ -190,25 +223,24 @@ void* connection_mngr(void* arg) {
 	struct connection_info* cinfo;
 	cinfo = (struct connection_info*)arg;
 
-	/*	Handle SIGALRM signal	*/
-	sigset_t sigset;
+	/*	Setup SIGALRM signal handler	*/
+	sigset_t sigalrm;
 	struct sigaction sigact;
 try(
-	sigemptyset(&sigset), (-1)
+	sigemptyset(&sigalrm), (-1)
 )
 try(
-	sigaddset(&sigset, SIGALRM), (-1)
-)
-try(
-	pthread_sigmask(SIG_UNBLOCK, &sigset, NULL), (!0)
+	sigaddset(&sigalrm, SIGALRM), (-1)
 )
 	sigact.sa_handler = timeout;
-try(
-	sigemptyset(&sigact.sa_mask), (-1)
-)
+	sigact.sa_mask = sigalrm;
 	sigact.sa_flags = 0;
 try(
 	sigaction(SIGALRM, &sigact, NULL), (-1)
+)
+	/*	Capture SIGALRM signal	*/
+try(
+	pthread_sigmask(SIG_UNBLOCK, &sigalrm, NULL), (!0)
 )
 	/*	Setup connection	*/
 try(
@@ -219,43 +251,85 @@ try(
 )
 	/*	Start threads to handle request	*/
 	do {
-		connection_t accepted_connection;
 		pthread_t* tid;
+		connection_t accepted_connection;
 try(
 		connection_get_accepted(cinfo->pconnection, &accepted_connection), (-1)
 )
+	/*	Ignore SIGALRM signal	*/
+try(
+		pthread_sigmask(SIG_BLOCK, &sigalrm, NULL), (!0)
+)
+	/*	Create a new thread and register it in the stack	*/
 try(
 		tid = (pthread_t*)malloc(sizeof(pthread_t)), (NULL)
+)
+try(
+		pthread_mutex_lock(&m_tid_stack), (!0)
 )
 try(
 		stack_push(&tid_stack, (void*)tid), (1)
 )
 try(
+		pthread_mutex_unlock(&m_tid_stack), (!0)
+)
+try(
 		pthread_create(tid, NULL, request_handler, (void*)&accepted_connection), (!0)
+)
+	/*	Capture SIGALRM signal	*/
+try(
+		pthread_sigmask(SIG_UNBLOCK, &sigalrm, NULL), (!0)
 )
 	} while (1);
 }
 
 void* request_handler(void* arg) {
-	/*	todo: implement a timeout system alarm(time)?	*/
+	pthread_t timer_tid;
+	sigset_t sigalrm;
 	connection_t* connection;
 	connection = (connection_t*)arg;
 	char* buff;
 	char* msg;
+	/*	Start a timer to timeout the request	*/
+try(
+	pthread_create(&timer_tid, NULL, thread_timer, (void*)pthread_self()), (!0)
+)
+/*	Capture SIGALRM signal	*/
+try(
+	sigemptyset(&sigalrm), (-1)
+)
+try(
+	sigaddset(&sigalrm, SIGALRM), (-1)
+)
+try(
+	pthread_sigmask(SIG_UNBLOCK, &sigalrm, NULL), (!0)
+)
+	/*	Get the request	*/
 try(
 	connection_recv(connection, &buff), (-1)
 )
+	/*	Ignore SIGALRM signal	*/
+	sigset_t sigset;
+try(
+	sigfillset(&sigset), (-1)
+)
+try(
+	pthread_sigmask(SIG_BLOCK, &sigalrm, NULL), (!0)
+)
+	/*	Elaborate the response */
 try(
 	database_execute(&db, buff, &msg), (-1)
 )
+	free(buff);
+	/*	Send the response	*/
 try(
 	connection_send(connection, msg), (-1)
 )
+	free(msg);
+	/*	Close connection	*/
 try(
 	connection_close(connection), (-1)
 )
-	free(buff);
-	free(msg);
 	pthread_exit(0);
 }
 

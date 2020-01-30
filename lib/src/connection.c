@@ -90,10 +90,10 @@ int connection_close(const connection_t* connection){
 }
 
 int connection_recv(const connection_t* connection, LPTSTR* buff) {
-#ifndef _UNICODE
-#define utf8_buff (*buff)
-#else
+#ifdef _UNICODE
 	char* utf8_buff;
+#else
+	#define utf8_buff (*buff)
 #endif
 	SSIZE_T len;
 	if ((utf8_buff = (char*)malloc(sizeof(char) * (MSG_LEN + 1))) == NULL) {
@@ -106,7 +106,6 @@ int connection_recv(const connection_t* connection, LPTSTR* buff) {
 		utf8_buff = NULL;
 		return -1;
 	}
-	utf8_buff[len] = 0;
 	/*	Resize if string is shorter than len	*/
 	if (realloc(utf8_buff, sizeof(char) * (strlen(utf8_buff) + 1)) == NULL) {
 		free(utf8_buff);
@@ -130,6 +129,8 @@ int connection_recv(const connection_t* connection, LPTSTR* buff) {
 		return -1;
 	}
 	free(utf8_buff);
+#else
+	#undef utf8_buff
 #endif
 	return len;
 }

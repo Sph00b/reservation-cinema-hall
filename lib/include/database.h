@@ -19,14 +19,9 @@
 
 typedef struct {
     FILE* dbstrm;	//stream to the database
-    /* cache varaibles */
+    pthread_rwlock_t* lock;
     char* dbcache;	//database buffer cache
     uint8_t dbit;	//dirty bit
-    /* concurrence varaibles */
-    unsigned reader_count;
-    pthread_mutex_t mutex_queue;
-    pthread_mutex_t mutex_reader_count;
-    pthread_mutex_t mutex_memory;
 } database_t;
 
 /*	Initiazlize database from file return 1 and set properly errno on error	*/
