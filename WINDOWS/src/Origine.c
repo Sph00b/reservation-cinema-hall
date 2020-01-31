@@ -22,21 +22,9 @@ Implementazioni:		Server lato Unix Client lato Windows
 #include <Windows.h>
 #include <WinBase.h>
 
-#include "queue.h"
-
 void errorhandler(int);
 
 int _tmain(int argc, LPTSTR* argv) {
-	queue_t queue;
-	queue_init(&queue);
-	for (int i = 0; i < 10; i++) {
-		queue_push(&queue, (void*)(long)i);
-	}
-	for (int i = 0; i < 10; i++) {
-		printf("%d ", (int)(long)queue_pop(&queue));
-	}
-	printf("\n");
-
 	int ret;
 	if (ret = WinMain(GetModuleHandle(NULL), NULL, argv, SW_SHOWNORMAL) == 0) {
 		errorhandler(GetLastError());
