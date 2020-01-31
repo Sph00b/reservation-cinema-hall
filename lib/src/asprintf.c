@@ -16,7 +16,7 @@
 #define _vstprintf_s(Buffer, MaxCount, Format, ArgList) vsprintf(Buffer, Format, ArgList)
 #endif
 
-int vasprintf(LPTSTR* str, const LPCTSTR format, va_list args){
+int vasprintf(LPTSTR* str, LPCTSTR format, va_list args){
 	size_t size;
 	va_list tmp;
 	va_copy(tmp, args);
@@ -35,9 +35,6 @@ int vasprintf(LPTSTR* str, const LPCTSTR format, va_list args){
 int asprintf(LPTSTR* str, LPCTSTR format, ...){
 	size_t size;
 	va_list args;
-	if (str == NULL) {
-		return 1;
-	}
 	va_start(args, format);
 	size = vasprintf(str, format, args);
 	va_end(args);

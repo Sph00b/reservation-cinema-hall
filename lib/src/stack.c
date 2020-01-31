@@ -17,12 +17,15 @@ int stack_push(_stack_t* stack, void* data) {
 }
 
 void* stack_pop(_stack_t* stack) {
+	struct _stack_node* tmp;
 	void* popped;
 	if (stack_is_empty(stack)) {
 		return NULL;
 	}
-	popped = (*stack)->data;
+	tmp = *stack;
 	*stack = (*stack)->next;
+	popped = tmp->data;
+	free(tmp);
 	return popped;
 }
 

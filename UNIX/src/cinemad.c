@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <time.h>
 #include <pthread.h>
 #include <signal.h>
 #include <errno.h>
@@ -13,7 +14,7 @@
 #include "asprintf.h"
 #include "database.h"
 #include "connection.h"
-#include "stack.h"
+#include "queue.h"
 
 #define try(foo, err_value)\
 	if ((foo) == (err_value)){\
@@ -31,11 +32,16 @@ struct connection_info {
 	char* port;
 };
 
+struct request_info {
+	pthread_t* ptid;
+	connection_t* paccepted_connection;
+};
+
 /*	Global variables	*/
 
 database_t db;
-_stack_t tid_stack;
-pthread_mutex_t m_tid_stack;
+queue_t request_queue;
+pthread_mutex_t m_tid_queue;
 
 /*	Prototype declarations of functions included in this code module	*/
 
@@ -47,7 +53,6 @@ int daemonize();
 int dbcreate(database_t* database, const char* filename);
 
 void timeout(int sig) {
-	syslog(LOG_DEBUG, "Timeout");
 	pthread_exit(0);
 }
 
@@ -76,13 +81,15 @@ try(
 	syslog(LOG_DEBUG, "demonized");
 	/*	Setup mutex	*/
 try(
-	pthread_mutex_init(&m_tid_stack, NULL), (!0)
+	pthread_mutex_init(&m_tid_queue, NULL), (!0)
 )
 try(
-	pthread_mutex_unlock(&m_tid_stack), (!0)
+	pthread_mutex_unlock(&m_tid_queue), (!0)
 )
-	/*	Start joiner thread	*/
-	tid_stack = NULL;
+	/*	Initialize request queue and start joiner thread	*/
+try(
+	queue_init(&request_queue), (1)
+)
 try(
 	pthread_create(&joiner_tid, NULL, thread_joiner, (void*)&server_status), (!0)
 )
@@ -103,17 +110,27 @@ try(
 )
 	}
 	syslog(LOG_DEBUG, "Connected to database");
-	/*	Register PID in database	*/
+	/*	Register timestamp and PID in database	*/
 	char* qpid;
+	char* qtsp;
 	char* result;
 try(
 	asprintf(&qpid, "%s %d", "SET PID FROM CONFIG AS", getpid()), (-1)
 )
 try(
-	database_execute(&db, qpid, &result), (1)
+	asprintf(&qtsp, "%s %llu", "SET TIMESTAMP FROM CONFIG AS", (long long)time(NULL)), (-1)
 )
-	free(qpid);
+try(
+	database_execute(&db, qpid, &result), (1)
+)	
 	syslog(LOG_DEBUG, "PID stored: %s", result);
+try(
+	database_execute(&db, qtsp, &result), (1)
+)
+	syslog(LOG_DEBUG, "TIMESTAMP stored: %s", result);
+	free(qpid);
+	free(qtsp);
+	free(result);
 	/*	Prepare connection info variabales	*/
 	internet_info.pconnection = &internet_con;
 	internal_info.pconnection = &internal_con;
@@ -187,16 +204,21 @@ try(
 
 void* thread_joiner(void* arg) {
 	long* server_status = (long*)arg;
+	struct request_info* request;
 	while (*server_status) {
-		while(!stack_is_empty(&tid_stack)){
+		while(!queue_is_empty(&request_queue)){
 try(
-			pthread_mutex_lock(&m_tid_stack), (!0)
+			pthread_mutex_lock(&m_tid_queue), (!0)
 )
+			request = (struct request_info*)queue_pop(&request_queue);
 try(
-			pthread_join(*(pthread_t*)stack_pop(&tid_stack), NULL), (!0)
+			pthread_join(*(request->ptid), NULL), (!0)
 )
+			free(request->ptid);
+			free(request->paccepted_connection);
+			free(request);
 try(
-			pthread_mutex_unlock(&m_tid_stack), (!0)
+			pthread_mutex_unlock(&m_tid_queue), (!0)
 )
 		}
 		sleep(1);
@@ -249,32 +271,37 @@ try(
 try(
 	connection_listen(cinfo->pconnection), (-1)
 )
-	/*	Start threads to handle request	*/
+	/*	Start request handler threads	*/
 	do {
-		pthread_t* tid;
-		connection_t accepted_connection;
+		struct request_info* request;
 try(
-		connection_get_accepted(cinfo->pconnection, &accepted_connection), (-1)
+		request = (struct request_info*)malloc(sizeof(struct request_info)), (NULL)
+)
+try(
+		request->paccepted_connection = (connection_t*)malloc(sizeof(connection_t)), (NULL)
+)
+try(
+		connection_get_accepted(cinfo->pconnection, request->paccepted_connection), (-1)
 )
 	/*	Ignore SIGALRM signal	*/
 try(
 		pthread_sigmask(SIG_BLOCK, &sigalrm, NULL), (!0)
 )
-	/*	Create a new thread and register it in the stack	*/
+	/*	Create a new thread and register it in the queue	*/
 try(
-		tid = (pthread_t*)malloc(sizeof(pthread_t)), (NULL)
+		request->ptid = (pthread_t*)malloc(sizeof(pthread_t)), (NULL)
 )
 try(
-		pthread_mutex_lock(&m_tid_stack), (!0)
+		pthread_mutex_lock(&m_tid_queue), (!0)
 )
 try(
-		stack_push(&tid_stack, (void*)tid), (1)
+		queue_push(&request_queue, (void*)request), (1)
 )
 try(
-		pthread_mutex_unlock(&m_tid_stack), (!0)
+		pthread_mutex_unlock(&m_tid_queue), (!0)
 )
 try(
-		pthread_create(tid, NULL, request_handler, (void*)&accepted_connection), (!0)
+		pthread_create(request->ptid, NULL, request_handler, (void*)request), (!0)
 )
 	/*	Capture SIGALRM signal	*/
 try(
@@ -286,13 +313,13 @@ try(
 void* request_handler(void* arg) {
 	pthread_t timer_tid;
 	sigset_t sigalrm;
-	connection_t* connection;
-	connection = (connection_t*)arg;
+	struct request_info* info;
+	info = (struct request_info*)arg;
 	char* buff;
 	char* msg;
 	/*	Start a timer to timeout the request	*/
 try(
-	pthread_create(&timer_tid, NULL, thread_timer, (void*)pthread_self()), (!0)
+	pthread_create(&timer_tid, NULL, thread_timer, (void*)*(info->ptid)), (!0)
 )
 /*	Capture SIGALRM signal	*/
 try(
@@ -306,7 +333,7 @@ try(
 )
 	/*	Get the request	*/
 try(
-	connection_recv(connection, &buff), (-1)
+	connection_recv(info->paccepted_connection, &buff), (-1)
 )
 	/*	Ignore SIGALRM signal	*/
 	sigset_t sigset;
@@ -323,12 +350,12 @@ try(
 	free(buff);
 	/*	Send the response	*/
 try(
-	connection_send(connection, msg), (-1)
+	connection_send(info->paccepted_connection, msg), (-1)
 )
 	free(msg);
 	/*	Close connection	*/
 try(
-	connection_close(connection), (-1)
+	connection_close(info->paccepted_connection), (-1)
 )
 	pthread_exit(0);
 }
@@ -392,6 +419,8 @@ int dbcreate(database_t* database, const char* filename) {
 	"ADD CONFIG",
 	"ADD PID FROM CONFIG",
 	"SET PID FROM CONFIG AS 0",
+	"ADD TIMESTAMP FROM CONFIG",
+	"SET TIMESTAMP FROM CONFIG AS 0",
 	"ADD ROWS FROM CONFIG",
 	"SET ROWS FROM CONFIG AS 1",
 	"ADD COLUMNS FROM CONFIG",

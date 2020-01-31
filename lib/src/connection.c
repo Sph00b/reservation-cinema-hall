@@ -30,7 +30,7 @@
 #endif
 
 #define BACKLOG 4096
-#define MSG_LEN 64
+#define MSG_LEN 63
 
 int connection_init(connection_t* connection, LPCTSTR address, const uint16_t port) {
 #ifdef __unix__
@@ -107,11 +107,13 @@ int connection_recv(const connection_t* connection, LPTSTR* buff) {
 		return -1;
 	}
 	/*	Resize if string is shorter than len	*/
+	/*
 	if (realloc(utf8_buff, sizeof(char) * (strlen(utf8_buff) + 1)) == NULL) {
 		free(utf8_buff);
 		utf8_buff = NULL;
 		return -1;
 	}
+	*/
 #ifdef _UNICODE
 	int str_len;
 	if (!(str_len = MultiByteToWideChar(CP_UTF8, 0, (LPCCH)utf8_buff, -1, NULL, 0))) {

@@ -4,6 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
+#include <time.h>
 
 #include "connection.h"
 #include "asprintf.h"
@@ -92,6 +93,7 @@ try(
 try(
 	kill(atoi(pid), SIGTERM), (-1)
 )
+	free(pid);
 	return 0;
 }
 
@@ -107,32 +109,46 @@ int daemon_restart() {
 }
 
 int daemon_status() {
-	char* pid;
-	char* icon;
-	char* status;
-	if (daemon_query("GET PID FROM CONFIG", &pid) == 1)	{
-		if (asprintf(&icon, "%s", "●") == -1) {
+	char* pid = NULL;
+	char* timestr = NULL;
+	char* icon = NULL;
+	char* status = NULL;
+	if (daemon_query("GET PID FROM CONFIG", &pid) == 1 ||
+		daemon_query("GET TIMESTAMP FROM CONFIG", &timestr) == 1)	{
+		if (asprintf(&icon, "●") == -1) {
 			return 1;
 		}
-		if (asprintf(&status, "%s", "inactive (dead)") == -1) {
-			free(icon);
+		if (asprintf(&status, "inactive (dead)") == -1) {
 			return 1;
 		}
-		printf("%s cinemad - The Reservation Cinema Server\n\
-		\r   Active: %s\n", icon, status);
 	}
 	else {
-		if (asprintf(&icon, "%s", "\e[0;92m●\e[0m") == -1) {
+		time_t rawtime;
+		struct tm* timeinfo;
+		rawtime = atoll(timestr);
+		timeinfo = localtime(&rawtime);
+		free(timestr);
+		if ((timestr = malloc(sizeof(char) * 64)) == NULL) {
 			return 1;
 		}
-		/*	Need to ckeck to str*time function	*/
-		if (asprintf(&status, "%s", "\e[1;92mactive (running)\e[0m since") == -1) {
+		if (strftime(timestr, 64, "%a %F %T %Z", timeinfo) == -1) {
 			return 1;
 		}
-		printf("%s cinemad - The Reservation Cinema Server\n\
-		\r   Active: %s\n\
-		\r Main PID: %s (cinemad)\n", icon, status, pid);
+		if (asprintf(&icon, "\e[0;92m●\e[0m") == -1) {
+			return 1;
+		}
+		if (asprintf(&status, "\e[1;92mactive (running)\e[0m since %s", timestr) == -1) {
+			return 1;
+		}
+		free(timestr);
 	}
+	printf("%s cinemad - The Reservation Cinema Server\n   Active: %s\n", icon, status);
+	if (pid) {
+		printf("Main PID : %s (cinemad)\n", pid);
+		free(pid);
+	}
+	free(icon);
+	free(status);
 	return 0;
 }
 
@@ -153,6 +169,9 @@ int daemon_query(char* query, char** result) {
 		return 1;
 	}
 	if (connection_recv(&con, result) == -1) {
+		return 1;
+	}
+	if (connection_close(&con) == -1) {
 		return 1;
 	}
 	return 0;
