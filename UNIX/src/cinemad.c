@@ -210,7 +210,7 @@ void* thread_joiner(void* arg) {
 try(
 			pthread_mutex_lock(&m_tid_queue), (!0)
 )
-			request = (struct request_info*)queue_pop(&request_queue);
+			request = queue_pop(&request_queue);
 try(
 			pthread_join(*(request->ptid), NULL), (!0)
 )

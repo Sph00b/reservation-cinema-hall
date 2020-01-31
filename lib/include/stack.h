@@ -5,6 +5,8 @@ typedef struct _stack_node {
 	struct _stack_node* next;
 } *_stack_t;
 
+int stack_init(_stack_t* pstack);
+
 int stack_is_empty(_stack_t* pstack);
 
 int stack_push(_stack_t* pstack, void* data);

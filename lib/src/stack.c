@@ -1,6 +1,11 @@
 #include "stack.h"
 #include <stdlib.h>
 
+int stack_init(_stack_t* stack) {
+	*stack = NULL;
+	return 0;
+}
+
 int stack_is_empty(_stack_t* stack) {
 	return !*stack;
 }
