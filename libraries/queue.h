@@ -4,7 +4,7 @@
 typedef struct {
 	_stack_t stack_in;
 	_stack_t stack_out;
-} queue_t;
+} _queue_t;
 
 int queue_init(queue_t* queue);
 
