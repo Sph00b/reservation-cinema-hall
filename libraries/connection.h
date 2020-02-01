@@ -1,4 +1,7 @@
 #pragma once
+#ifdef _WIN32
+#pragma comment (lib, "Ws2_32.lib")
+#endif
 
 #include <stdint.h>
 
@@ -34,15 +37,15 @@ int connection_init(connection_t* connection, LPCTSTR address, const uint16_t po
 
 /* Close connection return 1 and set properly errno on error */
 
-extern int connection_close(const connection_t*);
+extern int connection_close(const connection_t* connection);
 
 extern int connetcion_connect(const connection_t* connection);
 
 /* Get a malloc'd buffer wich contain a received message return number of byte read or -1 on error*/
-extern int connection_recv(const connection_t*, LPTSTR*);
+extern int connection_recv(const connection_t* connection, LPTSTR* buff);
 
 /**/
-extern int connection_send(const connection_t*, LPCTSTR);
+extern int connection_send(const connection_t* connection, LPCTSTR buff);
 
 #ifdef __unix__
 

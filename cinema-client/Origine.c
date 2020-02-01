@@ -17,7 +17,7 @@ Pending request:
 Implementazioni:		Server lato Unix Client lato Windows
 */
 
-#include "wndclient.h"
+#include "cinema-client.h"
 #include <stdio.h>
 #include <Windows.h>
 #include <WinBase.h>
@@ -26,7 +26,7 @@ void errorhandler(int);
 
 int _tmain(int argc, LPTSTR* argv) {
 	int ret;
-	if (ret = WinMain(GetModuleHandle(NULL), NULL, argv, SW_SHOWNORMAL) == 0) {
+	if (ret = WinMain(GetModuleHandle(NULL), NULL, *argv, SW_SHOWNORMAL) == 0) {
 		errorhandler(GetLastError());
 	}
 	else if (ret == -1) {

@@ -1,5 +1,6 @@
 #pragma once
 
+#ifdef __unix__
 #include <stdio.h>
 #include <stdint.h>
 #include <pthread.h>
@@ -30,3 +31,4 @@ extern int database_init(database_t* database, const char *filename);
 extern int database_close(database_t* database);
 /*	Execute a query return 1 and set properly errno on error */
 extern int database_execute(database_t* database, const char *query, char **result);
+#endif

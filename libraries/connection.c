@@ -134,16 +134,16 @@ int connection_recv(const connection_t* connection, LPTSTR* buff) {
 #else
 	#undef utf8_buff
 #endif
-	return len;
+	return (int)len;
 }
 
 /* return number of bytes sended */
 
 int connection_send(const connection_t* connection, LPCTSTR buff) {
-	SSIZE_T len;
+	int len;
 #ifdef _UNICODE
 	char* utf8_buff = NULL;
-	if (!(len = (SSIZE_T)WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, buff, -1, NULL, 0, NULL, NULL))) {
+	if (!(len = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, buff, -1, NULL, 0, NULL, NULL))) {
 		return -1;
 	}
 	if ((utf8_buff = (char*)malloc(sizeof(char) * len)) == NULL) {
@@ -153,7 +153,7 @@ int connection_send(const connection_t* connection, LPCTSTR buff) {
 		free(utf8_buff);
 		return -1;
 	}
-	if ((len = send(connection->socket, utf8_buff, strlen(utf8_buff), 0)) == -1) {
+	if ((len = send(connection->socket, utf8_buff, (int)strlen(utf8_buff), 0)) == -1) {
 		free(utf8_buff);
 		return -1;
 	}

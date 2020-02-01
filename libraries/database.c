@@ -1,5 +1,7 @@
 #include "database.h"
 
+#ifdef __unix__
+
 #include <stdio.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -350,3 +352,5 @@ int database_execute(database_t* database, const char* query, char** result) {
 		return 0;
 	}
 }
+
+#endif

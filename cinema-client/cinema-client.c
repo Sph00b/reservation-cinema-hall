@@ -1,10 +1,13 @@
+#define _DEBUG
+
 #include "connection.h"
-#include "wndclient.h"
+#include "cinema-client.h"
 #include "framework.h"
 #include "savefile.h"
 
 #ifdef _DEBUG
 #include <stdio.h>
+#include <fcntl.h>
 #include <tchar.h>
 #endif
 
@@ -25,24 +28,44 @@ HWND hEdit;
 HWND* hButtonS;	//Pointer to seat buttons rep
 
 // Dichiarazioni con prototipo di funzioni incluse in questo modulo di codice:
-ATOM                MyRegisterClass(HINSTANCE hInstance);
+ATOM                MyRegisterClass(HINSTANCE);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 void				buttonViewMngr();
+int					query_server(LPCTSTR, LPTSTR*);
+void				errorhandler(int e);
 
-int APIENTRY WinMain(_In_ HINSTANCE hInstance, 
-					_In_opt_ HINSTANCE hPrevInstance, 
-					_In_ LPTSTR lpCmdLine, 
-					_In_ int nCmdShow) {
+int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPTSTR lpCmdLine, _In_ int nCmdShow) {
 
 	UNREFERENCED_PARAMETER(hPrevInstance);
 	UNREFERENCED_PARAMETER(lpCmdLine);
 	
 	LPTSTR buffer;
 
+#ifdef _DEBUG
+	int hCrt;
+	
+	AllocConsole();
+	
+	HANDLE handle_in = GetStdHandle(STD_INPUT_HANDLE);
+	hCrt = _open_osfhandle((long)handle_in, _O_TEXT);
+	FILE* hf_in = _fdopen(hCrt, "r");
+	_tfreopen_s(&hf_in, TEXT("CONIN$"), TEXT("r"), stdin);
+
+	HANDLE handle_out = GetStdHandle(STD_OUTPUT_HANDLE);
+	hCrt = _open_osfhandle((long)handle_out, _O_TEXT);
+	FILE* hf_out = _fdopen(hCrt, "w");
+	_tfreopen_s(&hf_out, TEXT("CONOUT$"), TEXT("w"), stdout);
+	
+	HANDLE handle_err = GetStdHandle(STD_ERROR_HANDLE);
+	hCrt = _open_osfhandle((long)handle_err, _O_TEXT);
+	FILE* hf_err = _fdopen(hCrt, "w");
+	_tfreopen_s(&hf_err, TEXT("CONOUT$"), TEXT("w"), stderr);
+	
+#endif
 	if (InitSavefile(TEXT("PrenotazioneCinema"))) {
-		return 0;
+		errorhandler(GetLastError());
 	}
 	//	Inizializzare le stringhe globali
 	szTitle = TEXT("Prenotazione");
@@ -50,19 +73,19 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance,
 	pID = savLoad();
 	//	Retrive number of seats and rows
 	if (query_server(TEXT("GET ROWS FROM CONFIG"), &buffer)) {
-		return 0;
+		errorhandler(WSAGetLastError());
 	}
 	rows = _tstoi(buffer);
 	free(buffer);
 	if (query_server(TEXT("GET COLUMNS FROM CONFIG"), &buffer)) {
-		return 0;
+		errorhandler(WSAGetLastError());
 	}
 	columns = _tstoi(buffer);
 	free(buffer);
 	//	Initialize seats buttons
 	hButtonS = (HWND*)malloc(rows * columns * sizeof(HWND));
 	if (!MyRegisterClass(hInstance)) {
-		return 0;
+		errorhandler(GetLastError());
 	}
 
 #ifdef _DEBUG
@@ -71,7 +94,7 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance,
 
 	// Eseguire l'inizializzazione dall'applicazione:
 	if (!InitInstance(hInstance, nCmdShow)) {
-		return 0;
+		errorhandler(GetLastError());
 	}
 
 #ifdef _DEBUG
@@ -219,7 +242,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 			TEXT("BUTTON"),							//	PREDEFINED CLASS
 			TEXT(""),								//	text 
 			WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,	//	Styles 
-			(10 + 1.25 * i * 32), 60,				//	x,y position
+			(10 + 2 * i * 32), 60,				//	x,y position
 			32, 32,									//	w,h size
 			hWnd, NULL, hInstance,					//	PARENT WINDOW, MENU, INSTANCE
 			NULL									//	PARAMETER
@@ -380,4 +403,20 @@ int query_server(LPCTSTR query, LPTSTR* result) {
 		return 1;
 	}
 	return 0;
+}
+
+void errorhandler(int e) {
+	LPTSTR p_errmsg = NULL;
+	FormatMessage(
+		FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+		NULL,
+		e,
+		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		(LPTSTR)&p_errmsg,
+		0,
+		NULL
+	);
+	_ftprintf(stderr, TEXT("%s\n"), p_errmsg);
+	getchar();
+	exit(e);
 }

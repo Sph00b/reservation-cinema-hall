@@ -29,7 +29,7 @@ int vasprintf(LPTSTR* str, LPCTSTR format, va_list args){
 		return -1;
 	}
 	size = _vstprintf_s(*str, size + 1, format, args);
-	return size;
+	return (int)size;
 }
 
 int asprintf(LPTSTR* str, LPCTSTR format, ...){
@@ -38,5 +38,5 @@ int asprintf(LPTSTR* str, LPCTSTR format, ...){
 	va_start(args, format);
 	size = vasprintf(str, format, args);
 	va_end(args);
-	return size;
+	return (int)size;
 }
