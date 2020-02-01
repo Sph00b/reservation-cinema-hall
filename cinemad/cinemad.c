@@ -41,7 +41,7 @@ struct request_info {
 
 database_t db;
 queue_t request_queue;
-pthread_mutex_t m_tid_queue;
+pthread_mutex_t request_queue_mutex;
 
 /*	Prototype declarations of functions included in this code module	*/
 
@@ -81,10 +81,10 @@ try(
 	syslog(LOG_DEBUG, "demonized");
 	/*	Setup mutex	*/
 try(
-	pthread_mutex_init(&m_tid_queue, NULL), (!0)
+	pthread_mutex_init(&request_queue_mutex, NULL), (!0)
 )
 try(
-	pthread_mutex_unlock(&m_tid_queue), (!0)
+	pthread_mutex_unlock(&request_queue_mutex), (!0)
 )
 	/*	Initialize request queue and start joiner thread	*/
 try(
@@ -196,6 +196,9 @@ try(
 	connection_close(&internal_con), (-1)
 )
 try(
+	pthread_mutex_destroy(&request_queue_mutex), (!0)
+)
+try(
 	database_close(&db), (!0)
 )
 	syslog(LOG_INFO, "Service stopped");
@@ -208,7 +211,7 @@ void* thread_joiner(void* arg) {
 	while (*server_status) {
 		while(!queue_is_empty(&request_queue)){
 try(
-			pthread_mutex_lock(&m_tid_queue), (!0)
+			pthread_mutex_lock(&request_queue_mutex), (!0)
 )
 			request = queue_pop(&request_queue);
 try(
@@ -218,7 +221,7 @@ try(
 			free(request->paccepted_connection);
 			free(request);
 try(
-			pthread_mutex_unlock(&m_tid_queue), (!0)
+			pthread_mutex_unlock(&request_queue_mutex), (!0)
 )
 		}
 		sleep(1);
@@ -292,13 +295,13 @@ try(
 		request->ptid = (pthread_t*)malloc(sizeof(pthread_t)), (NULL)
 )
 try(
-		pthread_mutex_lock(&m_tid_queue), (!0)
+		pthread_mutex_lock(&request_queue_mutex), (!0)
 )
 try(
 		queue_push(&request_queue, (void*)request), (1)
 )
 try(
-		pthread_mutex_unlock(&m_tid_queue), (!0)
+		pthread_mutex_unlock(&request_queue_mutex), (!0)
 )
 try(
 		pthread_create(request->ptid, NULL, request_handler, (void*)request), (!0)
@@ -356,7 +359,8 @@ try(
 	/*	Close connection	*/
 try(
 	connection_close(info->paccepted_connection), (-1)
-)
+	)
+	syslog(LOG_INFO, "Closing thread");
 	pthread_exit(0);
 }
 
