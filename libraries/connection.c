@@ -47,7 +47,7 @@ int connection_init(connection_t* connection, LPCTSTR address, const uint16_t po
 		paddr_un->sun_path[0] = '\0';
 		strncpy(paddr_un->sun_path + 1, address, strlen(address));
 		connection->addr = (struct sockaddr*)paddr_un;
-		connection->addrlen = offsetof(struct sockaddr_un, sun_path) + 1 + strlen(address);
+		connection->addrlen = (socklen_t)(offsetof(struct sockaddr_un, sun_path) + 1 + strlen(address));
 		return 0;
 	}
 #endif

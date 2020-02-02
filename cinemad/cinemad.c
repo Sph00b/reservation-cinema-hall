@@ -238,6 +238,10 @@ try(
 try(
 	pthread_sigmask(SIG_BLOCK, &sigset, NULL), (!0)
 )
+	/*	Detach	thread	*/
+try(
+	pthread_detach(pthread_self()), (!0)
+)
 	/*	Send timeout signal after SECONDS to caller thread	*/
 	sleep(SECONDS);
 	pthread_kill((pthread_t)parent_tid, SIGALRM);
@@ -269,7 +273,7 @@ try(
 )
 	/*	Setup connection	*/
 try(
-	connection_init(cinfo->pconnection, cinfo->address, atoi(cinfo->port)), (-1)
+	connection_init(cinfo->pconnection, cinfo->address, (uint16_t)atoi(cinfo->port)), (-1)
 )
 try(
 	connection_listen(cinfo->pconnection), (-1)
@@ -315,16 +319,12 @@ try(
 
 void* request_handler(void* arg) {
 	pthread_t timer_tid;
-	sigset_t sigalrm;
 	struct request_info* info;
 	info = (struct request_info*)arg;
 	char* buff;
 	char* msg;
-	/*	Start a timer to timeout the request	*/
-try(
-	pthread_create(&timer_tid, NULL, thread_timer, (void*)*(info->ptid)), (!0)
-)
 /*	Capture SIGALRM signal	*/
+	sigset_t sigalrm;
 try(
 	sigemptyset(&sigalrm), (-1)
 )
@@ -334,15 +334,15 @@ try(
 try(
 	pthread_sigmask(SIG_UNBLOCK, &sigalrm, NULL), (!0)
 )
+/*	Start a timer to timeout the request	*/
+try(
+	pthread_create(&timer_tid, NULL, thread_timer, (void*)*(info->ptid)), (!0)
+)
 	/*	Get the request	*/
 try(
 	connection_recv(info->paccepted_connection, &buff), (-1)
 )
 	/*	Ignore SIGALRM signal	*/
-	sigset_t sigset;
-try(
-	sigfillset(&sigset), (-1)
-)
 try(
 	pthread_sigmask(SIG_BLOCK, &sigalrm, NULL), (!0)
 )
@@ -360,7 +360,6 @@ try(
 try(
 	connection_close(info->paccepted_connection), (-1)
 	)
-	syslog(LOG_INFO, "Closing thread");
 	pthread_exit(0);
 }
 

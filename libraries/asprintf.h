@@ -6,9 +6,8 @@
 #include <Windows.h>
 #endif
 
-#ifdef __unix__
-#define LPTSTR char*
-#define LPCTSTR const char*
-#endif
-
+#ifdef _WIN32
 int asprintf(LPTSTR* str, LPCTSTR format, ...);
+#elif __unix__
+int asprintf(char** str, const char* format, ...);
+#endif

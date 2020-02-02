@@ -1,11 +1,10 @@
-#define _DEBUG
-
 #include "connection.h"
 #include "cinema-client.h"
 #include "framework.h"
 #include "savefile.h"
 
 #ifdef _DEBUG
+#include <io.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <tchar.h>
@@ -308,7 +307,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 	case WM_COMMAND:
 		if (wParam == BN_CLICKED) {
 #ifdef _DEBUG
-			printf(TEXT("RECEIVED WM_COMMAND MESSAGE ON BUTTON %d\n"), lParam);
+			_tprintf(TEXT("RECEIVED WM_COMMAND MESSAGE ON BUTTON %d\n"), lParam);
 #endif
 			if ((HWND)lParam == hButton1) {
 				savStore(TEXT("TEST"));
@@ -331,7 +330,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 
 	case WM_DRAWITEM:
 #ifdef _DEBUG
-		printf(TEXT("RECEIVED WM_DRAWITEM MESSAGE\n"));
+		_tprintf(TEXT("RECEIVED WM_DRAWITEM MESSAGE\n"));
 #endif
 		(LPDRAWITEMSTRUCT)lParam;
 		return DefWindowProc(hWnd, message, wParam, lParam);
