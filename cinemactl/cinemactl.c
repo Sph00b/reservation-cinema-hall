@@ -32,7 +32,7 @@ try(
 		daemon_stop(), (1)
 )
 	}
-else if (argc == 2 && !strncasecmp(argv[1], "status", 6)) {
+	else if (argc == 2 && !strncasecmp(argv[1], "status", 6)) {
 try(
 		daemon_status(), (1)
 )

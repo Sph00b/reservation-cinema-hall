@@ -83,9 +83,6 @@ try(
 try(
 	pthread_mutex_init(&request_queue_mutex, NULL), (!0)
 )
-try(
-	pthread_mutex_unlock(&request_queue_mutex), (!0)
-)
 	/*	Initialize request queue and start joiner thread	*/
 try(
 	queue_init(&request_queue), (1)

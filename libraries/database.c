@@ -269,10 +269,6 @@ int database_init(database_t *database, const char* filename) {
 
 int database_close(database_t *database) {
 	int ret;
-	while ((ret = pthread_rwlock_wrlock(database->lock)) && errno == EINTR);
-	if (ret && errno == EINTR) {
-		return 1;
-	}
 	while ((ret = pthread_rwlock_destroy(database->lock)) && errno == EINTR);
 	if (ret && errno == EINTR) {
 		return 1;
