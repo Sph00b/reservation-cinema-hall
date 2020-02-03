@@ -49,7 +49,7 @@ void*	thread_joiner(void* arg);
 void*	thread_timer(void* arg);
 void*	connection_mngr(void* arg);
 void*	request_handler(void* arg);
-void	thread_exit(int sig) { pthread_exit(0); }	//SIAGALRM handler
+void	thread_exit(int sig) { pthread_exit(NULL); }	//SIAGALRM handler
 int		daemonize();
 int		dbcreate(database_t* database, const char* filename);
 
@@ -75,7 +75,9 @@ try(
 try(
 	daemonize(), (1)
 )
-	syslog(LOG_DEBUG, "demonized");
+#ifdef _DEBUG
+	syslog(LOG_DEBUG, "Main thread:\tDemonized");
+#endif
 	/*	Initialize request queue and start joiner thread	*/
 try(
 	queue_init(&request_queue), (1)
@@ -86,6 +88,9 @@ try(
 try(
 	pthread_create(&joiner_tid, NULL, thread_joiner, (void*)&server_status), (!0)
 )
+#ifdef _DEBUG
+	syslog(LOG_DEBUG, "Main thread:\tJoiner thread started");
+#endif
 	/*	Create directory tree	*/
 try(
 	mkdir("etc", 0775), (-1 * (errno != EEXIST))
@@ -101,8 +106,13 @@ try(
 try(
 		dbcreate(&db, "etc/data.dat"), (1)
 )
+#ifdef _DEBUG
+		syslog(LOG_DEBUG, "Main thread:\tDatabase created");
+#endif
 	}
-	syslog(LOG_DEBUG, "Connected to database");
+#ifdef _DEBUG
+	syslog(LOG_DEBUG, "Main thread:\tDatabase connected");
+#endif
 	/*	Register timestamp and PID in database	*/
 	char* qpid;
 	char* qtsp;
@@ -116,11 +126,15 @@ try(
 try(
 	database_execute(&db, qpid, &result), (1)
 )	
-	syslog(LOG_DEBUG, "PID stored: %s", result);
+#ifdef _DEBUG
+	syslog(LOG_DEBUG, "Main thread:\tPID stored: %s", result);
+#endif
 try(
 	database_execute(&db, qtsp, &result), (1)
 )
-	syslog(LOG_DEBUG, "TIMESTAMP stored: %s", result);
+#ifdef _DEBUG
+	syslog(LOG_DEBUG, "Main thread:\tTIMESTAMP stored: %s", result);
+#endif
 	free(qpid);
 	free(qtsp);
 	free(result);
@@ -146,6 +160,9 @@ try(
 try(
 	pthread_create(&internal_mngr_tid, NULL, connection_mngr, (void*)&internal_info), (!0)
 )
+#ifdef _DEBUG
+	syslog(LOG_DEBUG, "Main thread:\tConnection manager threads started");
+#endif
 	syslog(LOG_INFO, "Service started");
 	/*	Wait for SIGTERM becomes pending	*/
 	int sig;
@@ -155,6 +172,9 @@ try(
 try(
 	sigaddset(&sigset, SIGTERM), (-1)
 )
+#ifdef _DEBUG
+	syslog(LOG_DEBUG, "Main thread:\tWait for SIGTERM");
+#endif
 try(
 	sigwait(&sigset, &sig), (!0)
 )
@@ -172,11 +192,17 @@ try(
 try(
 	pthread_join(internal_mngr_tid, NULL), (!0)
 )
+#ifdef _DEBUG
+	syslog(LOG_DEBUG, "Main thread:\tConnection manager threads joined");
+#endif
 	server_status = 0;
 try(
 	pthread_join(joiner_tid, NULL), (!0)
 )
-	/*	Free memory	*/
+#ifdef _DEBUG
+	syslog(LOG_DEBUG, "Main thread:\tAll thread joined");
+#endif
+	/*	Free connection info variabales	*/
 	free(internet_info.address);
 	free(internet_info.port);
 	free(internal_info.address);
@@ -188,12 +214,18 @@ try(
 try(
 	connection_close(&internal_con), (-1)
 )
+#ifdef _DEBUG
+	syslog(LOG_DEBUG, "Main thread:\tClosed connections");
+#endif
 try(
 	pthread_mutex_destroy(&request_queue_mutex), (!0)
 )
 try(
 	database_close(&db), (!0)
 )
+#ifdef _DEBUG
+	syslog(LOG_DEBUG, "Main thread:\tClosed database");
+#endif
 	syslog(LOG_INFO, "Service stopped");
 	return 0;
 }
@@ -202,11 +234,20 @@ void* thread_joiner(void* arg) {
 	long* server_status = (long*)arg;
 	struct request_info* request;
 	while (*server_status) {
+#ifdef _DEBUG
+		syslog(LOG_DEBUG, "Joiner thread:\tQueue empty: %d", queue_is_empty(&request_queue));
+#endif
 		while(!queue_is_empty(&request_queue)){
+#ifdef _DEBUG
+			syslog(LOG_DEBUG, "Joiner thread:\tQueue empty: %d", queue_is_empty(&request_queue));
+#endif
 try(
 			pthread_mutex_lock(&request_queue_mutex), (!0)
 )
 			request = queue_pop(&request_queue);
+#ifdef _DEBUG
+			syslog(LOG_DEBUG, "Joiner thread:\tClosing request thread %ul", *(request->ptid));
+#endif
 try(
 			pthread_join(*(request->ptid), NULL), (!0)
 )
@@ -217,9 +258,13 @@ try(
 			pthread_mutex_unlock(&request_queue_mutex), (!0)
 )
 		}
-		sleep(1);
+		sleep(10);
 	}
-	pthread_exit(0);
+
+#ifdef _DEBUG
+	syslog(LOG_DEBUG, "Joiner thread:\tClosing joiner thread, queue empty: %d", queue_is_empty(&request_queue));
+#endif
+	return NULL;
 }
 
 void* thread_timer(void* parent_tid) {
@@ -229,10 +274,15 @@ try(
 )
 	/*	Send SIGALRM after TIMEOUT elapsed	*/
 	sleep(TIMEOUT);
+/*
 try(
 	pthread_kill((pthread_t)parent_tid, SIGALRM), (!0)
 )
-	pthread_exit(0);
+*/
+#ifdef _DEBUG
+	syslog(LOG_DEBUG, "Timer thread:\tSended SIGALRM to request thread %ul", (pthread_t)parent_tid);
+#endif
+	return NULL;
 }
 
 void* connection_mngr(void* arg) {
@@ -265,6 +315,9 @@ try(
 try(
 	connection_listen(cinfo->pconnection), (-1)
 )
+#ifdef _DEBUG
+	syslog(LOG_DEBUG, "Cm thread:\tlistening on socket");
+#endif
 	/*	Start request handler threads	*/
 	do {
 		struct request_info* request;
@@ -297,6 +350,9 @@ try(
 try(
 		pthread_create(request->ptid, NULL, request_handler, (void*)request), (!0)
 )
+#ifdef _DEBUG
+		syslog(LOG_DEBUG, "Cm thread:\tRequest thread %ul spowned", *(request->ptid));
+#endif
 	/*	Capture SIGALRM signal	*/
 try(
 		pthread_sigmask(SIG_UNBLOCK, &sigalrm, NULL), (!0)
@@ -325,14 +381,19 @@ try(
 try(
 	pthread_create(&timer_tid, NULL, thread_timer, (void*)*(info->ptid)), (!0)
 )
+#ifdef _DEBUG
+	syslog(LOG_DEBUG, "Request thread:\tCreated timer thread");
+#endif
 	/*	Get the request	*/
 try(
 	connection_recv(info->paccepted_connection, &buff), (-1)
 )
 	/*	Stop timeout thread	*/
+	/*
 try(
 	pthread_kill(timer_tid, SIGALRM), (!0)
 )
+*(
 	/*	Elaborate the response */
 try(
 	database_execute(&db, buff, &msg), (-1)
@@ -347,7 +408,10 @@ try(
 try(
 	connection_close(info->paccepted_connection), (-1)
 	)
-	pthread_exit(0);
+#ifdef _DEBUG
+	syslog(LOG_DEBUG, "Request thread:\t%ul ready to exit", *(info->ptid));
+#endif
+	return NULL;
 }
 
 int daemonize() {
