@@ -22,7 +22,7 @@
 		exit(EXIT_FAILURE);\
 	}
 
-#define SECONDS 5
+#define TIMEOUT 5
 
 /*	Data structures	*/
 
@@ -45,16 +45,13 @@ pthread_mutex_t request_queue_mutex;
 
 /*	Prototype declarations of functions included in this code module	*/
 
-void* thread_joiner(void* arg);
-void* thread_timer(void* arg);
-void* connection_mngr(void* arg);
-void* request_handler(void* arg);
-int daemonize();
-int dbcreate(database_t* database, const char* filename);
-
-void timeout(int sig) {
-	pthread_exit(0);
-}
+void*	thread_joiner(void* arg);
+void*	thread_timer(void* arg);
+void*	connection_mngr(void* arg);
+void*	request_handler(void* arg);
+void	thread_exit(int sig) { pthread_exit(0); }	//SIAGALRM handler
+int		daemonize();
+int		dbcreate(database_t* database, const char* filename);
 
 int main(int argc, char *argv[]){
 	pthread_t joiner_tid;
@@ -79,13 +76,12 @@ try(
 	daemonize(), (1)
 )
 	syslog(LOG_DEBUG, "demonized");
-	/*	Setup mutex	*/
-try(
-	pthread_mutex_init(&request_queue_mutex, NULL), (!0)
-)
 	/*	Initialize request queue and start joiner thread	*/
 try(
 	queue_init(&request_queue), (1)
+)
+try(
+	pthread_mutex_init(&request_queue_mutex, NULL), (!0)
 )
 try(
 	pthread_create(&joiner_tid, NULL, thread_joiner, (void*)&server_status), (!0)
@@ -227,21 +223,15 @@ try(
 }
 
 void* thread_timer(void* parent_tid) {
-	/*	Ignore signals	*/
-	sigset_t sigset;
-try(
-	sigfillset(&sigset), (-1)
-)
-try(
-	pthread_sigmask(SIG_BLOCK, &sigset, NULL), (!0)
-)
 	/*	Detach	thread	*/
 try(
 	pthread_detach(pthread_self()), (!0)
 )
-	/*	Send timeout signal after SECONDS to caller thread	*/
-	sleep(SECONDS);
-	pthread_kill((pthread_t)parent_tid, SIGALRM);
+	/*	Send SIGALRM after TIMEOUT elapsed	*/
+	sleep(TIMEOUT);
+try(
+	pthread_kill((pthread_t)parent_tid, SIGALRM), (!0)
+)
 	pthread_exit(0);
 }
 
@@ -258,7 +248,7 @@ try(
 try(
 	sigaddset(&sigalrm, SIGALRM), (-1)
 )
-	sigact.sa_handler = timeout;
+	sigact.sa_handler = thread_exit;
 	sigact.sa_mask = sigalrm;
 	sigact.sa_flags = 0;
 try(
@@ -279,10 +269,10 @@ try(
 	do {
 		struct request_info* request;
 try(
-		request = (struct request_info*)malloc(sizeof(struct request_info)), (NULL)
+		request = malloc(sizeof(struct request_info)), (NULL)
 )
 try(
-		request->paccepted_connection = (connection_t*)malloc(sizeof(connection_t)), (NULL)
+		request->paccepted_connection = malloc(sizeof(connection_t)), (NULL)
 )
 try(
 		connection_get_accepted(cinfo->pconnection, request->paccepted_connection), (-1)
@@ -293,7 +283,7 @@ try(
 )
 	/*	Create a new thread and register it in the queue	*/
 try(
-		request->ptid = (pthread_t*)malloc(sizeof(pthread_t)), (NULL)
+		request->ptid = malloc(sizeof(pthread_t)), (NULL)
 )
 try(
 		pthread_mutex_lock(&request_queue_mutex), (!0)
@@ -320,7 +310,7 @@ void* request_handler(void* arg) {
 	info = (struct request_info*)arg;
 	char* buff;
 	char* msg;
-/*	Capture SIGALRM signal	*/
+	/*	Capture SIGALRM signal	*/
 	sigset_t sigalrm;
 try(
 	sigemptyset(&sigalrm), (-1)
@@ -331,7 +321,7 @@ try(
 try(
 	pthread_sigmask(SIG_UNBLOCK, &sigalrm, NULL), (!0)
 )
-/*	Start a timer to timeout the request	*/
+	/*	Start timeout thread	*/
 try(
 	pthread_create(&timer_tid, NULL, thread_timer, (void*)*(info->ptid)), (!0)
 )
@@ -339,9 +329,9 @@ try(
 try(
 	connection_recv(info->paccepted_connection, &buff), (-1)
 )
-	/*	Ignore SIGALRM signal	*/
+	/*	Stop timeout thread	*/
 try(
-	pthread_sigmask(SIG_BLOCK, &sigalrm, NULL), (!0)
+	pthread_kill(timer_tid, SIGALRM), (!0)
 )
 	/*	Elaborate the response */
 try(

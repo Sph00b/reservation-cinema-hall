@@ -40,7 +40,7 @@ int refresh_cache(database_t* database) {
 			return 1;
 		}
 		free(database->dbcache);
-		if ((database->dbcache = (char*)malloc(sizeof(char) * (size_t)len)) == NULL) {
+		if ((database->dbcache = malloc(sizeof(char) * (size_t)len)) == NULL) {
 			return 1;
 		}
 		if (fgets(database->dbcache, len, database->dbstrm) == NULL) {
@@ -59,7 +59,7 @@ int get_info(struct info** info, const char* str) {
 	int ntoken = 1;
 	char* buff;
 	char* saveptr;
-	if ((*info = (struct info*) malloc(sizeof(struct info))) == NULL) {
+	if ((*info = malloc(sizeof(struct info))) == NULL) {
 		return 1;
 	}
 	for (int i = 0; i < strlen(str); i++) {
@@ -110,7 +110,7 @@ int get_offset(database_t* database, const struct info* info, unsigned **offset)
 	if (refresh_cache(database)) {
 		return 1;
 	}
-	if ((*offset = (unsigned*) malloc(sizeof(unsigned))) == NULL) {
+	if ((*offset = malloc(sizeof(unsigned))) == NULL) {
 		return 1;
 	}
 	do {
@@ -140,7 +140,7 @@ int add(database_t* database, const struct info* info) {
 		return -1;
 	}
 	if (info->key == NULL) {
-		if ((buff = (char*)malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
+		if ((buff = malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
 			return 1;
 		}
 		memset(buff, ' ', WORDLEN);
@@ -157,7 +157,7 @@ int add(database_t* database, const struct info* info) {
 		if (strlen(info->key) > WORDLEN - 2) {
 			return -1;
 		}
-		if ((buff = (char*)malloc(sizeof(char) * (2 * WORDLEN + 1))) == NULL) {
+		if ((buff = malloc(sizeof(char) * (2 * WORDLEN + 1))) == NULL) {
 			return 1;
 		}
 		memset(buff, ' ', WORDLEN * 2);
@@ -188,7 +188,7 @@ int set(database_t* database, const struct info* info) {
 	if (strlen(info->value) > WORDLEN) {
 		return -1;
 	}
-	if ((value = (char*)malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
+	if ((value = malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
 		return 1;
 	}
 	memset(value, ' ', WORDLEN);
@@ -226,7 +226,7 @@ int set(database_t* database, const struct info* info) {
 int get(database_t* database, const struct info* info, char** dest) {
 	int ret;
 	unsigned* offset;
-	if ((*dest = (char*)malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
+	if ((*dest = malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
 		return 1;
 	}
 	if ((ret = get_offset(database, info, &offset))) {
@@ -248,18 +248,18 @@ int database_init(database_t *database, const char* filename) {
 	int ret = 0;
 	database->dbcache = NULL;
 	database->dbit = 1;
-	if ((database->lock = (pthread_rwlock_t*)malloc(sizeof(pthread_rwlock_t))) == NULL) {
-		return 1;
-	}
-	while ((ret = pthread_rwlock_init(database->lock, NULL)) && errno == EINTR);
-	if (ret && errno == EINTR) {
-		return 1;
-	}
 	if ((database->dbstrm = fopen(filename, "r+")) == NULL) {
 		return 1;
 	}
 	if (flock(fileno(database->dbstrm), LOCK_EX | LOCK_NB) == -1) {	//instead of semget & ftok to avoid mix SysV and POSIX, replace with fcntl
 		fclose(database->dbstrm);
+		return 1;
+	}
+	if ((database->lock = malloc(sizeof(pthread_rwlock_t))) == NULL) {
+		return 1;
+	}
+	while ((ret = pthread_rwlock_init(database->lock, NULL)) && errno == EINTR);
+	if (ret && errno == EINTR) {
 		return 1;
 	}
 	return 0;

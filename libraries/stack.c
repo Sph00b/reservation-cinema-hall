@@ -12,7 +12,7 @@ int stack_is_empty(_stack_t* stack) {
 
 int stack_push(_stack_t* stack, void* data) {
 	struct _stack_node* node;
-	if ((node = (struct _stack_node*)malloc(sizeof(struct _stack_node))) == NULL) {
+	if ((node = malloc(sizeof(struct _stack_node))) == NULL) {
 		return 1;
 	}
 	node->data = data;

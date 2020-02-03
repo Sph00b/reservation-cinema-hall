@@ -39,7 +39,7 @@ int connection_init(connection_t* connection, LPCTSTR address, const uint16_t po
 		if ((connection->socket = socket(AF_UNIX, SOCK_STREAM, 0)) == INVALID_SOCKET) {
 			return -1;
 		}
-		if ((paddr_un = (struct sockaddr_un*)malloc(sizeof(struct sockaddr_un))) == NULL) {
+		if ((paddr_un = malloc(sizeof(struct sockaddr_un))) == NULL) {
 			return -1;
 		}
 		memset(paddr_un, 'x', sizeof(struct sockaddr_un));
@@ -61,7 +61,7 @@ int connection_init(connection_t* connection, LPCTSTR address, const uint16_t po
 	if ((connection->socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
 		return -1;
 	}
-	if ((paddr_in = (struct sockaddr_in*)malloc(sizeof(struct sockaddr_in))) == NULL) {
+	if ((paddr_in = malloc(sizeof(struct sockaddr_in))) == NULL) {
 		return -1;
 	}
 	if (!InetPton(AF_INET, address, &haddr)) {
@@ -96,7 +96,7 @@ int connection_recv(const connection_t* connection, LPTSTR* buff) {
 	#define utf8_buff (*buff)
 #endif
 	SSIZE_T len;
-	if ((utf8_buff = (char*)malloc(sizeof(char) * (MSG_LEN + 1))) == NULL) {
+	if ((utf8_buff = malloc(sizeof(char) * (MSG_LEN + 1))) == NULL) {
 		return -1;
 	}
 	memset(utf8_buff, 0, sizeof(char) * (MSG_LEN + 1));
@@ -120,7 +120,7 @@ int connection_recv(const connection_t* connection, LPTSTR* buff) {
 		free(utf8_buff);
 		return -1;
 	}
-	if ((*buff = (LPWSTR)malloc(sizeof(WCHAR) * str_len)) == NULL) {
+	if ((*buff = malloc(sizeof(WCHAR) * str_len)) == NULL) {
 		free(utf8_buff);
 		return -1;
 	}
@@ -146,7 +146,7 @@ int connection_send(const connection_t* connection, LPCTSTR buff) {
 	if (!(len = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, buff, -1, NULL, 0, NULL, NULL))) {
 		return -1;
 	}
-	if ((utf8_buff = (char*)malloc(sizeof(char) * len)) == NULL) {
+	if ((utf8_buff = malloc(sizeof(char) * len)) == NULL) {
 		return -1;
 	}
 	if (!WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, buff, -1, utf8_buff, (int)len, NULL, NULL)) {
