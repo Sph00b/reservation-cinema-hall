@@ -258,7 +258,7 @@ try(
 			pthread_mutex_unlock(&request_queue_mutex), (!0)
 )
 		}
-		sleep(10);
+		sleep(TIMEOUT);
 	}
 
 #ifdef _DEBUG
@@ -268,20 +268,29 @@ try(
 }
 
 void* thread_timer(void* parent_tid) {
-	/*	Detach	thread	*/
+	/*	Capture SIGALRM signal	*/
+	sigset_t sigalrm;
 try(
-	pthread_detach(pthread_self()), (!0)
+	sigemptyset(&sigalrm), (-1)
+)
+try(
+	sigaddset(&sigalrm, SIGALRM), (-1)
+)
+try(
+	pthread_sigmask(SIG_UNBLOCK, &sigalrm, NULL), (!0)
 )
 	/*	Send SIGALRM after TIMEOUT elapsed	*/
 	sleep(TIMEOUT);
-/*
 try(
 	pthread_kill((pthread_t)parent_tid, SIGALRM), (!0)
 )
-*/
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Timer thread:\tSended SIGALRM to request thread %ul", (pthread_t)parent_tid);
 #endif
+	/*	Detach thread	*/
+try(
+	pthread_detach((pthread_t)parent_tid), (!0)
+)
 	return NULL;
 }
 
@@ -316,7 +325,7 @@ try(
 	connection_listen(cinfo->pconnection), (-1)
 )
 #ifdef _DEBUG
-	syslog(LOG_DEBUG, "Cm thread:\tlistening on socket");
+	syslog(LOG_DEBUG, "CntMng thread:\tlistening on socket");
 #endif
 	/*	Start request handler threads	*/
 	do {
@@ -351,7 +360,7 @@ try(
 		pthread_create(request->ptid, NULL, request_handler, (void*)request), (!0)
 )
 #ifdef _DEBUG
-		syslog(LOG_DEBUG, "Cm thread:\tRequest thread %ul spowned", *(request->ptid));
+		syslog(LOG_DEBUG, "CntMng thread:\tRequest thread %ul spowned", *(request->ptid));
 #endif
 	/*	Capture SIGALRM signal	*/
 try(
@@ -366,7 +375,14 @@ void* request_handler(void* arg) {
 	info = (struct request_info*)arg;
 	char* buff;
 	char* msg;
-	/*	Capture SIGALRM signal	*/
+	/*	Start timeout thread	*/
+try(
+	pthread_create(&timer_tid, NULL, thread_timer, (void*)*(info->ptid)), (!0)
+)
+#ifdef _DEBUG
+	syslog(LOG_DEBUG, "Request thread:\tCreated timer thread");
+#endif
+/*	Capture SIGALRM signal	*/
 	sigset_t sigalrm;
 try(
 	sigemptyset(&sigalrm), (-1)
@@ -377,23 +393,23 @@ try(
 try(
 	pthread_sigmask(SIG_UNBLOCK, &sigalrm, NULL), (!0)
 )
-	/*	Start timeout thread	*/
-try(
-	pthread_create(&timer_tid, NULL, thread_timer, (void*)*(info->ptid)), (!0)
-)
-#ifdef _DEBUG
-	syslog(LOG_DEBUG, "Request thread:\tCreated timer thread");
-#endif
 	/*	Get the request	*/
 try(
 	connection_recv(info->paccepted_connection, &buff), (-1)
 )
-	/*	Stop timeout thread	*/
-	/*
+	/*	Ignore SIGALRM	and stop timeout thread	*/
+try(
+	pthread_sigmask(SIG_BLOCK, &sigalrm, NULL), (!0)
+)
 try(
 	pthread_kill(timer_tid, SIGALRM), (!0)
 )
-*(
+try(
+	pthread_join(timer_tid, NULL), (!0)
+)
+#ifdef _DEBUG
+	syslog(LOG_DEBUG, "Request thread:\tStopped timer thread");
+#endif
 	/*	Elaborate the response */
 try(
 	database_execute(&db, buff, &msg), (-1)
@@ -407,7 +423,7 @@ try(
 	/*	Close connection	*/
 try(
 	connection_close(info->paccepted_connection), (-1)
-	)
+)
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Request thread:\t%ul ready to exit", *(info->ptid));
 #endif
