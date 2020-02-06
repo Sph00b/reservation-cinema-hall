@@ -566,7 +566,6 @@ int dbconfigure(database_t* database) {
 		if (database_execute(database, query, &result) == 1) {
 			return 1;
 		}
-		syslog(LOG_DEBUG, "%s, %s, %d", result, DBMSG_FAIL, strncmp(result, DBMSG_FAIL, strlen(DBMSG_FAIL)));
 		if (!strncmp(result, DBMSG_FAIL, strlen(DBMSG_FAIL))) {
 			clean = 1;
 			free(query);
@@ -697,7 +696,7 @@ int db_book(database_t* database, const char* request, char **result) {
 			free(wquery);
 			return 1;
 		}
-		if (!strcmp(*result, "0")) {
+		if (strcmp(*result, "0")) {
 			ret = 1;
 		}
 		free(rquery[i]);
@@ -726,5 +725,8 @@ int db_book(database_t* database, const char* request, char **result) {
 		}
 	}
 	free(wquery);
+	if (asprintf(result, "%d", id) == -1) {
+		return 1;
+	}
 	return 0;
 }
