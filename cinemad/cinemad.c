@@ -52,6 +52,8 @@ void*	request_handler(void* arg);
 void	thread_exit(int sig) { pthread_exit(NULL); }	//SIAGALRM handler
 int		daemonize();
 int		dbcreate(database_t* database, const char* filename);
+int		dbconfigure(database_t* database);
+int		dbclean_data(database_t* database);
 
 int main(int argc, char *argv[]){
 	pthread_t joiner_tid;
@@ -113,6 +115,9 @@ try(
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Main thread:\tDatabase connected");
 #endif
+try(
+	dbconfigure(&db), (1)
+)
 	/*	Register timestamp and PID in database	*/
 	char* qpid;
 	char* qtsp;
@@ -496,6 +501,8 @@ int dbcreate(database_t* database, const char* filename) {
 	"ADD COLUMNS FROM CONFIG",
 	"SET COLUMNS FROM CONFIG AS 1",
 	"ADD DATA",
+	"ADD 0 FROM DATA",
+	"SET 0 FROM DATA AS 0",
 	NULL
 	};
 	int dbfd = open(filename, O_CREAT | O_EXCL, 0666);
@@ -506,6 +513,86 @@ int dbcreate(database_t* database, const char* filename) {
 			remove(filename);
 			return 1;
 		}
+	}
+	return 0;
+}
+
+int dbconfigure(database_t* database) {
+	char* result;
+	int rows;
+	int columns;
+#ifdef _DEBUG
+	syslog(LOG_DEBUG, "Fetching rows and columns");
+#endif
+	if (database_execute(database, "GET ROWS FROM CONFIG", &result) == 1) {
+		return 1;
+	}
+	rows = atoi(result);
+	free(result);
+	if (database_execute(database, "GET COLUMNS FROM CONFIG", &result) == 1) {
+		return 1;
+	}
+	columns = atoi(result);
+	free(result);
+#ifdef _DEBUG
+	syslog(LOG_DEBUG, "Retrived rows and columns");
+#endif
+	for (int i = 0; i < rows * columns; i++) {
+		char* query;
+		if (asprintf(&query, "GET %d FROM DATA", i) == -1) {
+			return 1;	
+		}
+		if (database_execute(database, query, &result) == 1) {
+			return 1;
+		}
+		if (!strcmp(query, DBMSG_FAIL)) {
+			free(query);
+			free(result);
+			if (asprintf(&query, "ADD %d FROM DATA", i) == -1) {
+				return 1;
+			}
+			if (database_execute(database, query, &result) == 1) {
+				return 1;
+			}
+		}
+		free(query);
+		free(result);
+	}
+	return 0;
+}
+
+int dbclean_data(database_t* database) {
+	char* result;
+	int rows;
+	int columns;
+	if (database_execute(database, "GET ROWS FROM CONFIG", &result) == 1) {
+		return 1;
+	}
+	rows = atoi(result);
+	free(result);
+	if (database_execute(database, "GET COLUMNS FROM CONFIG", &result) == 1) {
+		return 1;
+	}
+	columns = atoi(result);
+	free(result);
+	for (int i = 0; i < rows * columns; i++) {
+		char* query;
+		if (asprintf(&query, "ADD %d FROM DATA", i) == -1) {
+			return 1;
+		}
+		if (database_execute(database, query, &result) == 1) {
+			return 1;
+		}
+		free(query);
+		free(result);
+		if (asprintf(&query, "SET %d FROM DATA AS 0", i) == -1) {
+			return 1;
+		}
+		if (database_execute(database, query, &result) == 1) {
+			return 1;
+		}
+		free(query);
+		free(result);
 	}
 	return 0;
 }

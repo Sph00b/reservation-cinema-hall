@@ -15,37 +15,37 @@
 		exit(EXIT_FAILURE);\
 	}
 
-int daemon_start();
-int daemon_stop();
-int daemon_status();
-int daemon_restart();
-int daemon_query(char*, char**);
+int server_start();
+int server_stop();
+int server_status();
+int server_restart();
+int server_query(char*, char**);
 
 int main(int argc, char *argv[]){
 	if (argc == 2 && !strncasecmp(argv[1], "start", 5)) {
 try(
-		daemon_start(), (1)
+		server_start(), (1)
 )
 	}
 	else if (argc == 2 && !strncasecmp(argv[1], "stop", 4)) {
 try(
-		daemon_stop(), (1)
+		server_stop(), (1)
 )
 	}
 	else if (argc == 2 && !strncasecmp(argv[1], "status", 6)) {
 try(
-		daemon_status(), (1)
+		server_status(), (1)
 )
 }
 	else if (argc == 2 && !strncasecmp(argv[1], "restart", 7)) {
 try(
-		daemon_restart(), (1)
+		server_restart(), (1)
 )
 	}
 	else if (argc == 3 && !strncasecmp(argv[1], "query", 5)) {
 		char* buff;
 try(
-		daemon_query(argv[2], &buff), (1)
+		server_query(argv[2], &buff), (1)
 )
 		printf("%s\n", buff);
 	}
@@ -62,7 +62,7 @@ try(
 	return 0;
 }
 
-int daemon_start(){
+int server_start(){
 	pid_t pid;
 	char *filename;
 	if (asprintf(&filename, "%s%s", getenv("HOME"), "/.cinema/bin/cinemad") == -1) {
@@ -85,10 +85,10 @@ default:
 
 }
 
-int daemon_stop(){
+int server_stop(){
 	char* pid;
 try(
-	daemon_query("GET PID FROM CONFIG", &pid), (1)
+	server_query("GET PID FROM CONFIG", &pid), (1)
 )
 try(
 	kill(atoi(pid), SIGTERM), (-1)
@@ -97,24 +97,24 @@ try(
 	return 0;
 }
 
-int daemon_restart() {
-	if (daemon_stop()) {
+int server_restart() {
+	if (server_stop()) {
 		return 1;
 	}
-	if (daemon_start()) {
+	if (server_start()) {
 		return 1;
 	}
 	printf("Server restarted\n");
 	return 0;
 }
 
-int daemon_status() {
+int server_status() {
 	char* pid = NULL;
 	char* timestr = NULL;
 	char* icon = NULL;
 	char* status = NULL;
-	if (daemon_query("GET PID FROM CONFIG", &pid) == 1 ||
-		daemon_query("GET TIMESTAMP FROM CONFIG", &timestr) == 1)	{
+	if (server_query("GET PID FROM CONFIG", &pid) == 1 ||
+		server_query("GET TIMESTAMP FROM CONFIG", &timestr) == 1)	{
 		if (asprintf(&icon, "●") == -1) {
 			return 1;
 		}
@@ -152,7 +152,7 @@ int daemon_status() {
 	return 0;
 }
 
-int daemon_query(char* query, char** result) {
+int server_query(char* query, char** result) {
 	connection_t con;
 	char* filename;
 	if (asprintf(&filename, "%s%s", getenv("HOME"), "/.cinema/tmp/socket") == -1) {
