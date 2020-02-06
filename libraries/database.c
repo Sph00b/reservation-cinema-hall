@@ -40,10 +40,10 @@ int refresh_cache(database_t* database) {
 			return 1;
 		}
 		free(database->dbcache);
-		if ((database->dbcache = malloc(sizeof(char) * (size_t)len)) == NULL) {
+		if ((database->dbcache = malloc(sizeof(char) * (size_t)(len + 1))) == NULL) {
 			return 1;
 		}
-		if (fgets(database->dbcache, len, database->dbstrm) == NULL) {
+		if (fgets(database->dbcache, len + 1, database->dbstrm) == NULL) {
 			free(database->dbcache);
 			return 1;
 		}
@@ -118,14 +118,14 @@ int get_offset(database_t* database, const struct info* info, unsigned **offset)
 			free(*offset);
 			return -1;
 		}
-	} while (*(tmp - 1) == '<' && *(tmp + 1) == '>');
+	} while (!(*(tmp - 1) == '<' && *(tmp + strlen(info->section)) == '>'));
 	do {
-		if ((tmp = strstr(database->dbcache, info->key)) == NULL) {
+		if ((tmp = strstr(tmp, info->key)) == NULL) {
 			free(*offset);
 			return -1;
 		}
-	} while (*(tmp - 1) == '[' && *(tmp + 1) == ']');
-	**offset = (unsigned)((size_t)(tmp - database->dbcache) / sizeof(char)) + WORDLEN;
+	} while (!(*(tmp - 1) == '[' && *(tmp + strlen(info->key)) == ']'));
+	**offset = (unsigned)((size_t)(tmp - database->dbcache) / sizeof(char)) + WORDLEN - 1;
 	return 0;
 }
 
@@ -199,7 +199,7 @@ int set(database_t* database, const struct info* info) {
 	}
 	if ((ret = get_offset(database, info, &offset))) {
 		free(value);
-		if (ret == -1) {
+		if (!ret) {
 			free(offset);
 		}
 		return ret;
