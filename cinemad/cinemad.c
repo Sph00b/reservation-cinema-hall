@@ -545,10 +545,19 @@ int dbconfigure(database_t* database) {
 		if (database_execute(database, query, &result) == 1) {
 			return 1;
 		}
-		if (!strcmp(query, DBMSG_FAIL)) {
+		syslog(LOG_DEBUG, "%s, %s, %d", result, DBMSG_FAIL, strncmp(result, DBMSG_FAIL, strlen(DBMSG_FAIL)));
+		if (!strncmp(result, DBMSG_FAIL, strlen(DBMSG_FAIL))) {
 			free(query);
 			free(result);
 			if (asprintf(&query, "ADD %d FROM DATA", i) == -1) {
+				return 1;
+			}
+			if (database_execute(database, query, &result) == 1) {
+				return 1;
+			}
+			free(query);
+			free(result);
+			if (asprintf(&query, "SET %d FROM DATA AS 0", i) == -1) {
 				return 1;
 			}
 			if (database_execute(database, query, &result) == 1) {
@@ -577,14 +586,6 @@ int dbclean_data(database_t* database) {
 	free(result);
 	for (int i = 0; i < rows * columns; i++) {
 		char* query;
-		if (asprintf(&query, "ADD %d FROM DATA", i) == -1) {
-			return 1;
-		}
-		if (database_execute(database, query, &result) == 1) {
-			return 1;
-		}
-		free(query);
-		free(result);
 		if (asprintf(&query, "SET %d FROM DATA AS 0", i) == -1) {
 			return 1;
 		}
