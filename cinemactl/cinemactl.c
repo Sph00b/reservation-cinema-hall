@@ -101,6 +101,8 @@ int server_restart() {
 	if (server_stop()) {
 		return 1;
 	}
+	sleep(10);	//should I change it?
+	printf("Server shutting down please wait...\n");
 	if (server_start()) {
 		return 1;
 	}

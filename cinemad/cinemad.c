@@ -40,6 +40,7 @@ struct request_info {
 /*	Global variables	*/
 
 database_t db;
+pthread_rwlock_t db_serializing_mutex;
 queue_t request_queue;
 pthread_mutex_t request_queue_mutex;
 
@@ -54,6 +55,7 @@ int		daemonize();
 int		dbcreate(database_t* database, const char* filename);
 int		dbconfigure(database_t* database);
 int		dbclean_data(database_t* database);
+int		db_book(database_t* database, const char* request, char** result);
 
 int main(int argc, char *argv[]){
 	pthread_t joiner_tid;
@@ -416,8 +418,24 @@ try(
 	syslog(LOG_DEBUG, "Request thread:\tStopped timer thread");
 #endif
 	/*	Elaborate the response */
+	if (buff[0] == '#') {
 try(
-	database_execute(&db, buff, &msg), (-1)
+		pthread_rwlock_wrlock(&db_serializing_mutex), (!0)
+)
+try(
+		db_book(&db, buff + 1, &msg), (1)
+)
+	}
+	else {
+try(
+		pthread_rwlock_rdlock(&db_serializing_mutex), (!0)
+)
+try(
+		database_execute(&db, buff, &msg), (-1)
+)
+	}
+try(
+	pthread_rwlock_unlock(&db_serializing_mutex), (!0)
 )
 	free(buff);
 	/*	Send the response	*/
@@ -500,6 +518,8 @@ int dbcreate(database_t* database, const char* filename) {
 	"SET ROWS FROM CONFIG AS 1",
 	"ADD COLUMNS FROM CONFIG",
 	"SET COLUMNS FROM CONFIG AS 1",
+	"ADD ID_COUNTER FROM CONFIG",
+	"SET ID_COUNTER FROM CONFIG AS 0",
 	"ADD DATA",
 	"ADD 0 FROM DATA",
 	"SET 0 FROM DATA AS 0",
@@ -521,6 +541,7 @@ int dbconfigure(database_t* database) {
 	char* result;
 	int rows;
 	int columns;
+	int clean;
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Fetching rows and columns");
 #endif
@@ -547,6 +568,7 @@ int dbconfigure(database_t* database) {
 		}
 		syslog(LOG_DEBUG, "%s, %s, %d", result, DBMSG_FAIL, strncmp(result, DBMSG_FAIL, strlen(DBMSG_FAIL)));
 		if (!strncmp(result, DBMSG_FAIL, strlen(DBMSG_FAIL))) {
+			clean = 1;
 			free(query);
 			free(result);
 			if (asprintf(&query, "ADD %d FROM DATA", i) == -1) {
@@ -566,6 +588,11 @@ int dbconfigure(database_t* database) {
 		}
 		free(query);
 		free(result);
+	}
+	if (clean) {
+		if (dbclean_data(database)) {
+			return 1;
+		}
 	}
 	return 0;
 }
@@ -595,5 +622,109 @@ int dbclean_data(database_t* database) {
 		free(query);
 		free(result);
 	}
+	if (database_execute(database, "SET ID_COUNTER FROM CONFIG AS 0", &result) == 1) {
+		return 1;
+	}
+	free(result);
+	return 0;
+}
+
+int db_get_id(database_t* database) {
+	int id;
+	char* query;
+	char* result;
+	if (database_execute(database, "GET ID_COUNTER FROM CONFIG", &result) == 1) {
+		return -1;
+	}
+	id = atoi(result);
+	id++;
+	free(result);
+	if (asprintf(&query, "SET ID_COUNTER FROM CONFIG AS %d", id) == -1) {
+		return -1;
+	}
+	if (database_execute(database, query, &result) == 1) {
+		return -1;
+	}
+	free(result);
+	return id;
+}
+
+/*	Should I modify database to start request manager thread to increase parallelization?	*/
+
+int db_book(database_t* database, const char* request, char **result) {
+	int ret;
+	int id;
+	int ntoken;
+	char* buffer;
+	char* saveptr;
+	char** pbuffer;
+	char** rquery;
+	char** wquery;
+	
+	if ((rquery = malloc(1)) == NULL) {
+		return 1;
+	}
+	if ((wquery = malloc(1)) == NULL) {
+		free(rquery);
+		return 1;
+	}
+	id = db_get_id(database);
+	buffer = strdup(request);
+	pbuffer = &buffer;
+	strtok_r(*pbuffer, " ", &saveptr);
+	do {
+		/*	use ret and notoken variable to correctly free moemory and return	*/
+		ntoken++;
+		if (realloc(rquery, sizeof(char*) * (size_t)ntoken) == NULL) {
+			return 1;
+		}
+		if (realloc(wquery, sizeof(char*) * (size_t)ntoken) == NULL) {
+			return 1;
+		}
+		if (asprintf(&(rquery[ntoken - 1]), "GET %d FROM DATA", atoi(*pbuffer)) == -1) {
+			return 1;
+		}
+		if (asprintf(&(wquery[ntoken - 1]), "SET %d FROM DATA AS %d", atoi(*pbuffer), id) == -1) {
+			return 1;
+		}
+	} while (strtok_r(NULL, " ", &saveptr));
+	free(buffer);
+	for (int i = 0; i < ntoken; i++) {
+		if (database_execute(database, rquery[i], result) == 1) {
+			for (int j = i; j < ntoken; free(rquery[++j]));
+			for (int j = 0; j < ntoken; free(wquery[j++]));
+			free(rquery);
+			free(wquery);
+			return 1;
+		}
+		if (!strcmp(*result, "0")) {
+			ret = 1;
+		}
+		free(rquery[i]);
+		free(*result);
+		if (ret) {
+			for (int j = i; j < ntoken; free(rquery[++j]));
+			for (int j = 0; j < ntoken; free(wquery[j++]));
+			free(rquery);
+			free(wquery);
+			return 1;
+		}
+	}
+	free(rquery);
+	for (int i = 0; i < ntoken; i++) {
+		if (database_execute(database, wquery[i], result) == 1) {
+			for (int j = i; j < ntoken; free(wquery[++j]));
+			free(wquery);
+			return 1;
+		}
+		free(wquery[i]);
+		free(*result);
+		if (ret) {
+			for (int j = i; j < ntoken; free(wquery[++j]));
+			free(wquery);
+			return 1;
+		}
+	}
+	free(wquery);
 	return 0;
 }

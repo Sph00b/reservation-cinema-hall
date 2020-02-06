@@ -419,3 +419,7 @@ void errorhandler(int e) {
 	getchar();
 	exit(e);
 }
+
+int buttonMngr() {
+
+}
