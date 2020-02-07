@@ -56,6 +56,7 @@ int		dbcreate(database_t* database, const char* filename);
 int		dbconfigure(database_t* database);
 int		dbclean_data(database_t* database);
 int		db_book(database_t* database, const char* request, char** result);
+int		db_unbook(database_t* database, const char* request, char** result);
 
 int main(int argc, char *argv[]){
 	pthread_t joiner_tid;
@@ -136,6 +137,7 @@ try(
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Main thread:\tPID stored: %s", result);
 #endif
+	free(result);
 try(
 	database_execute(&db, qtsp, &result), (1)
 )
@@ -265,7 +267,7 @@ try(
 			pthread_mutex_unlock(&request_queue_mutex), (!0)
 )
 		}
-		sleep(TIMEOUT);
+		sleep(1);
 	}
 
 #ifdef _DEBUG
@@ -426,6 +428,14 @@ try(
 		db_book(&db, buff + 1, &msg), (1)
 )
 	}
+	else if (buff[0] == '@') {
+try(
+		pthread_rwlock_wrlock(&db_serializing_mutex), (!0)
+)
+try(
+		db_unbook(&db, buff + 1, &msg), (1)
+)
+	}
 	else {
 try(
 		pthread_rwlock_rdlock(&db_serializing_mutex), (!0)
@@ -502,7 +512,6 @@ int daemonize() {
 }
 
 int dbcreate(database_t* database, const char* filename) {
-	char* r;
 	char* msg_init[] = {
 	"ADD NETWORK",
 	"ADD IP FROM NETWORK",
@@ -528,11 +537,14 @@ int dbcreate(database_t* database, const char* filename) {
 	int dbfd = open(filename, O_CREAT | O_EXCL, 0666);
 	close(dbfd);
 	database_init(database, filename);
+	char* r;
 	for (int i = 0; msg_init[i]; i++) {
 		if (database_execute(database, msg_init[i], &r)) {
 			remove(filename);
+			free(r);
 			return 1;
 		}
+		free(r);
 	}
 	return 0;
 }
@@ -541,10 +553,7 @@ int dbconfigure(database_t* database) {
 	char* result;
 	int rows;
 	int columns;
-	int clean;
-#ifdef _DEBUG
-	syslog(LOG_DEBUG, "Fetching rows and columns");
-#endif
+	int clean = 0;
 	if (database_execute(database, "GET ROWS FROM CONFIG", &result) == 1) {
 		return 1;
 	}
@@ -555,9 +564,6 @@ int dbconfigure(database_t* database) {
 	}
 	columns = atoi(result);
 	free(result);
-#ifdef _DEBUG
-	syslog(LOG_DEBUG, "Retrived rows and columns");
-#endif
 	for (int i = 0; i < rows * columns; i++) {
 		char* query;
 		if (asprintf(&query, "GET %d FROM DATA", i) == -1) {
@@ -642,8 +648,10 @@ int db_get_id(database_t* database) {
 		return -1;
 	}
 	if (database_execute(database, query, &result) == 1) {
+		free(query);
 		return -1;
 	}
+	free(query);
 	free(result);
 	return id;
 }
@@ -651,43 +659,52 @@ int db_get_id(database_t* database) {
 /*	Should I modify database to start request manager thread to increase parallelization?	*/
 
 int db_book(database_t* database, const char* request, char **result) {
-	int ret;
 	int id;
-	int ntoken;
-	char* buffer;
-	char* saveptr;
-	char** pbuffer;
-	char** rquery;
-	char** wquery;
-	
-	if ((rquery = malloc(1)) == NULL) {
+	int ret = 0;
+	int ntoken = 0;
+	char* buffer = NULL;
+	char* saveptr = NULL;
+	char** token = NULL;
+	char** rquery = NULL;
+	char** wquery = NULL;
+
+	ntoken = 0;
+	if ((id = db_get_id(database)) == -1) {
 		return 1;
 	}
-	if ((wquery = malloc(1)) == NULL) {
-		free(rquery);
+	if ((buffer = strdup(request)) == NULL) {
 		return 1;
 	}
-	id = db_get_id(database);
-	buffer = strdup(request);
-	pbuffer = &buffer;
-	strtok_r(*pbuffer, " ", &saveptr);
+	if ((token = malloc(sizeof(char*))) == NULL) {
+		return 1;
+	}
+	token[0] = strtok_r(buffer, " ", &saveptr);
+	ntoken++;
 	do {
-		/*	use ret and notoken variable to correctly free moemory and return	*/
 		ntoken++;
-		if (realloc(rquery, sizeof(char*) * (size_t)ntoken) == NULL) {
+		if ((token = realloc(token, sizeof(char*) * (size_t)ntoken)) == NULL) {
 			return 1;
 		}
-		if (realloc(wquery, sizeof(char*) * (size_t)ntoken) == NULL) {
+		token[ntoken - 1] = strtok_r(NULL, " ", &saveptr);
+	} while (token[ntoken - 1] != NULL);
+	ntoken--;
+	/*	free memory on error	*/
+	if ((rquery = malloc(sizeof(char*) * (size_t)ntoken)) == NULL) {
+		return 1;
+	}
+	if ((wquery = malloc(sizeof(char*) * (size_t)ntoken)) == NULL) {
+		return 1;
+	}
+	for (int i = 0; i < ntoken; i++) {
+		if (asprintf(&(rquery[i]), "GET %s FROM DATA", token[i]) == -1) {
 			return 1;
 		}
-		if (asprintf(&(rquery[ntoken - 1]), "GET %d FROM DATA", atoi(*pbuffer)) == -1) {
+		if (asprintf(&(wquery[i]), "SET %s FROM DATA AS %d", token[i], id) == -1) {
 			return 1;
 		}
-		if (asprintf(&(wquery[ntoken - 1]), "SET %d FROM DATA AS %d", atoi(*pbuffer), id) == -1) {
-			return 1;
-		}
-	} while (strtok_r(NULL, " ", &saveptr));
+	}
 	free(buffer);
+	free(token);
 	for (int i = 0; i < ntoken; i++) {
 		if (database_execute(database, rquery[i], result) == 1) {
 			for (int j = i; j < ntoken; free(rquery[++j]));
@@ -718,14 +735,57 @@ int db_book(database_t* database, const char* request, char **result) {
 		}
 		free(wquery[i]);
 		free(*result);
-		if (ret) {
-			for (int j = i; j < ntoken; free(wquery[++j]));
-			free(wquery);
-			return 1;
-		}
 	}
 	free(wquery);
 	if (asprintf(result, "%d", id) == -1) {
+		return 1;
+	}
+	return 0;
+}
+
+int db_unbook(database_t* database, const char* request, char** result) {
+	int ntoken = 0;
+	char* buffer = NULL;
+	char* saveptr = NULL;
+	char** token = NULL;
+	char** query = NULL;
+
+	ntoken = 0;
+	buffer = strdup(request);
+	if ((token = malloc(sizeof(char*))) == NULL) {
+		return 1;
+	}
+	token[0] = strtok_r(buffer, " ", &saveptr);
+	ntoken++;
+	do {
+		ntoken++;
+		if ((token = realloc(token, sizeof(char*) * (size_t)ntoken)) == NULL) {
+			return 1;
+		}
+		token[ntoken - 1] = strtok_r(NULL, " ", &saveptr);
+	} while (token[ntoken - 1] != NULL);
+	ntoken--;
+	if ((query = malloc(sizeof(char*) * (size_t)ntoken)) == NULL) {
+		return 1;
+	}
+	for (int i = 0; i < ntoken; i++) {
+		if (asprintf(&(query[i]), "SET %s FROM DATA AS 0", token[i]) == -1) {
+			return 1;
+		}
+	}
+	free(buffer);
+	free(token);
+	for (int i = 0; i < ntoken; i++) {
+		if (database_execute(database, query[i], result) == 1) {
+			for (int j = i; j < ntoken; free(query[++j]));
+			free(query);
+			return 1;
+		}
+		free(query[i]);
+		free(*result);
+	}
+	free(query);
+	if (asprintf(result, DBMSG_SUCC) == -1) {
 		return 1;
 	}
 	return 0;

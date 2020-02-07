@@ -59,28 +59,37 @@ int get_info(struct info** info, const char* str) {
 	int ntoken = 1;
 	char* buff;
 	char* saveptr;
+	char** token = NULL;
 	if ((*info = malloc(sizeof(struct info))) == NULL) {
 		return 1;
 	}
-	for (int i = 0; i < strlen(str); i++) {
-		if (str[i] == ' ') {
-			ntoken++;
-		}
-	}
+	ntoken = 0;
 	if ((buff = strdup(str)) == NULL) {
 		free(*info);
 		return 1;
 	}
-	buff = strtok_r(buff, " ", &saveptr);
+	if ((token = malloc(sizeof(char*))) == NULL) {
+		return 1;
+	}
+	token[0] = strtok_r(buff, " ", &saveptr);
+	ntoken++;
+	do {
+		ntoken++;
+		if ((token = realloc(token, sizeof(char*) * (size_t)ntoken)) == NULL) {
+			return 1;
+		}
+		token[ntoken - 1] = strtok_r(NULL, " ", &saveptr);
+	} while (token[ntoken - 1] != NULL);
+	ntoken--;
 	if (ntoken == 1) {
-		(*info)->section = strdup(buff);
+		(*info)->section = strdup(token[0]);
 		(*info)->key = NULL;
 		(*info)->value = NULL;
 	}
 	if (ntoken == 3 || ntoken == 5) {
-		(*info)->key = strdup(buff);
-		if (!strcmp(strtok_r(NULL, " ", &saveptr), "FROM")) {
-			(*info)->section = strdup(strtok_r(NULL, " ", &saveptr));
+		(*info)->key = strdup(token[0]);
+		if (!strcmp(token[1], "FROM")) {
+			(*info)->section = strdup(token[2]);
 			(*info)->value = NULL;
 		}
 		else {
@@ -88,14 +97,15 @@ int get_info(struct info** info, const char* str) {
 		}
 	}
 	if (ntoken == 5) {
-		if (!strcmp(strtok_r(NULL, " ", &saveptr), "AS")) {
-			(*info)->value = strdup(strtok_r(NULL, " ", &saveptr));
+		if (!strcmp(token[3], "AS")) {
+			(*info)->value = strdup(token[4]);
 		}
 		else {
 			ret = 1;
 		}
 	}
 	free(buff);
+	free(token);
 	if (ret) {
 		free(*info);
 		return -1;
@@ -104,28 +114,38 @@ int get_info(struct info** info, const char* str) {
 }
 
 /* return 0 on success, 1 on sys failure, -1 if not found */
-
+/*	PRONE TO SEGMENTATION FAULT!	*/
 int get_offset(database_t* database, const struct info* info, unsigned **offset) {
-	char* tmp;
+	char** tmp;
 	if (refresh_cache(database)) {
 		return 1;
 	}
-	if ((*offset = malloc(sizeof(unsigned))) == NULL) {
+	if ((tmp = malloc(sizeof(char*))) == NULL) {
 		return 1;
 	}
+	if ((*offset = malloc(sizeof(unsigned))) == NULL) {
+		free(tmp);
+		return 1;
+	}
+	*tmp = database->dbcache;
 	do {
-		if ((tmp = strstr(database->dbcache, info->section)) == NULL) {
+		if ((*tmp = strstr(*tmp, info->section)) == NULL) {
 			free(*offset);
 			return -1;
 		}
-	} while (!(*(tmp - 1) == '<' && *(tmp + strlen(info->section)) == '>'));
+		*tmp = *tmp + 1;
+	} while (!(*(*tmp - 2) == '<' && *(*tmp - 1 + strlen(info->section)) == '>'));
+	*tmp = *tmp - 1;
 	do {
-		if ((tmp = strstr(tmp, info->key)) == NULL) {
+		if ((*tmp = strstr(*tmp, info->key)) == NULL) {
 			free(*offset);
 			return -1;
 		}
-	} while (!(*(tmp - 1) == '[' && *(tmp + strlen(info->key)) == ']'));
-	**offset = (unsigned)((size_t)(tmp - database->dbcache) / sizeof(char)) + WORDLEN - 1;
+		*tmp = *tmp + 1;
+	} while (!(*(*tmp - 2) == '[' && *(*tmp - 1 + strlen(info->key)) == ']'));
+	*tmp = *tmp - 1;
+	**offset = (unsigned)((size_t)(*tmp - database->dbcache) / sizeof(char)) + WORDLEN - 1;
+	free(tmp);
 	return 0;
 }
 
