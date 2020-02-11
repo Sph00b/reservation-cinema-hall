@@ -136,18 +136,27 @@ int get_offset(int** offset, FILE* strm, const struct info* info) {
 	return 0;
 }
 
-/* return 0 on success, 1 on sys failure */
+/*	return 0 on success, 1 on sys failure	*/
 
-int add(int fd, const struct info* info) {
-	char* buff;
+int get_stream(FILE** pstrm, int fd) {
 	int newfd;
-	FILE* strm;
 	while ((newfd = dup(fd)) == -1) {
 		if (errno != EMFILE) {
 			return 1;
 		}
 	}
-	if ((strm = fdopen(newfd, "r+")) == NULL) {
+	if ((*pstrm = fdopen(newfd, "r+")) == NULL) {
+		return 1;
+	}
+	return 0;
+}
+
+/* return 0 on success, 1 on sys failure */
+
+int add(int fd, const struct info* info) {
+	FILE* strm;
+	char* buff;
+	if (get_stream(&strm, fd)) {
 		return 1;
 	}
 	if (info->section == NULL) {
@@ -199,16 +208,10 @@ int add(int fd, const struct info* info) {
 /* return 0 on success, 1 on sys failure, -1 if not found */
 
 int set(int fd, const struct info* info) {
-	char* value;
-	int newfd;
 	FILE* strm;
 	int* offset;
-	while ((newfd = dup(fd)) == -1) {
-		if (errno != EMFILE) {
-			return 1;
-		}
-	}
-	if ((strm = fdopen(newfd, "r+")) == NULL) {
+	char* value;
+	if (get_stream(&strm, fd)) {
 		return 1;
 	}
 	if (info->value == NULL) {
@@ -252,15 +255,9 @@ int set(int fd, const struct info* info) {
 /* return 2 on success, 1 on sys failure, -1 if not found */
 
 int get(int fd, const struct info* info, char** dest) {
-	int newfd;
 	FILE* strm;
 	int* offset;
-	while ((newfd = dup(fd)) == -1) {
-		if (errno != EMFILE) {
-			return 1;
-		}
-	}
-	if ((strm = fdopen(newfd, "r+")) == NULL) {
+	if (get_stream(&strm, fd)) {
 		return 1;
 	}
 	if (get_offset(&offset, strm, info)) {
