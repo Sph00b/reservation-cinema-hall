@@ -159,7 +159,7 @@ int connection_send(const connection_t* connection, LPCTSTR buff) {
 	}
 	free(utf8_buff);
 #else
-	if ((len = send(connection->socket, buff, strlen(buff), 0)) == -1) {
+	if ((len = (int)send(connection->socket, buff, strlen(buff), 0)) == -1) {
 		return -1;
 	}
 #endif

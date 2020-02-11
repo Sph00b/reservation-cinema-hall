@@ -27,31 +27,6 @@ struct info {
 	char* value;
 };
 
-int refresh_cache(database_t* database) {
-	int len;
-	if (database->dbit) {
-		if (fseek(database->dbstrm, 0, SEEK_END) == -1) {
-			return 1;
-		}
-		if ((len = ftell(database->dbstrm)) == -1) {
-			return 1;
-		}
-		if (fseek(database->dbstrm, 0, SEEK_SET) == -1) {
-			return 1;
-		}
-		free(database->dbcache);
-		if ((database->dbcache = malloc(sizeof(char) * (size_t)(len + 1))) == NULL) {
-			return 1;
-		}
-		if (fgets(database->dbcache, len + 1, database->dbstrm) == NULL) {
-			free(database->dbcache);
-			return 1;
-		}
-		database->dbit = 0;
-	}
-	return 0;
-}
-
 /* return 0 on success, 1 on sys failure, -1 if not found */
 
 int get_info(struct info** info, const char* str) {
@@ -113,46 +88,68 @@ int get_info(struct info** info, const char* str) {
 	return 0;
 }
 
-/* return 0 on success, 1 on sys failure, -1 if not found */
+/*	return 0 on success, 1 on sys failure, set offset to -1 if not found */
 /*	PRONE TO SEGMENTATION FAULT!	*/
-int get_offset(database_t* database, const struct info* info, unsigned **offset) {
-	char** tmp;
-	if (refresh_cache(database)) {
+int get_offset(int** offset, FILE* strm, const struct info* info) {
+	char* buff;
+	char* pbuff;
+	int strm_size;
+	if (fseek(strm, 0, SEEK_END) == -1) {
 		return 1;
 	}
-	if ((tmp = malloc(sizeof(char*))) == NULL) {
+	if ((strm_size = (int)ftell(strm)) == -1) {
 		return 1;
 	}
-	if ((*offset = malloc(sizeof(unsigned))) == NULL) {
-		free(tmp);
+	if ((buff = malloc(sizeof(char) * (size_t)strm_size)) == NULL) {
 		return 1;
 	}
-	*tmp = database->dbcache;
+	if (fseek(strm, 0, SEEK_SET) == -1) {
+		return 1;
+	}
+	if (fgets(buff, strm_size, strm) == NULL) {
+		free(buff);
+		return 1;
+	}
+	if ((*offset = malloc(sizeof(int))) == NULL) {
+		free(buff);
+		return 1;
+	}
+	pbuff = buff;
 	do {
-		if ((*tmp = strstr(*tmp, info->section)) == NULL) {
-			free(*offset);
-			return -1;
+		if ((pbuff = strstr(pbuff, info->section)) == NULL) {
+			**offset = -1;
+			return 0;
 		}
-		*tmp = *tmp + 1;
-	} while (!(*(*tmp - 2) == '<' && *(*tmp - 1 + strlen(info->section)) == '>'));
-	*tmp = *tmp - 1;
+		pbuff++;
+	} while (!(pbuff[-2] == '<' && pbuff[strlen(info->section) - 1] == '>'));
+	pbuff--;
 	do {
-		if ((*tmp = strstr(*tmp, info->key)) == NULL) {
-			free(*offset);
-			return -1;
+		if ((pbuff = strstr(pbuff, info->key)) == NULL) {
+			**offset = -1;
+			return 0;
 		}
-		*tmp = *tmp + 1;
-	} while (!(*(*tmp - 2) == '[' && *(*tmp - 1 + strlen(info->key)) == ']'));
-	*tmp = *tmp - 1;
-	**offset = (unsigned)((size_t)(*tmp - database->dbcache) / sizeof(char)) + WORDLEN - 1;
-	free(tmp);
+		pbuff++;
+	} while (!(pbuff[-2] == '[' && pbuff[ strlen(info->key) - 1] == ']'));
+	pbuff--;
+	**offset = (int)((size_t)(pbuff - buff) / sizeof(char)) + WORDLEN - 1;
+	free(buff);
 	return 0;
 }
 
 /* return 0 on success, 1 on sys failure */
 
-int add(database_t* database, const struct info* info) {
+int add(int fd, const struct info* info) {
 	char* buff;
+	int newfd;
+	FILE* strm;
+	while ((newfd = dup(fd)) == -1) {
+		if (errno != EMFILE) {
+			return 1;
+		}
+	}
+	if ((strm = fdopen(newfd, "r+")) == NULL) {
+		return 1;
+	}
 	if (info->section == NULL) {
 		return -1;
 	}
@@ -186,22 +183,34 @@ int add(database_t* database, const struct info* info) {
 		buff[strlen(buff)] = ']';
 		buff[WORDLEN * 2] = 0;
 	}
-	if (fprintf(database->dbstrm, buff) < 0) {
+	if (fprintf(strm, buff) < 0) {
 		free(buff);
 		return 1;
 	}
-	fflush(database->dbstrm);
-	database->dbit = 1;
+	fflush(strm);
+	if (fclose(strm)) {
+		free(buff);
+		return 1;
+	}
 	free(buff);
 	return 0;
 }
 
 /* return 0 on success, 1 on sys failure, -1 if not found */
 
-int set(database_t* database, const struct info* info) {
-	int ret;
+int set(int fd, const struct info* info) {
 	char* value;
-	unsigned* offset;
+	int newfd;
+	FILE* strm;
+	int* offset;
+	while ((newfd = dup(fd)) == -1) {
+		if (errno != EMFILE) {
+			return 1;
+		}
+	}
+	if ((strm = fdopen(newfd, "r+")) == NULL) {
+		return 1;
+	}
 	if (info->value == NULL) {
 		return -1;
 	}
@@ -217,25 +226,24 @@ int set(database_t* database, const struct info* info) {
 	if (strlen(value) < WORDLEN) {
 		value[strlen(value)] = ' ';
 	}
-	if ((ret = get_offset(database, info, &offset))) {
+	if (get_offset(&offset, strm, info)) {
 		free(value);
-		if (!ret) {
-			free(offset);
-		}
-		return ret;
+		return 1;
 	}
-	if (fseek(database->dbstrm, *offset, SEEK_SET) == -1) {
+	if (fseek(strm, *offset, SEEK_SET) == -1) {
 		free(value);
 		free(offset);
 		return 1;
 	}
-	if (fprintf(database->dbstrm, "%s", value) < 0) {
+	if (fprintf(strm, "%s", value) < 0) {
 		free(value);
 		free(offset);
 		return 1;
 	}
-	fflush(database->dbstrm);
-	database->dbit = 1;
+	fflush(strm);
+	if (fclose(strm)) {
+		return 1;
+	}
 	free(value);
 	free(offset);
 	return 0;
@@ -243,19 +251,38 @@ int set(database_t* database, const struct info* info) {
 
 /* return 2 on success, 1 on sys failure, -1 if not found */
 
-int get(database_t* database, const struct info* info, char** dest) {
-	int ret;
-	unsigned* offset;
-	if ((*dest = malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
+int get(int fd, const struct info* info, char** dest) {
+	int newfd;
+	FILE* strm;
+	int* offset;
+	while ((newfd = dup(fd)) == -1) {
+		if (errno != EMFILE) {
+			return 1;
+		}
+	}
+	if ((strm = fdopen(newfd, "r+")) == NULL) {
 		return 1;
 	}
-	if ((ret = get_offset(database, info, &offset))) {
-		free(*dest);
-		return ret;
+	if (get_offset(&offset, strm, info)) {
+		return 1;
 	}
-	if (snprintf(*dest, WORDLEN, "%s", database->dbcache + *offset) < WORDLEN) {
+	if (*offset == -1) {
+		return -1;
+	}
+	if (fseek(strm, *offset, SEEK_SET) == -1) {
+		free(offset);
+		return 1;
+	}
+	if ((*dest = malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
+		free(offset);
+		return 1;
+	}
+	if (fgets(*dest, WORDLEN + 1, strm) == NULL) {
 		free(*dest);
 		free(offset);
+		return 1;
+	}
+	if (fclose(strm)) {
 		return 1;
 	}
 	free(offset);
@@ -266,20 +293,19 @@ int get(database_t* database, const struct info* info, char** dest) {
 
 int database_init(database_t *database, const char* filename) {
 	int ret = 0;
-	database->dbcache = NULL;
-	database->dbit = 1;
-	if ((database->dbstrm = fopen(filename, "r+")) == NULL) {
-		return 1;
-	}
-	if (flock(fileno(database->dbstrm), LOCK_EX | LOCK_NB) == -1) {	//instead of semget & ftok to avoid mix SysV and POSIX, replace with fcntl
-		fclose(database->dbstrm);
+	database->fd = open(filename, O_RDWR, 0666);
+	if (flock(database->fd, LOCK_EX | LOCK_NB) == -1) {	//instead of semget & ftok to avoid mix SysV and POSIX, replace with fcntl
+		close(database->fd);
 		return 1;
 	}
 	if ((database->lock = malloc(sizeof(pthread_rwlock_t))) == NULL) {
+		close(database->fd);
 		return 1;
 	}
 	while ((ret = pthread_rwlock_init(database->lock, NULL)) && errno == EINTR);
 	if (ret && errno == EINTR) {
+		close(database->fd);
+		free(database->lock);
 		return 1;
 	}
 	return 0;
@@ -294,8 +320,7 @@ int database_close(database_t *database) {
 		return 1;
 	}
 	free(database->lock);
-	free(database->dbcache);
-	return fclose(database->dbstrm);
+	return close(database->fd);
 }
 
 /*	Execute a query return 1 and set properly errno on error */
@@ -324,21 +349,21 @@ int database_execute(database_t* database, const char* query, char** result) {
 		if (!strncmp(query, "ADD ", 4)) {
 			while ((mret = pthread_rwlock_wrlock(database->lock)) && errno == EINTR);
 			if (!mret) {
-				ret = add(database, qinfo);
+				ret = add(database->fd, qinfo);
 				while ((mret = pthread_rwlock_unlock(database->lock)) && errno == EINTR);
 			}
 		}
 		else if (!strncmp(query, "SET ", 4)) {
 			while ((mret = pthread_rwlock_wrlock(database->lock)) && errno == EINTR);
 			if (!mret) {
-				ret = set(database, qinfo);
+				ret = set(database->fd, qinfo);
 				while ((mret = pthread_rwlock_unlock(database->lock)) && errno == EINTR);
 			}
 		}
 		else if (!strncmp(query, "GET ", 4)) {
 			while ((mret = pthread_rwlock_rdlock(database->lock)) && errno == EINTR);
 			if (!mret) {
-				ret = get(database, qinfo, result);
+				ret = get(database->fd, qinfo, result);
 				while ((mret = pthread_rwlock_unlock(database->lock)) && errno == EINTR);
 			}
 		}

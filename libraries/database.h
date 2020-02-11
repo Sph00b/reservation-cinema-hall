@@ -19,10 +19,8 @@
 #define DBMSG_ERR "DATABASE FAILURE"
 
 typedef struct {
-    FILE* dbstrm;	//stream to the database
+    int fd;
     pthread_rwlock_t* lock;
-    char* dbcache;	//database buffer cache
-    uint8_t dbit;	//dirty bit
 } database_t;
 
 /*	Initiazlize database from file return 1 and set properly errno on error	*/
