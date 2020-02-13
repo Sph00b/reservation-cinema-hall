@@ -441,6 +441,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			errorhandler(WSAGetLastError());
 		}
 		free(query);
+		for (int i = 0; i < rows * columns; i++) {
+			HBITMAP tmp;
+			tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
+			if (tmp == hBitmapDefault) {
+				if (result[i * 2] == TEXT('1')) {
+					SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapBooked);
+				}
+				else if (result[i * 2] == TEXT('2')) {
+					SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDisabled);
+				}
+			}
+			else if (tmp == hBitmapDisabled && result[i * 2] == TEXT('0')) {
+				SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
+			}
+		}
 		free(result);
 		break;
 	}
@@ -477,7 +492,31 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 					break;
 				}
 				else if ((HWND)lParam == hButton3) {
-					buttonOnClick(hWnd, TEXT("@ 0"));
+					/*	Create MessageBox to warn the user	*/
+					LPTSTR query;
+					LPTSTR result;
+					asprintf(&query, TEXT("~%s"), pID);
+					if (query_server(query, &result)) {
+						errorhandler(WSAGetLastError());
+					}
+					free(query);
+					/*	Use a pointer to free memory	*/
+					asprintf(&query, TEXT("@"));
+					for (int i = 0; i < rows * columns; i++) {
+						if (result[i] == TEXT('1')) {
+							asprintf(&query, TEXT("%s %d"), query, i);
+						}
+					}
+					free(result);
+					buttonOnClick(hWnd, query);
+					free(query);
+					for (int i = 0; i < rows * columns; i++) {
+						HBITMAP tmp;
+						tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
+						if (tmp == hBitmapBooked) {
+							SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
+						}
+					}
 				}
 				break;
 			}
@@ -551,7 +590,18 @@ int buttonOnClick(HWND hWnd, LPCTSTR query) {
 		errorhandler(GetLastError());
 	}
 	SendMessage(hStaticTextbox, WM_SETTEXT, _tcslen(pID), (LPARAM)pID);
+	for (int i = 0; i < rows * columns; i++) {
+		HBITMAP tmp;
+		tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
+		if (tmp == hBitmapSelected) {
+			SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
+		}
+		else if (tmp == hBitmapRemove) {
+			SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
+		}
+	}
 	RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+	SendMessage(hWnd, WM_TIMER, 0, 0);
 	return 0;
 }
 
