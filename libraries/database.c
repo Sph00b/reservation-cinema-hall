@@ -131,7 +131,7 @@ int get_offset(int** offset, FILE* strm, const struct info* info) {
 		if (pbuff < buff + strm_size) {
 			pbuff++;
 		}
-	} while (!((pbuff[-1] != buff) && (pbuff[-2] == '<') && (pbuff[strlen(info->section) - 1] == '>')));
+	} while (!((pbuff - 1 != buff) && (pbuff[-2] == '<') && (pbuff[strlen(info->section) - 1] == '>')));
 	pbuff--;
 	do {
 		if ((pbuff = strstr(pbuff, info->key)) == NULL) {
@@ -142,7 +142,7 @@ int get_offset(int** offset, FILE* strm, const struct info* info) {
 		if (pbuff < buff + strm_size) {
 			pbuff++;
 		}
-	} while (!((pbuff[-1] != buff) && (pbuff[-2] == '[') && (pbuff[ strlen(info->key) - 1] == ']')));
+	} while (!((pbuff - 1 != buff) && (pbuff[-2] == '[') && (pbuff[ strlen(info->key) - 1] == ']')));
 	pbuff--;
 	**offset = (int)((size_t)(pbuff - buff) / sizeof(char)) + WORDLEN - 1;
 	free(buff);

@@ -11,6 +11,7 @@
 #ifdef _WIN32
 int vasprintf(LPTSTR* str, LPCTSTR format, va_list args){
 	size_t size;
+	LPTSTR buff;
 	va_list tmp;
 	va_copy(tmp, args);
 	size = _vsctprintf(format, tmp);
@@ -18,15 +19,17 @@ int vasprintf(LPTSTR* str, LPCTSTR format, va_list args){
 	if (size == -1){
 		return -1;
 	}
-	if ((*str = (LPTSTR)malloc(sizeof(TCHAR) * (size + 1))) == NULL){
+	if ((buff = (LPTSTR)malloc(sizeof(TCHAR) * (size + 1))) == NULL){
 		return -1;
 	}
-	size = _vstprintf_s(*str, size + 1, format, args);
+	size = _vstprintf_s(buff, size + 1, format, args);
+	*str = buff;
 	return (int)size;
 }
 #elif __unix__
 int vasprintf(char** str, const char* format, va_list args) {
 	int size;
+	char* buff;
 	va_list tmp;
 	va_copy(tmp, args);
 	size = vsnprintf(NULL, 0, format, tmp);
@@ -34,10 +37,11 @@ int vasprintf(char** str, const char* format, va_list args) {
 	if (size == -1) {
 		return -1;
 	}
-	if ((*str = (char*)malloc(sizeof(char) * (size_t)(size + 1))) == NULL) {
+	if ((buff = (char*)malloc(sizeof(char) * (size_t)(size + 1))) == NULL) {
 		return -1;
 	}
-	size = vsprintf(*str, format, args);
+	size = vsprintf(buff, format, args);
+	*str = buff;
 	return size;
 }
 #endif

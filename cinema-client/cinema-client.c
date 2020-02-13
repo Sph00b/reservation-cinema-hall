@@ -2,7 +2,7 @@
 #include "cinema-client.h"
 #include "framework.h"
 #include "savefile.h"
-
+#include "asprintf.h"
 #ifdef _DEBUG
 #include <io.h>
 #include <stdio.h>
@@ -24,8 +24,9 @@ LPTSTR pID;		//ID codice di prenotazione
 HWND hButton1;
 HWND hButton2;
 HWND hButton3;
-HWND hEdit;
+HWND hStaticTextbox;
 HWND* hStaticS;	//Pointer to seat control vector
+HWND hStaticLabelScreen;
 
 HBITMAP hBitmapDefault;
 HBITMAP hBitmapBooked;
@@ -39,6 +40,7 @@ BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 void				buttonViewMngr();
+int					buttonOnClick(HWND hWnd, LPCTSTR query);
 int					query_server(LPCTSTR, LPTSTR*);
 void				errorhandler(int e);
 
@@ -76,7 +78,6 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 	hBitmapDisabled = (HBITMAP)LoadImage(NULL, TEXT("Seat_Unavaiable.bmp"), IMAGE_BITMAP, 32, 32, LR_LOADFROMFILE);
 
 	LPTSTR buffer;
-	int max_len;
 
 	if (InitSavefile(TEXT("PrenotazioneCinema"))) {
 		errorhandler(GetLastError());
@@ -84,7 +85,9 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 	//	Inizializzare le stringhe globali
 	szTitle = TEXT("Prenotazione");
 	szWindowClass = TEXT("generic_class");
-	pID = savLoad();
+	if ((pID = savLoad()) == NULL) {
+		errorhandler(GetLastError());
+	}
 	//	Retrive number of seats and rows
 	if (query_server(TEXT("GET ROWS FROM CONFIG"), &buffer)) {
 		errorhandler(WSAGetLastError());
@@ -99,22 +102,16 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 	if (query_server(TEXT("GET FILM FROM CONFIG"), &buffer)) {
 		errorhandler(WSAGetLastError());
 	}
-	max_len = _tcslen(TEXT("Film: ")) + _tcslen(buffer) + 1;
-	if ((film = malloc(sizeof(TCHAR) * max_len)) == NULL) {
+	if (asprintf(&film, TEXT("Film: %s"), buffer) == -1) {
 		errorhandler(GetLastError());
 	}
-	_tcscpy_s(film, max_len, TEXT("Film: "));
-	_tcscat_s(film, max_len, buffer);
 	free(buffer);
 	if (query_server(TEXT("GET SHOWTIME FROM CONFIG"), &buffer)) {
 		errorhandler(WSAGetLastError());
 	}
-	max_len = _tcslen(TEXT("Orario: ")) + _tcslen(buffer) + 1;
-	if ((showtime = malloc(sizeof(TCHAR) * max_len)) == NULL) {
+	if (asprintf(&showtime, TEXT("Orario: %s"), buffer) == -1) {
 		errorhandler(GetLastError());
 	}
-	_tcscpy_s(showtime, max_len, TEXT("Orario: "));
-	_tcscat_s(showtime, max_len, buffer);
 	free(buffer);
 	//	Initialize seats buttons
 	hStaticS = malloc(rows * columns * sizeof(HWND));
@@ -185,20 +182,22 @@ ATOM MyRegisterClass(HINSTANCE hInstance) {
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 	hInst = hInstance;	//	Archivia l'handle di istanza nella variabile globale
 
+	int XRes = 1280;
+	int YRes = 720;
+
 	HWND hWnd = CreateWindow(
 		(LPCTSTR)szWindowClass,										//	CLASS
 		(LPCTSTR)szTitle,											//	TITLE
 		WS_OVERLAPPEDWINDOW ^ WS_THICKFRAME ^ WS_MAXIMIZEBOX,		//	STYLE
 		CW_USEDEFAULT,												//	X
 		CW_USEDEFAULT,												//	Y
-		1280,														//	WIDTH
-		720,														//	HEIGHT
+		XRes,														//	WIDTH
+		YRes,														//	HEIGHT
 		NULL,														//	NO PARENT WINDOW
 		NULL,														//	NO MENU
 		hInstance,													//	INSTANCE
 		NULL														//	NO PARAMETER
 	);
-
 	if (!hWnd) {
 		return FALSE;
 	}
@@ -213,39 +212,45 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 		TEXT("BUTTON"),					//	PREDEFINED CLASS 
 		TEXT("Prenota"),				//	Button text 
 		WS_CHILD,						//	Styles 
-		535, 600,						//	x,y position
+		(XRes / 2) - (210 / 2),			//	x position
+		YRes - (2 * 60),				//	y position
 		210, 60,						//	w,h size
 		hWnd, NULL, hInstance,			//	PARENT WINDOW, MENU, INSTANCE
 		NULL							//	PARAMETER
 	);
-	if (!hButton1)
+	if (!hButton1) {
 		return FALSE;
+	}
 
 	//	Create Button
 	hButton2 = CreateWindow(
 		TEXT("BUTTON"),					//	PREDEFINED CLASS 
 		TEXT("Modifica prenotazione"),	//	Button text 
 		WS_CHILD,						//	Styles 
-		360, 600,						//	x,y POSITION
+		(XRes / 2) - (210 * 4 / 3),		//	x position
+		YRes - (2 * 60),				//	y position
 		210, 60,						//	w,h SIZE
 		hWnd, NULL, hInstance,			//	PARENT WINDOW, MENU, INSTANCE
 		NULL							//	PARAMETER
 	);
-	if (!hButton2)
+	if (!hButton2) {
 		return FALSE;
+	}
 
 	//	Create Button
 	hButton3 = CreateWindow(
 		TEXT("BUTTON"),					//	PREDEFINED CLASS
 		TEXT("Elimina prenotazione"),	//	Button text 
 		WS_CHILD,						//	Styles 
-		700, 600,						//	x,y position
+		(XRes / 2) + (210 * 2 / 7),		//	x position
+		YRes - (2 * 60),				//	y position
 		210, 60,						//	w,h size
 		hWnd, NULL, hInstance,			//	PARENT WINDOW, MENU, INSTANCE
 		NULL							//	PARAMETER
 	);
-	if (!hButton3)
+	if (!hButton3) {
 		return FALSE;
+	}
 
 #ifdef _DEBUG
 	_tprintf(TEXT("BUTTONS CREATED\n"));
@@ -253,18 +258,20 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 
 	//	Create Label
 
-	hEdit = CreateWindowEx(
+	hStaticTextbox = CreateWindowEx(
 		WS_EX_CLIENTEDGE,					//	EX style
 		TEXT("STATIC"),						//	PREDEFINED CLASS
 		pID,								//	text 
 		WS_CHILD | WS_VISIBLE | SS_CENTER,	//	Styles 
-		535, 15,							//	x,y position
+		(XRes / 2) - (210 / 2),				//	x position
+		15,									//	y position
 		210, 20,							//	w,h size
 		hWnd, NULL, hInstance,				//	PARENT WINDOW, MENU, INSTANCE
 		NULL								//	PARAMETER
 	);
-	if (!hEdit)
+	if (!hStaticTextbox) {
 		return FALSE;
+	}
 
 #ifdef _DEBUG
 	_tprintf(TEXT("TEXTBOX CREATED\n"));
@@ -290,30 +297,38 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 		NULL									//	PARAMETER
 	);
 
-	//	Create seat Buttons
+	//	Create seat controls
 
 	for (int i = 0; i < rows; i++) {
+		LPTSTR str;
+		asprintf(&str, TEXT("%c"), i + 65);
 		CreateWindow(
-			TEXT("STATIC"),							//	PREDEFINED CLASS
-			TEXT(""),								//	text 
-			WS_CHILD | WS_VISIBLE | SS_CENTER,		//	Styles
-			16, 96 + ((32 + 5) * i),				//	x,y position
-			32, 32,									//	w,h size
-			hWnd, NULL, hInstance,					//	PARENT WINDOW, MENU, INSTANCE
-			NULL									//	PARAMETER
+			TEXT("STATIC"),											//	PREDEFINED CLASS
+			str,													//	text 
+			WS_CHILD | WS_VISIBLE | SS_CENTER | SS_CENTERIMAGE,		//	Styles
+			(XRes / 2) - (16 * columns) - 32,						//	x position
+			32 + ((YRes - 150) / 2) - (16 * rows) + (32 * i),		//	y position
+			32, 32,													//	w,h size
+			hWnd, NULL, hInstance,									//	PARENT WINDOW, MENU, INSTANCE
+			NULL													//	PARAMETER
 		);
+		free(str);
 	}
 	
 	for (int j = 0; j < columns; j++) {
+		LPTSTR str;
+		asprintf(&str, TEXT("%d"), j + 1);
 		CreateWindow(
-			TEXT("STATIC"),							//	PREDEFINED CLASS
-			TEXT(""),								//	text 
-			WS_CHILD | WS_VISIBLE | SS_CENTER,		//	Styles
-			64 + ((32 + 5) * j), 48,				//	x,y position
-			32, 32,									//	w,h size
-			hWnd, NULL, hInstance,					//	PARENT WINDOW, MENU, INSTANCE
-			NULL									//	PARAMETER
+			TEXT("STATIC"),											//	PREDEFINED CLASS
+			str,													//	text 
+			WS_CHILD | WS_VISIBLE | SS_CENTER | SS_CENTERIMAGE,		//	Styles
+			(XRes / 2) - (16 * columns) + (32 * j),					//	x position
+			((YRes - 150) / 2) - (16 * rows),						//	y position
+			32, 32,													//	w,h size
+			hWnd, NULL, hInstance,									//	PARENT WINDOW, MENU, INSTANCE
+			NULL													//	PARAMETER
 		);
+		free(str);
 	}
 
 	for (int i = 0; i < rows; i++) {
@@ -321,26 +336,33 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 			hStaticS[(i * columns) + j] = CreateWindow(
 				TEXT("STATIC"),									//	PREDEFINED CLASS
 				TEXT(""),										//	text 
-				WS_CHILD | WS_VISIBLE | SS_BITMAP | SS_NOTIFY,	//	Styles 
-				64 + ((32 + 5) * j),							//	x position
-				96 + ((32 + 5) * i),							//	y position
+				WS_CHILD | WS_VISIBLE | SS_BITMAP | SS_NOTIFY,	//	Styles
+				(XRes / 2) - (16 * columns) + (32 * j),			//	x position
+				32 + ((YRes - 150) / 2) - (16 * rows) + (32 * i),//	y position
 				32, 32,											//	w,h size
 				hWnd, NULL, hInstance,							//	PARENT WINDOW, MENU, INSTANCE
 				NULL											//	PARAMETER
 			);
+			if (!hStaticS[(i * columns) + j]) {
+				return FALSE;
+			}
 			SendMessage(hStaticS[(i * columns) + j], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
 		}
 	}
 
-	CreateWindow(
+	hStaticLabelScreen = CreateWindow(
 		TEXT("STATIC"),							//	PREDEFINED CLASS
 		TEXT("SCHERMO"),						//	text 
 		WS_CHILD | WS_VISIBLE |	SS_CENTER,		//	Styles
-		64, 108 + ((32 + 5) * rows),			//	x,y position
-		((32 + 5) * columns) - 5, 20,			//	w,h size
+		(XRes / 2) - (16 * columns) - 24,		//	x position
+		48 + ((YRes - 150) / 2) + (16 * rows),	//	y position
+		(32 * columns) + 48, 20,				//	w,h size
 		hWnd, NULL, hInstance,					//	PARENT WINDOW, MENU, INSTANCE
 		NULL									//	PARAMETER
 	);
+	if (!hStaticLabelScreen) {
+		return FALSE;
+	}
 
 
 #ifdef _DEBUG
@@ -368,18 +390,24 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
 	switch (message) {
 	case WM_CREATE:
+	{
 #ifdef _DEBUG
 		_tprintf(TEXT("RECEIVED CREATE MESSAGE\n"));
 #endif
+		if (!SetTimer(hWnd, 0, 1000, (TIMERPROC)NULL)) {
+			errorhandler(GetLastError());
+		}
 		break;
-
+	}
 	case WM_SIZE:
+	{
 #ifdef _DEBUG
 		_tprintf(TEXT("RECEIVED SIZE MESSAGE\n"));
 #endif
 		break;
-
+	}
 	case WM_PAINT:
+	{
 #ifdef _DEBUG
 		_tprintf(TEXT("RECEIVED PAINT MESSAGE\n"));
 #endif
@@ -389,47 +417,88 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		EndPaint(hWnd, &ps);
 		buttonViewMngr();
 		return DefWindowProc(hWnd, message, wParam, lParam);
-
+	}
+	case WM_CTLCOLORSTATIC:
+	{
+		if ((HWND)lParam == hStaticLabelScreen) {
+			SetBkColor((HDC)wParam, GetSysColor(COLOR_SCROLLBAR));
+			return (LRESULT)GetSysColorBrush(COLOR_SCROLLBAR);
+		}
+		else if ((HWND)lParam != hStaticTextbox) {
+			return (LRESULT)GetSysColorBrush(COLOR_WINDOW);
+		}
+		break;
+	}
+	case WM_TIMER:
+	{
+#ifdef _DEBUG
+		_tprintf(TEXT("RECEIVED TIMER MESSAGE\n"));
+#endif
+		LPTSTR query;
+		LPTSTR result;
+		asprintf(&query, TEXT("~%s"), pID);
+		if (query_server(query, &result)) {
+			errorhandler(WSAGetLastError());
+		}
+		free(query);
+		free(result);
+		break;
+	}
 	case WM_COMMAND:
-		if (wParam == BN_CLICKED || wParam == STN_CLICKED) {
+	{
+		if (wParam == BN_CLICKED) {
 #ifdef _DEBUG
 			_tprintf(TEXT("RECEIVED WM_COMMAND CLICKED MESSAGE FROM CONTROL %d\n"), lParam);
 #endif
-			if ((HWND)lParam == hButton1) {
-				savStore(TEXT("TEST"));
-			}
-			else if ((HWND)lParam == hButton2) {
-				if (_tcscmp(pID, TEXT("TEST")))
-					savStore(TEXT("TEST"));
-				else
-					savStore(TEXT("MTEST"));
-			}
-			else if ((HWND)lParam == hButton3) {
-				savStore(TEXT(""));
-			}
-			for (int i = 0; i < rows * columns; i++) {
-				if ((HWND)lParam == hStaticS[i]) {
-					SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapBooked);
+			{
+				for (int i = 0; i < rows * columns; i++) {
+					if ((HWND)lParam == hStaticS[i]) {
+						HBITMAP tmp;
+						tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
+						if (tmp == hBitmapDefault) {
+							SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapSelected);
+						}
+						else if (tmp == hBitmapSelected) {
+							SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
+						}
+						else if (tmp == hBitmapBooked) {
+							SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapRemove);
+						}
+						else if (tmp == hBitmapRemove) {
+							SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapBooked);
+						}
+						return 0;
+					}
 				}
+				if ((HWND)lParam == hButton1) {
+					buttonOnClick(hWnd, TEXT("# 0"));
+				}
+				else if ((HWND)lParam == hButton2) {
+					break;
+				}
+				else if ((HWND)lParam == hButton3) {
+					buttonOnClick(hWnd, TEXT("@ 0"));
+				}
+				break;
 			}
-			pID = savLoad();
-			SendMessage(hEdit, WM_SETTEXT, _tcslen(pID), (LPARAM)pID);
-			RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
-			break;
 		}
-		return DefWindowProc(hWnd, message, wParam, lParam);
-
+		else {
+			return DefWindowProc(hWnd, message, wParam, lParam);
+		}
+	}
 	case WM_DRAWITEM:
+	{
 		(LPDRAWITEMSTRUCT)lParam;
 		return DefWindowProc(hWnd, message, wParam, lParam);
-
+	}
 	case WM_DESTROY:
+	{
 #ifdef _DEBUG
 		_tprintf(TEXT("RECEIVED DESTROY MESSAGE\n"));
 #endif
 		PostQuitMessage(0);
 		break;
-
+	}
 	default:
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	}
@@ -464,6 +533,26 @@ void buttonViewMngr() {
 		ShowWindow(hButton2, SW_SHOWNORMAL);
 		ShowWindow(hButton3, SW_SHOWNORMAL);
 	}
+}
+
+int buttonOnClick(HWND hWnd, LPCTSTR query) {
+	LPTSTR buffer;
+	if (query_server(query, &buffer)) {
+		errorhandler(WSAGetLastError());
+	}
+	if (!(_tcscmp(buffer, TEXT("OPERATION SUCCEDED")))) {
+		savStore(TEXT(""));
+	}
+	else {
+		savStore(buffer);
+	}
+	free(buffer);
+	if ((pID = savLoad()) == NULL) {
+		errorhandler(GetLastError());
+	}
+	SendMessage(hStaticTextbox, WM_SETTEXT, _tcslen(pID), (LPARAM)pID);
+	RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+	return 0;
 }
 
 int query_server(LPCTSTR query, LPTSTR* result) {
@@ -503,8 +592,4 @@ void errorhandler(int e) {
 	_ftprintf(stderr, TEXT("%s\n"), p_errmsg);
 	getchar();
 	exit(e);
-}
-
-int buttonMngr() {
-
 }

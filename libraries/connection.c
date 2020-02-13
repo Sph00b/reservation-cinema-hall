@@ -30,7 +30,7 @@
 #endif
 
 #define BACKLOG 4096
-#define MSG_LEN 63
+#define MSG_LEN 1024
 
 int connection_init(connection_t* connection, LPCTSTR address, const uint16_t port) {
 #ifdef __unix__

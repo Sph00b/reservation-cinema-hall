@@ -43,6 +43,8 @@ database_t db;
 pthread_rwlock_t db_serializing_mutex;
 queue_t request_queue;
 pthread_mutex_t request_queue_mutex;
+int rows;
+int columns;
 
 /*	Prototype declarations of functions included in this code module	*/
 
@@ -52,11 +54,12 @@ void*	connection_mngr(void* arg);
 void*	request_handler(void* arg);
 void	thread_exit(int sig) { pthread_exit(NULL); }	//SIAGALRM handler
 int		daemonize();
-int		dbcreate(database_t* database, const char* filename);
-int		dbconfigure(database_t* database);
-int		dbclean_data(database_t* database);
+int		db_create(database_t* database, const char* filename);
+int		db_configure(database_t* database);
+int		db_clean_data(database_t* database);
 int		db_book(database_t* database, const char* request, char** result);
 int		db_unbook(database_t* database, const char* request, char** result);
+int		db_send_status(database_t* database, const char* request, char** result);
 
 int main(int argc, char *argv[]){
 	pthread_t joiner_tid;
@@ -109,7 +112,7 @@ try(
 )
 	if (ret && errno == ENOENT) {
 try(
-		dbcreate(&db, "etc/data.dat"), (1)
+		db_create(&db, "etc/data.dat"), (1)
 )
 #ifdef _DEBUG
 		syslog(LOG_DEBUG, "Main thread:\tDatabase created");
@@ -118,13 +121,24 @@ try(
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Main thread:\tDatabase connected");
 #endif
+	char* result;
 try(
-	dbconfigure(&db), (1)
+	database_execute(&db, "GET ROWS FROM CONFIG", &result), (1)
+)
+	rows = atoi(result);
+	free(result);
+try(
+	database_execute(&db, "GET COLUMNS FROM CONFIG", &result), (1)
+)
+	columns = atoi(result);
+	free(result);
+
+try(
+	db_configure(&db), (1)
 )
 	/*	Register timestamp and PID in database	*/
 	char* qpid;
 	char* qtsp;
-	char* result;
 try(
 	asprintf(&qpid, "%s %d", "SET PID FROM CONFIG AS", getpid()), (-1)
 )
@@ -243,13 +257,7 @@ void* thread_joiner(void* arg) {
 	long* server_status = (long*)arg;
 	struct request_info* request;
 	while (*server_status) {
-#ifdef _DEBUG
-		syslog(LOG_DEBUG, "Joiner thread:\tQueue empty: %d", queue_is_empty(&request_queue));
-#endif
 		while(!queue_is_empty(&request_queue)){
-#ifdef _DEBUG
-			syslog(LOG_DEBUG, "Joiner thread:\tQueue empty: %d", queue_is_empty(&request_queue));
-#endif
 try(
 			pthread_mutex_lock(&request_queue_mutex), (!0)
 )
@@ -436,6 +444,14 @@ try(
 		db_unbook(&db, buff + 1, &msg), (1)
 )
 	}
+	else if (buff[0] == '~') {
+try(
+		pthread_rwlock_rdlock(&db_serializing_mutex), (!0)
+)
+try(
+		db_send_status(&db, buff + 1, &msg), (1)
+)
+	}
 	else {
 try(
 		pthread_rwlock_rdlock(&db_serializing_mutex), (!0)
@@ -511,7 +527,7 @@ int daemonize() {
 	return 0;
 }
 
-int dbcreate(database_t* database, const char* filename) {
+int db_create(database_t* database, const char* filename) {
 	char* msg_init[] = {
 	"ADD NETWORK",
 	"ADD IP FROM NETWORK",
@@ -552,21 +568,9 @@ int dbcreate(database_t* database, const char* filename) {
 	return 0;
 }
 
-int dbconfigure(database_t* database) {
+int db_configure(database_t* database) {
 	char* result;
-	int rows;
-	int columns;
 	int clean = 0;
-	if (database_execute(database, "GET ROWS FROM CONFIG", &result) == 1) {
-		return 1;
-	}
-	rows = atoi(result);
-	free(result);
-	if (database_execute(database, "GET COLUMNS FROM CONFIG", &result) == 1) {
-		return 1;
-	}
-	columns = atoi(result);
-	free(result);
 	for (int i = 0; i < rows * columns; i++) {
 		char* query;
 		if (asprintf(&query, "GET %d FROM DATA", i) == -1) {
@@ -598,27 +602,15 @@ int dbconfigure(database_t* database) {
 		free(result);
 	}
 	if (clean) {
-		if (dbclean_data(database)) {
+		if (db_clean_data(database)) {
 			return 1;
 		}
 	}
 	return 0;
 }
 
-int dbclean_data(database_t* database) {
+int db_clean_data(database_t* database) {
 	char* result;
-	int rows;
-	int columns;
-	if (database_execute(database, "GET ROWS FROM CONFIG", &result) == 1) {
-		return 1;
-	}
-	rows = atoi(result);
-	free(result);
-	if (database_execute(database, "GET COLUMNS FROM CONFIG", &result) == 1) {
-		return 1;
-	}
-	columns = atoi(result);
-	free(result);
 	for (int i = 0; i < rows * columns; i++) {
 		char* query;
 		if (asprintf(&query, "SET %d FROM DATA AS 0", i) == -1) {
@@ -663,8 +655,8 @@ int db_get_id(database_t* database) {
 
 int db_book(database_t* database, const char* request, char **result) {
 	int id;
-	int ret = 0;
-	int ntoken = 0;
+	int ret;
+	int ntoken;
 	char* buffer = NULL;
 	char* saveptr = NULL;
 	char** token = NULL;
@@ -708,6 +700,7 @@ int db_book(database_t* database, const char* request, char **result) {
 	}
 	free(buffer);
 	free(token);
+	ret = 0;
 	for (int i = 0; i < ntoken; i++) {
 		if (database_execute(database, rquery[i], result) == 1) {
 			for (int j = i; j < ntoken; free(rquery[++j]));
@@ -790,6 +783,50 @@ int db_unbook(database_t* database, const char* request, char** result) {
 	free(query);
 	if (asprintf(result, DBMSG_SUCC) == -1) {
 		return 1;
+	}
+	return 0;
+}
+
+int db_send_status(database_t* database, const char* request, char** result) {
+	int id = 0;
+	char* query = NULL;
+	char* buffer = NULL;
+	char* ptr;
+	id = !strlen(request) ? -1 : atoi(request);
+	if (!(rows && columns)) {
+		asprintf(result, "");
+		return 0;
+	}
+	database_execute(database, "GET 0 FROM DATA", &buffer);
+	if (atoi(buffer)) {
+		if (atoi(buffer) == id) {
+			free(buffer);
+			asprintf(&buffer, "1");
+		}
+		else {
+			free(buffer);
+			asprintf(&buffer, "2");
+		}
+	}
+	asprintf(result, "%s", buffer);
+	for (int i = 1; i < rows * columns; i++) {
+		asprintf(&query, "GET %d FROM DATA", i);
+		database_execute(database, query, &buffer);
+		ptr = &(**result);
+		if (atoi(buffer)) {
+			if (atoi(buffer) == id) {
+				free(buffer);
+				asprintf(&buffer, "1");
+			}
+			else {
+				free(buffer);
+				asprintf(&buffer, "2");
+			}
+		}
+		asprintf(result, "%s %s", *result, buffer);
+		free(ptr);
+		free(query);
+		free(buffer);
 	}
 	return 0;
 }
