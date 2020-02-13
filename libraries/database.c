@@ -89,7 +89,7 @@ int get_info(struct info** info, const char* str) {
 }
 
 /*	return 0 on success, 1 on sys failure, set offset to -1 if not found */
-/*	PRONE TO SEGMENTATION FAULT!	*/
+
 int get_offset(int** offset, FILE* strm, const struct info* info) {
 	char* buff;
 	char* pbuff;
@@ -100,17 +100,24 @@ int get_offset(int** offset, FILE* strm, const struct info* info) {
 	if ((strm_size = (int)ftell(strm)) == -1) {
 		return 1;
 	}
+	if ((*offset = malloc(sizeof(int))) == NULL) {
+		return 1;
+	}
+	if (strm_size < WORDLEN) {
+		**offset = -1;
+		return 0;
+	}
 	if ((buff = malloc(sizeof(char) * (size_t)strm_size)) == NULL) {
+		free(*offset);
 		return 1;
 	}
 	if (fseek(strm, 0, SEEK_SET) == -1) {
-		return 1;
-	}
-	if (fgets(buff, strm_size, strm) == NULL) {
+		free(*offset);
 		free(buff);
 		return 1;
 	}
-	if ((*offset = malloc(sizeof(int))) == NULL) {
+	if (fgets(buff, strm_size, strm) == NULL) {
+		free(*offset);
 		free(buff);
 		return 1;
 	}
@@ -118,18 +125,24 @@ int get_offset(int** offset, FILE* strm, const struct info* info) {
 	do {
 		if ((pbuff = strstr(pbuff, info->section)) == NULL) {
 			**offset = -1;
+			free(buff);
 			return 0;
 		}
-		pbuff++;
-	} while (!(pbuff[-2] == '<' && pbuff[strlen(info->section) - 1] == '>'));
+		if (pbuff < buff + strm_size) {
+			pbuff++;
+		}
+	} while (!((pbuff[-1] != buff) && (pbuff[-2] == '<') && (pbuff[strlen(info->section) - 1] == '>')));
 	pbuff--;
 	do {
 		if ((pbuff = strstr(pbuff, info->key)) == NULL) {
 			**offset = -1;
+			free(buff);
 			return 0;
 		}
-		pbuff++;
-	} while (!(pbuff[-2] == '[' && pbuff[ strlen(info->key) - 1] == ']'));
+		if (pbuff < buff + strm_size) {
+			pbuff++;
+		}
+	} while (!((pbuff[-1] != buff) && (pbuff[-2] == '[') && (pbuff[ strlen(info->key) - 1] == ']')));
 	pbuff--;
 	**offset = (int)((size_t)(pbuff - buff) / sizeof(char)) + WORDLEN - 1;
 	free(buff);
@@ -233,6 +246,10 @@ int set(int fd, const struct info* info) {
 		free(value);
 		return 1;
 	}
+	if (*offset == -1) {
+		free(value);
+		return -1;
+	}
 	if (fseek(strm, *offset, SEEK_SET) == -1) {
 		free(value);
 		free(offset);
@@ -290,7 +307,9 @@ int get(int fd, const struct info* info, char** dest) {
 
 int database_init(database_t *database, const char* filename) {
 	int ret = 0;
-	database->fd = open(filename, O_RDWR, 0666);
+	if ((database->fd = open(filename, O_RDWR, 0666)) == -1) {
+		return 1;
+	}
 	if (flock(database->fd, LOCK_EX | LOCK_NB) == -1) {	//instead of semget & ftok to avoid mix SysV and POSIX, replace with fcntl
 		close(database->fd);
 		return 1;

@@ -527,6 +527,9 @@ int dbcreate(database_t* database, const char* filename) {
 	"SET ROWS FROM CONFIG AS 1",
 	"ADD COLUMNS FROM CONFIG",
 	"SET COLUMNS FROM CONFIG AS 1",
+	"ADD FILM FROM CONFIG",
+	"ADD SHOWTIME FROM CONFIG",
+	"SET SHOWTIME FROM CONFIG AS 00:00",
 	"ADD ID_COUNTER FROM CONFIG",
 	"SET ID_COUNTER FROM CONFIG AS 0",
 	"ADD DATA",
@@ -656,7 +659,7 @@ int db_get_id(database_t* database) {
 	return id;
 }
 
-/*	Should I modify database to start request manager thread to increase parallelization?	*/
+/*	Should I start threads to increase performance?	*/
 
 int db_book(database_t* database, const char* request, char **result) {
 	int id;
