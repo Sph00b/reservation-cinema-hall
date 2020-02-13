@@ -17,3 +17,5 @@ Release/
 *.pdb*
 *.ilk*
 *.exe
+*.res
+*.aps

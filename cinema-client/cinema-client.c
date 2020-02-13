@@ -18,13 +18,20 @@ LPTSTR szTitle;			// Testo della barra del titolo
 LPTSTR szWindowClass;	// Nome della classe della finestra principale
 int rows;
 int columns;
-
+LPTSTR film;
+LPTSTR showtime;
 LPTSTR pID;		//ID codice di prenotazione
 HWND hButton1;
 HWND hButton2;
 HWND hButton3;
 HWND hEdit;
-HWND* hButtonS;	//Pointer to seat buttons rep
+HWND* hStaticS;	//Pointer to seat control vector
+
+HBITMAP hBitmapDefault;
+HBITMAP hBitmapBooked;
+HBITMAP hBitmapSelected;
+HBITMAP hBitmapRemove;
+HBITMAP hBitmapDisabled;
 
 // Dichiarazioni con prototipo di funzioni incluse in questo modulo di codice:
 ATOM                MyRegisterClass(HINSTANCE);
@@ -39,8 +46,6 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 
 	UNREFERENCED_PARAMETER(hPrevInstance);
 	UNREFERENCED_PARAMETER(lpCmdLine);
-	
-	LPTSTR buffer;
 
 #ifdef _DEBUG
 	int hCrt;
@@ -63,6 +68,16 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 	_tfreopen_s(&hf_err, TEXT("CONOUT$"), TEXT("w"), stderr);
 	
 #endif
+
+	hBitmapDefault = (HBITMAP)LoadImage(NULL, TEXT("Seat_Default.bmp"), IMAGE_BITMAP, 32, 32, LR_LOADFROMFILE);
+	hBitmapBooked = (HBITMAP)LoadImage(NULL, TEXT("Seat_Booked.bmp"), IMAGE_BITMAP, 32, 32, LR_LOADFROMFILE);
+	hBitmapSelected = (HBITMAP)LoadImage(NULL, TEXT("Seat_Selct.bmp"), IMAGE_BITMAP, 32, 32, LR_LOADFROMFILE);
+	hBitmapRemove = (HBITMAP)LoadImage(NULL, TEXT("Seat_Delete.bmp"), IMAGE_BITMAP, 32, 32, LR_LOADFROMFILE);
+	hBitmapDisabled = (HBITMAP)LoadImage(NULL, TEXT("Seat_Unavaiable.bmp"), IMAGE_BITMAP, 32, 32, LR_LOADFROMFILE);
+
+	LPTSTR buffer;
+	int max_len;
+
 	if (InitSavefile(TEXT("PrenotazioneCinema"))) {
 		errorhandler(GetLastError());
 	}
@@ -81,8 +96,28 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 	}
 	columns = _tstoi(buffer);
 	free(buffer);
+	if (query_server(TEXT("GET FILM FROM CONFIG"), &buffer)) {
+		errorhandler(WSAGetLastError());
+	}
+	max_len = _tcslen(TEXT("Film: ")) + _tcslen(buffer) + 1;
+	if ((film = malloc(sizeof(TCHAR) * max_len)) == NULL) {
+		errorhandler(GetLastError());
+	}
+	_tcscpy_s(film, max_len, TEXT("Film: "));
+	_tcscat_s(film, max_len, buffer);
+	free(buffer);
+	if (query_server(TEXT("GET SHOWTIME FROM CONFIG"), &buffer)) {
+		errorhandler(WSAGetLastError());
+	}
+	max_len = _tcslen(TEXT("Orario: ")) + _tcslen(buffer) + 1;
+	if ((showtime = malloc(sizeof(TCHAR) * max_len)) == NULL) {
+		errorhandler(GetLastError());
+	}
+	_tcscpy_s(showtime, max_len, TEXT("Orario: "));
+	_tcscat_s(showtime, max_len, buffer);
+	free(buffer);
 	//	Initialize seats buttons
-	hButtonS = (HWND*)malloc(rows * columns * sizeof(HWND));
+	hStaticS = malloc(rows * columns * sizeof(HWND));
 	if (!MyRegisterClass(hInstance)) {
 		errorhandler(GetLastError());
 	}
@@ -156,8 +191,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 		WS_OVERLAPPEDWINDOW ^ WS_THICKFRAME ^ WS_MAXIMIZEBOX,		//	STYLE
 		CW_USEDEFAULT,												//	X
 		CW_USEDEFAULT,												//	Y
-		650,														//	WIDTH
-		420,														//	HEIGHT
+		1280,														//	WIDTH
+		720,														//	HEIGHT
 		NULL,														//	NO PARENT WINDOW
 		NULL,														//	NO MENU
 		hInstance,													//	INSTANCE
@@ -178,7 +213,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 		TEXT("BUTTON"),					//	PREDEFINED CLASS 
 		TEXT("Prenota"),				//	Button text 
 		WS_CHILD,						//	Styles 
-		210, 300,						//	x,y position
+		535, 600,						//	x,y position
 		210, 60,						//	w,h size
 		hWnd, NULL, hInstance,			//	PARENT WINDOW, MENU, INSTANCE
 		NULL							//	PARAMETER
@@ -191,7 +226,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 		TEXT("BUTTON"),					//	PREDEFINED CLASS 
 		TEXT("Modifica prenotazione"),	//	Button text 
 		WS_CHILD,						//	Styles 
-		70, 300,						//	x,y POSITION
+		360, 600,						//	x,y POSITION
 		210, 60,						//	w,h SIZE
 		hWnd, NULL, hInstance,			//	PARENT WINDOW, MENU, INSTANCE
 		NULL							//	PARAMETER
@@ -204,7 +239,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 		TEXT("BUTTON"),					//	PREDEFINED CLASS
 		TEXT("Elimina prenotazione"),	//	Button text 
 		WS_CHILD,						//	Styles 
-		350, 300,						//	x,y position
+		700, 600,						//	x,y position
 		210, 60,						//	w,h size
 		hWnd, NULL, hInstance,			//	PARENT WINDOW, MENU, INSTANCE
 		NULL							//	PARAMETER
@@ -223,7 +258,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 		TEXT("STATIC"),						//	PREDEFINED CLASS
 		pID,								//	text 
 		WS_CHILD | WS_VISIBLE | SS_CENTER,	//	Styles 
-		210, 20,							//	x,y position
+		535, 15,							//	x,y position
 		210, 20,							//	w,h size
 		hWnd, NULL, hInstance,				//	PARENT WINDOW, MENU, INSTANCE
 		NULL								//	PARAMETER
@@ -235,18 +270,78 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 	_tprintf(TEXT("TEXTBOX CREATED\n"));
 #endif
 
+	CreateWindow(
+		TEXT("STATIC"),							//	PREDEFINED CLASS
+		film,									//	text 
+		WS_CHILD | WS_VISIBLE,					//	Styles
+		10, 5,									//	x,y position
+		255, 20,								//	w,h size
+		hWnd, NULL, hInstance,					//	PARENT WINDOW, MENU, INSTANCE
+		NULL									//	PARAMETER
+	);
+
+	CreateWindow(
+		TEXT("STATIC"),							//	PREDEFINED CLASS
+		showtime,								//	text 
+		WS_CHILD | WS_VISIBLE,					//	Styles
+		10, 25,									//	x,y position
+		255, 20,								//	w,h size
+		hWnd, NULL, hInstance,					//	PARENT WINDOW, MENU, INSTANCE
+		NULL									//	PARAMETER
+	);
+
 	//	Create seat Buttons
-	for (int i = 0; i < rows * columns; i++) {
-		hButtonS[i] = CreateWindow(
-			TEXT("BUTTON"),							//	PREDEFINED CLASS
+
+	for (int i = 0; i < rows; i++) {
+		CreateWindow(
+			TEXT("STATIC"),							//	PREDEFINED CLASS
 			TEXT(""),								//	text 
-			WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,	//	Styles 
-			(10 + 2 * i * 32), 60,				//	x,y position
+			WS_CHILD | WS_VISIBLE | SS_CENTER,		//	Styles
+			16, 96 + ((32 + 5) * i),				//	x,y position
 			32, 32,									//	w,h size
 			hWnd, NULL, hInstance,					//	PARENT WINDOW, MENU, INSTANCE
 			NULL									//	PARAMETER
 		);
 	}
+	
+	for (int j = 0; j < columns; j++) {
+		CreateWindow(
+			TEXT("STATIC"),							//	PREDEFINED CLASS
+			TEXT(""),								//	text 
+			WS_CHILD | WS_VISIBLE | SS_CENTER,		//	Styles
+			64 + ((32 + 5) * j), 48,				//	x,y position
+			32, 32,									//	w,h size
+			hWnd, NULL, hInstance,					//	PARENT WINDOW, MENU, INSTANCE
+			NULL									//	PARAMETER
+		);
+	}
+
+	for (int i = 0; i < rows; i++) {
+		for (int j = 0; j < columns; j++) {
+			hStaticS[(i * columns) + j] = CreateWindow(
+				TEXT("STATIC"),									//	PREDEFINED CLASS
+				TEXT(""),										//	text 
+				WS_CHILD | WS_VISIBLE | SS_BITMAP | SS_NOTIFY,	//	Styles 
+				64 + ((32 + 5) * j),							//	x position
+				96 + ((32 + 5) * i),							//	y position
+				32, 32,											//	w,h size
+				hWnd, NULL, hInstance,							//	PARENT WINDOW, MENU, INSTANCE
+				NULL											//	PARAMETER
+			);
+			SendMessage(hStaticS[(i * columns) + j], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
+		}
+	}
+
+	CreateWindow(
+		TEXT("STATIC"),							//	PREDEFINED CLASS
+		TEXT("SCHERMO"),						//	text 
+		WS_CHILD | WS_VISIBLE |	SS_CENTER,		//	Styles
+		64, 108 + ((32 + 5) * rows),			//	x,y position
+		((32 + 5) * columns) - 5, 20,			//	w,h size
+		hWnd, NULL, hInstance,					//	PARENT WINDOW, MENU, INSTANCE
+		NULL									//	PARAMETER
+	);
+
 
 #ifdef _DEBUG
 	_tprintf(TEXT("TEXTBOX SUCCESFULLY CREATED\n"));
@@ -292,46 +387,39 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		HDC hdc = BeginPaint(hWnd, &ps);
 		//	TODO: Aggiungere qui il codice di disegno che usa HDC...
 		EndPaint(hWnd, &ps);
-		if (!_tcscmp(pID, TEXT(""))) {
-			ShowWindow(hButton1, SW_SHOWNORMAL);
-			ShowWindow(hButton2, SW_HIDE);
-			ShowWindow(hButton3, SW_HIDE);
-		}
-		else {
-			ShowWindow(hButton1, SW_HIDE);
-			ShowWindow(hButton2, SW_SHOWNORMAL);
-			ShowWindow(hButton3, SW_SHOWNORMAL);
-		}
+		buttonViewMngr();
 		return DefWindowProc(hWnd, message, wParam, lParam);
 
 	case WM_COMMAND:
-		if (wParam == BN_CLICKED) {
+		if (wParam == BN_CLICKED || wParam == STN_CLICKED) {
 #ifdef _DEBUG
-			_tprintf(TEXT("RECEIVED WM_COMMAND MESSAGE ON BUTTON %d\n"), lParam);
+			_tprintf(TEXT("RECEIVED WM_COMMAND CLICKED MESSAGE FROM CONTROL %d\n"), lParam);
 #endif
 			if ((HWND)lParam == hButton1) {
 				savStore(TEXT("TEST"));
 			}
-			if ((HWND)lParam == hButton2) {
+			else if ((HWND)lParam == hButton2) {
 				if (_tcscmp(pID, TEXT("TEST")))
 					savStore(TEXT("TEST"));
 				else
 					savStore(TEXT("MTEST"));
 			}
-			if ((HWND)lParam == hButton3) {
+			else if ((HWND)lParam == hButton3) {
 				savStore(TEXT(""));
+			}
+			for (int i = 0; i < rows * columns; i++) {
+				if ((HWND)lParam == hStaticS[i]) {
+					SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapBooked);
+				}
 			}
 			pID = savLoad();
 			SendMessage(hEdit, WM_SETTEXT, _tcslen(pID), (LPARAM)pID);
 			RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
 			break;
-	}
+		}
 		return DefWindowProc(hWnd, message, wParam, lParam);
 
 	case WM_DRAWITEM:
-#ifdef _DEBUG
-		_tprintf(TEXT("RECEIVED WM_DRAWITEM MESSAGE\n"));
-#endif
 		(LPDRAWITEMSTRUCT)lParam;
 		return DefWindowProc(hWnd, message, wParam, lParam);
 
@@ -343,9 +431,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		break;
 
 	default:
-#ifdef _DEBUG
-		_tprintf(TEXT("RECEIVED GENERIC MESSAGE %d\n"), message);
-#endif
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	}
 	return 0;
