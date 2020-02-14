@@ -389,10 +389,25 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		_tprintf(TEXT("RECEIVED CREATE MESSAGE\n"));
 #endif
 		hBitmapDisabled = (HBITMAP)LoadBitmap((HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), MAKEINTRESOURCE(IDB_BITMAP1));
+		if (hBitmapDisabled == NULL) {
+			errorhandler(GetLastError());
+		}
 		hBitmapDefault = (HBITMAP)LoadBitmap((HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), MAKEINTRESOURCE(IDB_BITMAP2));
+		if (hBitmapDefault == NULL) {
+			errorhandler(GetLastError());
+		}
 		hBitmapBooked = (HBITMAP)LoadBitmap((HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), MAKEINTRESOURCE(IDB_BITMAP3));
+		if (hBitmapBooked == NULL) {
+			errorhandler(GetLastError());
+		}
 		hBitmapSelected = (HBITMAP)LoadBitmap((HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), MAKEINTRESOURCE(IDB_BITMAP4));
+		if (hBitmapSelected == NULL) {
+			errorhandler(GetLastError());
+		}
 		hBitmapRemove = (HBITMAP)LoadBitmap((HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), MAKEINTRESOURCE(IDB_BITMAP5));
+		if (hBitmapRemove == NULL) {
+			errorhandler(GetLastError());
+		}
 
 		if (!SetTimer(hWnd, 0, 1000, (TIMERPROC)NULL)) {
 			errorhandler(GetLastError());
