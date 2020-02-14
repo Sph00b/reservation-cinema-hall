@@ -70,13 +70,7 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 	_tfreopen_s(&hf_err, TEXT("CONOUT$"), TEXT("w"), stderr);
 	
 #endif
-
-	hBitmapDefault = (HBITMAP)LoadImage(NULL, TEXT("Seat_Default.bmp"), IMAGE_BITMAP, 32, 32, LR_LOADFROMFILE);
-	hBitmapBooked = (HBITMAP)LoadImage(NULL, TEXT("Seat_Booked.bmp"), IMAGE_BITMAP, 32, 32, LR_LOADFROMFILE);
-	hBitmapSelected = (HBITMAP)LoadImage(NULL, TEXT("Seat_Selct.bmp"), IMAGE_BITMAP, 32, 32, LR_LOADFROMFILE);
-	hBitmapRemove = (HBITMAP)LoadImage(NULL, TEXT("Seat_Delete.bmp"), IMAGE_BITMAP, 32, 32, LR_LOADFROMFILE);
-	hBitmapDisabled = (HBITMAP)LoadImage(NULL, TEXT("Seat_Unavaiable.bmp"), IMAGE_BITMAP, 32, 32, LR_LOADFROMFILE);
-
+	
 	LPTSTR buffer;
 
 	if (InitSavefile(TEXT("PrenotazioneCinema"))) {
@@ -390,16 +384,22 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
 	switch (message) {
 	case WM_CREATE:
-	{
+		{
 #ifdef _DEBUG
 		_tprintf(TEXT("RECEIVED CREATE MESSAGE\n"));
 #endif
+		hBitmapDisabled = (HBITMAP)LoadBitmap((HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), MAKEINTRESOURCE(IDB_BITMAP1));
+		hBitmapDefault = (HBITMAP)LoadBitmap((HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), MAKEINTRESOURCE(IDB_BITMAP2));
+		hBitmapBooked = (HBITMAP)LoadBitmap((HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), MAKEINTRESOURCE(IDB_BITMAP3));
+		hBitmapSelected = (HBITMAP)LoadBitmap((HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), MAKEINTRESOURCE(IDB_BITMAP4));
+		hBitmapRemove = (HBITMAP)LoadBitmap((HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), MAKEINTRESOURCE(IDB_BITMAP5));
+
 		if (!SetTimer(hWnd, 0, 1000, (TIMERPROC)NULL)) {
 			errorhandler(GetLastError());
 		}
 		SendMessage(hWnd, WM_TIMER, 0, 0);
-		break;
-	}
+		}
+	break;
 	case WM_SIZE:
 	{
 #ifdef _DEBUG
@@ -567,6 +567,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 					break;
 				}
 				else if ((HWND)lParam == hButton3) {
+					int MessageBoxResult;
+					MessageBoxResult = MessageBox(
+						hWnd,
+						TEXT("Sei sicuro di voler eliminare la tua prenotazione?"),
+						TEXT("Elimina prenotazione"),
+						MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2 | MB_APPLMODAL
+					);
+					if (MessageBoxResult == IDNO) {
+						return 0;
+					}
 					/*	Create MessageBox to warn the user	*/
 					LPTSTR query;
 					LPTSTR result;
@@ -714,7 +724,14 @@ void errorhandler(int e) {
 		0,
 		NULL
 	);
+#ifdef _DEBUG
 	_ftprintf(stderr, TEXT("%s\n"), p_errmsg);
-	getchar();
+#endif
+	MessageBox(
+		NULL,
+		p_errmsg,
+		NULL,
+		MB_OK | MB_ICONERROR | MB_TASKMODAL
+	);
 	exit(e);
 }
