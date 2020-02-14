@@ -397,6 +397,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		if (!SetTimer(hWnd, 0, 1000, (TIMERPROC)NULL)) {
 			errorhandler(GetLastError());
 		}
+		SendMessage(hWnd, WM_TIMER, 0, 0);
 		break;
 	}
 	case WM_SIZE:
@@ -436,6 +437,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 #endif
 		LPTSTR query;
 		LPTSTR result;
+		int code_unused = 0;
 		asprintf(&query, TEXT("~%s"), pID);
 		if (query_server(query, &result)) {
 			errorhandler(WSAGetLastError());
@@ -444,6 +446,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		for (int i = 0; i < rows * columns; i++) {
 			HBITMAP tmp;
 			tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
+			if (result[i * 2] == TEXT('1')) {
+				code_unused = 1;
+			}
 			if (tmp == hBitmapDefault) {
 				if (result[i * 2] == TEXT('1')) {
 					SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapBooked);
@@ -457,6 +462,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			}
 		}
 		free(result);
+		if (!code_unused) {
+			savStore(TEXT(""));
+			if ((pID = savLoad()) == NULL) {
+				errorhandler(GetLastError());
+			}
+			SendMessage(hStaticTextbox, WM_SETTEXT, _tcslen(pID), (LPARAM)pID);
+			RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+		}
 		break;
 	}
 	case WM_COMMAND:
@@ -504,6 +517,53 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 					free(query);
 				}
 				else if ((HWND)lParam == hButton2) {
+					LPTSTR query;
+					LPTSTR result;
+					int slctd_flag = 0;
+					asprintf(&query, TEXT("# "));
+					for (int i = 0; i < rows * columns; i++) {
+						HBITMAP tmp;
+						tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
+						if (tmp == hBitmapSelected) {
+							slctd_flag = 1;
+							asprintf(&query, TEXT("%s %d"), query, i);
+						}
+					}
+					if (slctd_flag) {
+						if (query_server(query, &result)) {
+							errorhandler(WSAGetLastError());
+						}
+						free(result);
+					}
+					free(query);
+					asprintf(&query, TEXT("@ "));
+					for (int i = 0; i < rows * columns; i++) {
+						HBITMAP tmp;
+						tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
+						if (tmp == hBitmapRemove) {
+							slctd_flag = 1;
+							asprintf(&query, TEXT("%s %d"), query, i);
+						}
+					}
+					if (slctd_flag) {
+						if (query_server(query, &result)) {
+							errorhandler(WSAGetLastError());
+						}
+						free(result);
+					}
+					free(query);
+					for (int i = 0; i < rows * columns; i++) {
+						HBITMAP tmp;
+						tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
+						if (tmp == hBitmapSelected) {
+							SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
+						}
+						else if (tmp == hBitmapRemove) {
+							SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
+						}
+					}
+					RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+					SendMessage(hWnd, WM_TIMER, 0, 0);
 					break;
 				}
 				else if ((HWND)lParam == hButton3) {
