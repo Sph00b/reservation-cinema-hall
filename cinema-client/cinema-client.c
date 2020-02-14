@@ -486,7 +486,22 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 					}
 				}
 				if ((HWND)lParam == hButton1) {
-					buttonOnClick(hWnd, TEXT("# 0"));
+					LPTSTR query;
+					int slctd_flag = 0;
+					asprintf(&query, TEXT("# "));
+					for (int i = 0; i < rows * columns; i++) {
+						HBITMAP tmp;
+						tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
+						if (tmp == hBitmapSelected) {
+							slctd_flag = 1;
+							asprintf(&query, TEXT("%s %d"), query, i);
+						}
+					}
+					if (!slctd_flag) {
+						return 0;
+					}
+					buttonOnClick(hWnd, query);
+					free(query);
 				}
 				else if ((HWND)lParam == hButton2) {
 					break;
@@ -503,7 +518,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 					/*	Use a pointer to free memory	*/
 					asprintf(&query, TEXT("@"));
 					for (int i = 0; i < rows * columns; i++) {
-						if (result[i] == TEXT('1')) {
+						if (result[2 * i] == TEXT('1')) {
 							asprintf(&query, TEXT("%s %d"), query, i);
 						}
 					}
