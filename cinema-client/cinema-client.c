@@ -501,7 +501,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 				if ((HWND)lParam == hButton1) {
 					LPTSTR query;
 					int slctd_flag = 0;
-					asprintf(&query, TEXT("# "));
+					asprintf(&query, TEXT("#0"));
 					for (int i = 0; i < rows * columns; i++) {
 						HBITMAP tmp;
 						tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
@@ -520,7 +520,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 					LPTSTR query;
 					LPTSTR result;
 					int slctd_flag = 0;
-					asprintf(&query, TEXT("# "));
+					asprintf(&query, TEXT("#%s"), pID);
 					for (int i = 0; i < rows * columns; i++) {
 						HBITMAP tmp;
 						tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
@@ -536,7 +536,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 						free(result);
 					}
 					free(query);
-					asprintf(&query, TEXT("@ "));
+					asprintf(&query, TEXT("@%s"), pID);
 					for (int i = 0; i < rows * columns; i++) {
 						HBITMAP tmp;
 						tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
@@ -576,7 +576,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 					}
 					free(query);
 					/*	Use a pointer to free memory	*/
-					asprintf(&query, TEXT("@"));
+					asprintf(&query, TEXT("@%s"), pID);
 					for (int i = 0; i < rows * columns; i++) {
 						if (result[2 * i] == TEXT('1')) {
 							asprintf(&query, TEXT("%s %d"), query, i);

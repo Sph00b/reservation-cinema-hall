@@ -465,6 +465,7 @@ try(
 )
 	free(buff);
 	/*	Send the response	*/
+	/*	Handle broken pipe!	*/
 try(
 	connection_send(info->paccepted_connection, msg), (-1)
 )
@@ -653,6 +654,51 @@ int db_get_id(database_t* database) {
 
 /*	Should I start threads to increase performance?	*/
 
+int db_send_status(database_t* database, const char* request, char** result) {
+	int id = 0;
+	char* query = NULL;
+	char* buffer = NULL;
+	char* ptr;
+	id = !strlen(request) ? -1 : atoi(request);
+	if (!(rows && columns)) {
+		asprintf(result, "");
+		return 0;
+	}
+	database_execute(database, "GET 0 FROM DATA", &buffer);
+	if (atoi(buffer)) {
+		if (atoi(buffer) == id) {
+			free(buffer);
+			asprintf(&buffer, "1");
+		}
+		else {
+			free(buffer);
+			asprintf(&buffer, "2");
+		}
+	}
+	asprintf(result, "%s", buffer);
+	for (int i = 1; i < rows * columns; i++) {
+		asprintf(&query, "GET %d FROM DATA", i);
+		database_execute(database, query, &buffer);
+		ptr = &(**result);
+		if (atoi(buffer)) {
+			if (atoi(buffer) == id) {
+				free(buffer);
+				asprintf(&buffer, "1");
+			}
+			else {
+				free(buffer);
+				asprintf(&buffer, "2");
+			}
+		}
+		asprintf(result, "%s %s", *result, buffer);
+		free(ptr);
+		free(query);
+		free(buffer);
+	}
+	return 0;
+}
+
+/*	# ID LIST OF DESIRED SEATS SEPARED WITH SPACE, ID = 0 IF NO ID*/
 int db_book(database_t* database, const char* request, char **result) {
 	int id;
 	int ret;
@@ -664,9 +710,6 @@ int db_book(database_t* database, const char* request, char **result) {
 	char** wquery = NULL;
 
 	ntoken = 0;
-	if ((id = db_get_id(database)) == -1) {
-		return 1;
-	}
 	if ((buffer = strdup(request)) == NULL) {
 		return 1;
 	}
@@ -683,18 +726,27 @@ int db_book(database_t* database, const char* request, char **result) {
 		token[ntoken - 1] = strtok_r(NULL, " ", &saveptr);
 	} while (token[ntoken - 1] != NULL);
 	ntoken--;
+	if (!strcmp(token[0],"0")) {
+		if ((id = db_get_id(database)) == -1) {
+			return 1;
+		}
+	}
+	else {
+		id = atoi(token[0]);
+	}
+	ntoken--;
 	/*	free memory on error	*/
-	if ((rquery = malloc(sizeof(char*) * (size_t)ntoken)) == NULL) {
+	if ((rquery = malloc(sizeof(char*) * (size_t)(ntoken))) == NULL) {
 		return 1;
 	}
-	if ((wquery = malloc(sizeof(char*) * (size_t)ntoken)) == NULL) {
+	if ((wquery = malloc(sizeof(char*) * (size_t)(ntoken))) == NULL) {
 		return 1;
 	}
 	for (int i = 0; i < ntoken; i++) {
-		if (asprintf(&(rquery[i]), "GET %s FROM DATA", token[i]) == -1) {
+		if (asprintf(&(rquery[i]), "GET %s FROM DATA", token[i + 1]) == -1) {
 			return 1;
 		}
-		if (asprintf(&(wquery[i]), "SET %s FROM DATA AS %d", token[i], id) == -1) {
+		if (asprintf(&(wquery[i]), "SET %s FROM DATA AS %d", token[i + 1], id) == -1) {
 			return 1;
 		}
 	}
@@ -738,8 +790,9 @@ int db_book(database_t* database, const char* request, char **result) {
 	}
 	return 0;
 }
-
+/*
 int db_unbook(database_t* database, const char* request, char** result) {
+	int id;
 	int ntoken = 0;
 	char* buffer = NULL;
 	char* saveptr = NULL;
@@ -761,11 +814,15 @@ int db_unbook(database_t* database, const char* request, char** result) {
 		token[ntoken - 1] = strtok_r(NULL, " ", &saveptr);
 	} while (token[ntoken - 1] != NULL);
 	ntoken--;
+
+	id = atoi(token[0]);
+	ntoken--;
+
 	if ((query = malloc(sizeof(char*) * (size_t)ntoken)) == NULL) {
 		return 1;
 	}
 	for (int i = 0; i < ntoken; i++) {
-		if (asprintf(&(query[i]), "SET %s FROM DATA AS 0", token[i]) == -1) {
+		if (asprintf(&(query[i]), "SET %s FROM DATA AS 0", token[i + 1]) == -1) {
 			return 1;
 		}
 	}
@@ -786,47 +843,90 @@ int db_unbook(database_t* database, const char* request, char** result) {
 	}
 	return 0;
 }
-
-int db_send_status(database_t* database, const char* request, char** result) {
-	int id = 0;
-	char* query = NULL;
+*/
+int db_unbook(database_t* database, const char* request, char** result) {
+	int ret;
+	int ntoken;
+	char* id;
 	char* buffer = NULL;
-	char* ptr;
-	id = !strlen(request) ? -1 : atoi(request);
-	if (!(rows && columns)) {
-		asprintf(result, "");
-		return 0;
+	char* saveptr = NULL;
+	char** token = NULL;
+	char** rquery = NULL;
+	char** wquery = NULL;
+
+	ntoken = 0;
+	if ((buffer = strdup(request)) == NULL) {
+		return 1;
 	}
-	database_execute(database, "GET 0 FROM DATA", &buffer);
-	if (atoi(buffer)) {
-		if (atoi(buffer) == id) {
-			free(buffer);
-			asprintf(&buffer, "1");
+	if ((token = malloc(sizeof(char*))) == NULL) {
+		return 1;
+	}
+	token[0] = strtok_r(buffer, " ", &saveptr);
+	ntoken++;
+	do {
+		ntoken++;
+		if ((token = realloc(token, sizeof(char*) * (size_t)ntoken)) == NULL) {
+			return 1;
 		}
-		else {
-			free(buffer);
-			asprintf(&buffer, "2");
+		token[ntoken - 1] = strtok_r(NULL, " ", &saveptr);
+	} while (token[ntoken - 1] != NULL);
+	ntoken--;
+	id = strdup(*token);
+	ntoken--;
+	/*	free memory on error	*/
+	if ((rquery = malloc(sizeof(char*) * (size_t)(ntoken))) == NULL) {
+		return 1;
+	}
+	if ((wquery = malloc(sizeof(char*) * (size_t)(ntoken))) == NULL) {
+		return 1;
+	}
+	for (int i = 0; i < ntoken; i++) {
+		if (asprintf(&(rquery[i]), "GET %s FROM DATA", token[i + 1]) == -1) {
+			return 1;
+		}
+		if (asprintf(&(wquery[i]), "SET %s FROM DATA AS 0", token[i + 1]) == -1) {
+			return 1;
 		}
 	}
-	asprintf(result, "%s", buffer);
-	for (int i = 1; i < rows * columns; i++) {
-		asprintf(&query, "GET %d FROM DATA", i);
-		database_execute(database, query, &buffer);
-		ptr = &(**result);
-		if (atoi(buffer)) {
-			if (atoi(buffer) == id) {
-				free(buffer);
-				asprintf(&buffer, "1");
-			}
-			else {
-				free(buffer);
-				asprintf(&buffer, "2");
-			}
+	free(buffer);
+	free(token);
+	ret = 0;
+	for (int i = 0; i < ntoken; i++) {
+		if (database_execute(database, rquery[i], result) == 1) {
+			for (int j = i; j < ntoken; free(rquery[++j]));
+			for (int j = 0; j < ntoken; free(wquery[j++]));
+			free(rquery);
+			free(wquery);
+			return 1;
 		}
-		asprintf(result, "%s %s", *result, buffer);
-		free(ptr);
-		free(query);
-		free(buffer);
+		if (strcmp(*result, id)) {
+			ret = 1;
+		}
+		free(rquery[i]);
+		free(*result);
+		if (ret) {
+			for (int j = i; j < ntoken; free(rquery[++j]));
+			for (int j = 0; j < ntoken; free(wquery[j++]));
+			free(rquery);
+			free(wquery);
+			free(id);
+			return 1;
+		}
+	}
+	free(rquery);
+	free(id);
+	for (int i = 0; i < ntoken; i++) {
+		if (database_execute(database, wquery[i], result) == 1) {
+			for (int j = i; j < ntoken; free(wquery[++j]));
+			free(wquery);
+			return 1;
+		}
+		free(wquery[i]);
+		free(*result);
+	}
+	free(wquery);
+	if (asprintf(result, DBMSG_SUCC) == -1) {
+		return 1;
 	}
 	return 0;
 }

@@ -19,3 +19,6 @@ Release/
 *.exe
 *.res
 *.aps
+*.sarif
+*.xml
+*.exe.*
