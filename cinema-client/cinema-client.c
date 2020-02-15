@@ -39,8 +39,9 @@ BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 int					buttonOnClick(HWND hWnd, LPCTSTR query);
-int					query_server(LPCTSTR, LPTSTR*);
-void				errorhandler(int e);
+int					QueryServer(LPCTSTR, LPTSTR*);
+void				SetupClient();
+void				ErrorHandler(int e);
 
 int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPTSTR lpCmdLine, _In_ int nCmdShow) {
 
@@ -69,47 +70,17 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 	
 #endif
 	
-	LPTSTR buffer;
-
-	hBooking = CreateBooking(TEXT("PrenotazioneCinema"));
-	if (hBooking == NULL) {
-		errorhandler(GetLastError());
-	}
 #ifdef _DEBUG
 	_tprintf(TEXT("BOOKING CREATED\n"));
 #endif
 	//	Inizializzare le stringhe globali
 	szTitle = TEXT("Prenotazione");
 	szWindowClass = TEXT("generic_class");
-	//	Retrive number of seats and rows
-	if (query_server(TEXT("GET ROWS FROM CONFIG"), &buffer)) {
-		errorhandler(WSAGetLastError());
-	}
-	rows = _tstoi(buffer);
-	free(buffer);
-	if (query_server(TEXT("GET COLUMNS FROM CONFIG"), &buffer)) {
-		errorhandler(WSAGetLastError());
-	}
-	columns = _tstoi(buffer);
-	free(buffer);
-	if (query_server(TEXT("GET FILM FROM CONFIG"), &buffer)) {
-		errorhandler(WSAGetLastError());
-	}
-	if (asprintf(&film, TEXT("Film: %s"), buffer) == -1) {
-		errorhandler(GetLastError());
-	}
-	free(buffer);
-	if (query_server(TEXT("GET SHOWTIME FROM CONFIG"), &buffer)) {
-		errorhandler(WSAGetLastError());
-	}
-	if (asprintf(&showtime, TEXT("Orario: %s"), buffer) == -1) {
-		errorhandler(GetLastError());
-	}
-	free(buffer);
-	//	Initialize seats buttons
-	hStaticS = malloc(rows * columns * sizeof(HWND));
+
+	SetupClient();
+
 	if (!MyRegisterClass(hInstance)) {
-		errorhandler(GetLastError());
+		ErrorHandler(GetLastError());
 	}
 
 #ifdef _DEBUG
@@ -118,7 +89,7 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 
 	// Eseguire l'inizializzazione dall'applicazione:
 	if (!InitInstance(hInstance, nCmdShow)) {
-		errorhandler(GetLastError());
+		ErrorHandler(GetLastError());
 	}
 
 #ifdef _DEBUG
@@ -180,7 +151,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 	int YRes = 720;
 
 	if ((bookingCode = GetBooking(hBooking)) == NULL) {
-		errorhandler(GetLastError());
+		ErrorHandler(GetLastError());
 	}
 
 	HWND hWnd = CreateWindow(
@@ -404,27 +375,27 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 #endif
 		hBitmapDisabled = (HBITMAP)LoadBitmap((HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), MAKEINTRESOURCE(IDB_BITMAP1));
 		if (hBitmapDisabled == NULL) {
-			errorhandler(GetLastError());
+			ErrorHandler(GetLastError());
 		}
 		hBitmapDefault = (HBITMAP)LoadBitmap((HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), MAKEINTRESOURCE(IDB_BITMAP2));
 		if (hBitmapDefault == NULL) {
-			errorhandler(GetLastError());
+			ErrorHandler(GetLastError());
 		}
 hBitmapBooked = (HBITMAP)LoadBitmap((HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), MAKEINTRESOURCE(IDB_BITMAP3));
 if (hBitmapBooked == NULL) {
-	errorhandler(GetLastError());
+	ErrorHandler(GetLastError());
 }
 hBitmapSelected = (HBITMAP)LoadBitmap((HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), MAKEINTRESOURCE(IDB_BITMAP4));
 if (hBitmapSelected == NULL) {
-	errorhandler(GetLastError());
+	ErrorHandler(GetLastError());
 }
 hBitmapRemove = (HBITMAP)LoadBitmap((HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), MAKEINTRESOURCE(IDB_BITMAP5));
 if (hBitmapRemove == NULL) {
-	errorhandler(GetLastError());
+	ErrorHandler(GetLastError());
 }
 
 if (!SetTimer(hWnd, 0, 1000, (TIMERPROC)NULL)) {
-	errorhandler(GetLastError());
+	ErrorHandler(GetLastError());
 }
 SendMessage(hWnd, WM_TIMER, 0, 0);
 	}
@@ -444,7 +415,7 @@ SendMessage(hWnd, WM_TIMER, 0, 0);
 		HDC hdc;
 
 		if ((bookingCode = GetBooking(hBooking)) == NULL) {
-			errorhandler(GetLastError());
+			ErrorHandler(GetLastError());
 		}
 
 		hdc = BeginPaint(hWnd, &ps);
@@ -483,11 +454,11 @@ SendMessage(hWnd, WM_TIMER, 0, 0);
 		int code_unused = 0;
 
 		if ((bookingCode = GetBooking(hBooking)) == NULL) {
-			errorhandler(GetLastError());
+			ErrorHandler(GetLastError());
 		}
 		asprintf(&query, TEXT("~%s"), bookingCode);
-		if (query_server(query, &result)) {
-			errorhandler(WSAGetLastError());
+		if (QueryServer(query, &result)) {
+			ErrorHandler(WSAGetLastError());
 		}
 		free(query);
 		for (int i = 0; i < rows * columns; i++) {
@@ -511,10 +482,10 @@ SendMessage(hWnd, WM_TIMER, 0, 0);
 		free(result);
 		if (!code_unused) {
 			if (!SetBooking(hBooking, TEXT(""))) {
-				errorhandler(GetLastError());
+				ErrorHandler(GetLastError());
 			}
 			if ((bookingCode = GetBooking(hBooking)) == NULL) {
-				errorhandler(GetLastError());
+				ErrorHandler(GetLastError());
 			}
 			SendMessage(hStaticTextbox, WM_SETTEXT, _tcslen(bookingCode), (LPARAM)bookingCode);
 			RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
@@ -529,7 +500,7 @@ SendMessage(hWnd, WM_TIMER, 0, 0);
 			LPTSTR bookingCode;
 
 			if ((bookingCode = GetBooking(hBooking)) == NULL) {
-				errorhandler(GetLastError());
+				ErrorHandler(GetLastError());
 			}
 			for (int i = 0; i < rows * columns; i++) {
 				if ((HWND)lParam == hStaticS[i]) {
@@ -582,8 +553,8 @@ SendMessage(hWnd, WM_TIMER, 0, 0);
 					}
 				}
 				if (slctd_flag) {
-					if (query_server(query, &result)) {
-						errorhandler(WSAGetLastError());
+					if (QueryServer(query, &result)) {
+						ErrorHandler(WSAGetLastError());
 					}
 					free(result);
 				}
@@ -598,8 +569,8 @@ SendMessage(hWnd, WM_TIMER, 0, 0);
 					}
 				}
 				if (slctd_flag) {
-					if (query_server(query, &result)) {
-						errorhandler(WSAGetLastError());
+					if (QueryServer(query, &result)) {
+						ErrorHandler(WSAGetLastError());
 					}
 					free(result);
 				}
@@ -633,8 +604,8 @@ SendMessage(hWnd, WM_TIMER, 0, 0);
 				LPTSTR query;
 				LPTSTR result;
 				asprintf(&query, TEXT("~%s"), bookingCode);
-				if (query_server(query, &result)) {
-					errorhandler(WSAGetLastError());
+				if (QueryServer(query, &result)) {
+					ErrorHandler(WSAGetLastError());
 				}
 				free(query);
 				/*	Use a pointer to free memory	*/
@@ -700,24 +671,24 @@ int buttonOnClick(HWND hWnd, LPCTSTR query) {
 	LPTSTR bookingCode;
 
 	if ((bookingCode = GetBooking(hBooking)) == NULL) {
-		errorhandler(GetLastError());
+		ErrorHandler(GetLastError());
 	}
-	if (query_server(query, &buffer)) {
-		errorhandler(WSAGetLastError());
+	if (QueryServer(query, &buffer)) {
+		ErrorHandler(WSAGetLastError());
 	}
 	if (!(_tcscmp(buffer, TEXT("OPERATION SUCCEDED")))) {
 		if (!SetBooking(hBooking, TEXT(""))) {
-			errorhandler(GetLastError());
+			ErrorHandler(GetLastError());
 		}
 	}
 	else {
 		if (!SetBooking(hBooking, buffer)) {
-			errorhandler(GetLastError());
+			ErrorHandler(GetLastError());
 		}
 	}
 	free(buffer);
 	if ((bookingCode = GetBooking(hBooking)) == NULL) {
-		errorhandler(GetLastError());
+		ErrorHandler(GetLastError());
 	}
 	SendMessage(hStaticTextbox, WM_SETTEXT, _tcslen(bookingCode), (LPARAM)bookingCode);
 	for (int i = 0; i < rows * columns; i++) {
@@ -735,7 +706,7 @@ int buttonOnClick(HWND hWnd, LPCTSTR query) {
 	return 0;
 }
 
-int query_server(LPCTSTR query, LPTSTR* result) {
+int QueryServer(LPCTSTR query, LPTSTR* result) {
 	connection_t cntn;
 	if (connection_init(&cntn, TEXT("127.0.0.1"), 55555)) {
 		return 1;
@@ -758,7 +729,45 @@ int query_server(LPCTSTR query, LPTSTR* result) {
 	return 0;
 }
 
-void errorhandler(int e) {
+void SetupClient() {
+	LPTSTR buffer;
+
+	//	Create the booking
+	hBooking = CreateBooking(TEXT("PrenotazioneCinema"));
+	if (hBooking == NULL) {
+		ErrorHandler(GetLastError());
+	}
+	//	Retrive number of seats and rows
+	if (QueryServer(TEXT("GET ROWS FROM CONFIG"), &buffer)) {
+		ErrorHandler(WSAGetLastError());
+	}
+	rows = _tstoi(buffer);
+	free(buffer);
+	if (QueryServer(TEXT("GET COLUMNS FROM CONFIG"), &buffer)) {
+		ErrorHandler(WSAGetLastError());
+	}
+	columns = _tstoi(buffer);
+	free(buffer);
+	if (QueryServer(TEXT("GET FILM FROM CONFIG"), &buffer)) {
+		ErrorHandler(WSAGetLastError());
+	}
+	if (asprintf(&film, TEXT("Film: %s"), buffer) == -1) {
+		ErrorHandler(GetLastError());
+	}
+	free(buffer);
+	if (QueryServer(TEXT("GET SHOWTIME FROM CONFIG"), &buffer)) {
+		ErrorHandler(WSAGetLastError());
+	}
+	if (asprintf(&showtime, TEXT("Orario: %s"), buffer) == -1) {
+		ErrorHandler(GetLastError());
+	}
+	free(buffer);
+	//	Initialize seats buttons
+	hStaticS = malloc((size_t)(rows * columns) * sizeof(HWND));
+
+}
+
+void ErrorHandler(int e) {
 	LPTSTR p_errmsg = NULL;
 	FormatMessage(
 		FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,

@@ -54,7 +54,8 @@ int connection_init(connection_t* connection, LPCTSTR address, const uint16_t po
 	struct sockaddr_in* paddr_in;
 	struct in_addr haddr;		//host address
 #ifdef _WIN32
-	if (WSAStartup(MAKEWORD(1, 1), &connection->WSAData) != 0) {
+	WSADATA WSAData;
+	if (WSAStartup(MAKEWORD(1, 1), &WSAData) != 0) {
 		return -1;
 	}
 #endif

@@ -16,7 +16,6 @@ typedef struct {
 	SOCKET socket;
 	struct sockaddr* addr;
 	socklen_t addrlen;
-	WSADATA WSAData;
 } connection_t;
 #elif __unix__
 #include <sys/socket.h>
