@@ -1,7 +1,7 @@
 #include "connection.h"
 #include "cinema-client.h"
 #include "framework.h"
-#include "savefile.h"
+#include "booking.h"
 #include "asprintf.h"
 #ifdef _DEBUG
 #include <io.h>
@@ -20,14 +20,13 @@ int rows;
 int columns;
 LPTSTR film;
 LPTSTR showtime;
-LPTSTR pID;		//ID codice di prenotazione
+HBOOKING hBooking;
 HWND hButton1;
 HWND hButton2;
 HWND hButton3;
 HWND hStaticTextbox;
 HWND* hStaticS;	//Pointer to seat control vector
 HWND hStaticLabelScreen;
-
 HBITMAP hBitmapDefault;
 HBITMAP hBitmapBooked;
 HBITMAP hBitmapSelected;
@@ -39,7 +38,6 @@ ATOM                MyRegisterClass(HINSTANCE);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
-void				buttonViewMngr();
 int					buttonOnClick(HWND hWnd, LPCTSTR query);
 int					query_server(LPCTSTR, LPTSTR*);
 void				errorhandler(int e);
@@ -73,15 +71,16 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 	
 	LPTSTR buffer;
 
-	if (InitSavefile(TEXT("PrenotazioneCinema"))) {
+	hBooking = CreateBooking(TEXT("PrenotazioneCinema"));
+	if (hBooking == NULL) {
 		errorhandler(GetLastError());
 	}
+#ifdef _DEBUG
+	_tprintf(TEXT("BOOKING CREATED\n"));
+#endif
 	//	Inizializzare le stringhe globali
 	szTitle = TEXT("Prenotazione");
 	szWindowClass = TEXT("generic_class");
-	if ((pID = savLoad()) == NULL) {
-		errorhandler(GetLastError());
-	}
 	//	Retrive number of seats and rows
 	if (query_server(TEXT("GET ROWS FROM CONFIG"), &buffer)) {
 		errorhandler(WSAGetLastError());
@@ -176,8 +175,13 @@ ATOM MyRegisterClass(HINSTANCE hInstance) {
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 	hInst = hInstance;	//	Archivia l'handle di istanza nella variabile globale
 
+	LPTSTR bookingCode;
 	int XRes = 1280;
 	int YRes = 720;
+
+	if ((bookingCode = GetBooking(hBooking)) == NULL) {
+		errorhandler(GetLastError());
+	}
 
 	HWND hWnd = CreateWindow(
 		(LPCTSTR)szWindowClass,										//	CLASS
@@ -255,7 +259,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 	hStaticTextbox = CreateWindowEx(
 		WS_EX_CLIENTEDGE,					//	EX style
 		TEXT("STATIC"),						//	PREDEFINED CLASS
-		pID,								//	text 
+		bookingCode,						//	text 
 		WS_CHILD | WS_VISIBLE | SS_CENTER,	//	Styles 
 		(XRes / 2) - (210 / 2),				//	x position
 		15,									//	y position
@@ -270,6 +274,17 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 #ifdef _DEBUG
 	_tprintf(TEXT("TEXTBOX CREATED\n"));
 #endif
+	
+	CreateWindow(
+		TEXT("STATIC"),							//	PREDEFINED CLASS
+		TEXT("Codice prenotazione:"),			//	text 
+		WS_CHILD | WS_VISIBLE,					//	Styles
+		(XRes / 2) - (210 / 2) - 170,			//	x position
+		15,										//	y position
+		140, 20,								//	w,h size
+		hWnd, NULL, hInstance,					//	PARENT WINDOW, MENU, INSTANCE
+		NULL									//	PARAMETER
+	);
 
 	CreateWindow(
 		TEXT("STATIC"),							//	PREDEFINED CLASS
@@ -383,8 +398,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 //
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
 	switch (message) {
-	case WM_CREATE:
-		{
+	case WM_CREATE: {
 #ifdef _DEBUG
 		_tprintf(TEXT("RECEIVED CREATE MESSAGE\n"));
 #endif
@@ -396,46 +410,60 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		if (hBitmapDefault == NULL) {
 			errorhandler(GetLastError());
 		}
-		hBitmapBooked = (HBITMAP)LoadBitmap((HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), MAKEINTRESOURCE(IDB_BITMAP3));
-		if (hBitmapBooked == NULL) {
-			errorhandler(GetLastError());
-		}
-		hBitmapSelected = (HBITMAP)LoadBitmap((HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), MAKEINTRESOURCE(IDB_BITMAP4));
-		if (hBitmapSelected == NULL) {
-			errorhandler(GetLastError());
-		}
-		hBitmapRemove = (HBITMAP)LoadBitmap((HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), MAKEINTRESOURCE(IDB_BITMAP5));
-		if (hBitmapRemove == NULL) {
-			errorhandler(GetLastError());
-		}
+hBitmapBooked = (HBITMAP)LoadBitmap((HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), MAKEINTRESOURCE(IDB_BITMAP3));
+if (hBitmapBooked == NULL) {
+	errorhandler(GetLastError());
+}
+hBitmapSelected = (HBITMAP)LoadBitmap((HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), MAKEINTRESOURCE(IDB_BITMAP4));
+if (hBitmapSelected == NULL) {
+	errorhandler(GetLastError());
+}
+hBitmapRemove = (HBITMAP)LoadBitmap((HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), MAKEINTRESOURCE(IDB_BITMAP5));
+if (hBitmapRemove == NULL) {
+	errorhandler(GetLastError());
+}
 
-		if (!SetTimer(hWnd, 0, 1000, (TIMERPROC)NULL)) {
-			errorhandler(GetLastError());
-		}
-		SendMessage(hWnd, WM_TIMER, 0, 0);
-		}
+if (!SetTimer(hWnd, 0, 1000, (TIMERPROC)NULL)) {
+	errorhandler(GetLastError());
+}
+SendMessage(hWnd, WM_TIMER, 0, 0);
+	}
 	break;
-	case WM_SIZE:
-	{
+	case WM_SIZE: {
 #ifdef _DEBUG
 		_tprintf(TEXT("RECEIVED SIZE MESSAGE\n"));
 #endif
-		break;
 	}
-	case WM_PAINT:
-	{
+				break;
+	case WM_PAINT: {
 #ifdef _DEBUG
 		_tprintf(TEXT("RECEIVED PAINT MESSAGE\n"));
 #endif
+		LPTSTR bookingCode;
 		PAINTSTRUCT ps;
-		HDC hdc = BeginPaint(hWnd, &ps);
+		HDC hdc;
+
+		if ((bookingCode = GetBooking(hBooking)) == NULL) {
+			errorhandler(GetLastError());
+		}
+
+		hdc = BeginPaint(hWnd, &ps);
 		//	TODO: Aggiungere qui il codice di disegno che usa HDC...
 		EndPaint(hWnd, &ps);
-		buttonViewMngr();
-		return DefWindowProc(hWnd, message, wParam, lParam);
+
+		if (!_tcscmp(bookingCode, TEXT(""))) {
+			ShowWindow(hButton1, SW_SHOWNORMAL);
+			ShowWindow(hButton2, SW_HIDE);
+			ShowWindow(hButton3, SW_HIDE);
+		}
+		else {
+			ShowWindow(hButton1, SW_HIDE);
+			ShowWindow(hButton2, SW_SHOWNORMAL);
+			ShowWindow(hButton3, SW_SHOWNORMAL);
+		}
 	}
-	case WM_CTLCOLORSTATIC:
-	{
+				 return DefWindowProc(hWnd, message, wParam, lParam);
+	case WM_CTLCOLORSTATIC: {
 		if ((HWND)lParam == hStaticLabelScreen) {
 			SetBkColor((HDC)wParam, GetSysColor(COLOR_SCROLLBAR));
 			return (LRESULT)GetSysColorBrush(COLOR_SCROLLBAR);
@@ -443,17 +471,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		else if ((HWND)lParam != hStaticTextbox) {
 			return (LRESULT)GetSysColorBrush(COLOR_WINDOW);
 		}
-		break;
 	}
-	case WM_TIMER:
-	{
+						  break;
+	case WM_TIMER: {
 #ifdef _DEBUG
 		_tprintf(TEXT("RECEIVED TIMER MESSAGE\n"));
 #endif
 		LPTSTR query;
 		LPTSTR result;
+		LPTSTR bookingCode;
 		int code_unused = 0;
-		asprintf(&query, TEXT("~%s"), pID);
+
+		if ((bookingCode = GetBooking(hBooking)) == NULL) {
+			errorhandler(GetLastError());
+		}
+		asprintf(&query, TEXT("~%s"), bookingCode);
 		if (query_server(query, &result)) {
 			errorhandler(WSAGetLastError());
 		}
@@ -478,166 +510,168 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		}
 		free(result);
 		if (!code_unused) {
-			savStore(TEXT(""));
-			if ((pID = savLoad()) == NULL) {
+			if (!SetBooking(hBooking, TEXT(""))) {
 				errorhandler(GetLastError());
 			}
-			SendMessage(hStaticTextbox, WM_SETTEXT, _tcslen(pID), (LPARAM)pID);
+			if ((bookingCode = GetBooking(hBooking)) == NULL) {
+				errorhandler(GetLastError());
+			}
+			SendMessage(hStaticTextbox, WM_SETTEXT, _tcslen(bookingCode), (LPARAM)bookingCode);
 			RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
 		}
-		break;
 	}
-	case WM_COMMAND:
-	{
+		break;
+	case WM_COMMAND: {
 		if (wParam == BN_CLICKED) {
 #ifdef _DEBUG
 			_tprintf(TEXT("RECEIVED WM_COMMAND CLICKED MESSAGE FROM CONTROL %d\n"), lParam);
 #endif
-			{
+			LPTSTR bookingCode;
+
+			if ((bookingCode = GetBooking(hBooking)) == NULL) {
+				errorhandler(GetLastError());
+			}
+			for (int i = 0; i < rows * columns; i++) {
+				if ((HWND)lParam == hStaticS[i]) {
+					HBITMAP tmp;
+					tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
+					if (tmp == hBitmapDefault) {
+						SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapSelected);
+					}
+					else if (tmp == hBitmapSelected) {
+						SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
+					}
+					else if (tmp == hBitmapBooked) {
+						SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapRemove);
+					}
+					else if (tmp == hBitmapRemove) {
+						SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapBooked);
+					}
+					return 0;
+				}
+			}
+			if ((HWND)lParam == hButton1) {
+				LPTSTR query;
+				int slctd_flag = 0;
+				asprintf(&query, TEXT("#0"));
 				for (int i = 0; i < rows * columns; i++) {
-					if ((HWND)lParam == hStaticS[i]) {
-						HBITMAP tmp;
-						tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
-						if (tmp == hBitmapDefault) {
-							SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapSelected);
-						}
-						else if (tmp == hBitmapSelected) {
-							SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
-						}
-						else if (tmp == hBitmapBooked) {
-							SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapRemove);
-						}
-						else if (tmp == hBitmapRemove) {
-							SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapBooked);
-						}
-						return 0;
+					HBITMAP tmp;
+					tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
+					if (tmp == hBitmapSelected) {
+						slctd_flag = 1;
+						asprintf(&query, TEXT("%s %d"), query, i);
 					}
 				}
-				if ((HWND)lParam == hButton1) {
-					LPTSTR query;
-					int slctd_flag = 0;
-					asprintf(&query, TEXT("#0"));
-					for (int i = 0; i < rows * columns; i++) {
-						HBITMAP tmp;
-						tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
-						if (tmp == hBitmapSelected) {
-							slctd_flag = 1;
-							asprintf(&query, TEXT("%s %d"), query, i);
-						}
-					}
-					if (!slctd_flag) {
-						return 0;
-					}
-					buttonOnClick(hWnd, query);
-					free(query);
+				if (!slctd_flag) {
+					return 0;
 				}
-				else if ((HWND)lParam == hButton2) {
-					LPTSTR query;
-					LPTSTR result;
-					int slctd_flag = 0;
-					asprintf(&query, TEXT("#%s"), pID);
-					for (int i = 0; i < rows * columns; i++) {
-						HBITMAP tmp;
-						tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
-						if (tmp == hBitmapSelected) {
-							slctd_flag = 1;
-							asprintf(&query, TEXT("%s %d"), query, i);
-						}
+				buttonOnClick(hWnd, query);
+				free(query);
+			}
+			else if ((HWND)lParam == hButton2) {
+				LPTSTR query;
+				LPTSTR result;
+				int slctd_flag = 0;
+				asprintf(&query, TEXT("#%s"), bookingCode);
+				for (int i = 0; i < rows * columns; i++) {
+					HBITMAP tmp;
+					tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
+					if (tmp == hBitmapSelected) {
+						slctd_flag = 1;
+						asprintf(&query, TEXT("%s %d"), query, i);
 					}
-					if (slctd_flag) {
-						if (query_server(query, &result)) {
-							errorhandler(WSAGetLastError());
-						}
-						free(result);
-					}
-					free(query);
-					asprintf(&query, TEXT("@%s"), pID);
-					for (int i = 0; i < rows * columns; i++) {
-						HBITMAP tmp;
-						tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
-						if (tmp == hBitmapRemove) {
-							slctd_flag = 1;
-							asprintf(&query, TEXT("%s %d"), query, i);
-						}
-					}
-					if (slctd_flag) {
-						if (query_server(query, &result)) {
-							errorhandler(WSAGetLastError());
-						}
-						free(result);
-					}
-					free(query);
-					for (int i = 0; i < rows * columns; i++) {
-						HBITMAP tmp;
-						tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
-						if (tmp == hBitmapSelected) {
-							SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
-						}
-						else if (tmp == hBitmapRemove) {
-							SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
-						}
-					}
-					RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
-					SendMessage(hWnd, WM_TIMER, 0, 0);
-					break;
 				}
-				else if ((HWND)lParam == hButton3) {
-					int MessageBoxResult;
-					MessageBoxResult = MessageBox(
-						hWnd,
-						TEXT("Sei sicuro di voler eliminare la tua prenotazione?"),
-						TEXT("Elimina prenotazione"),
-						MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2 | MB_APPLMODAL
-					);
-					if (MessageBoxResult == IDNO) {
-						return 0;
-					}
-					/*	Create MessageBox to warn the user	*/
-					LPTSTR query;
-					LPTSTR result;
-					asprintf(&query, TEXT("~%s"), pID);
+				if (slctd_flag) {
 					if (query_server(query, &result)) {
 						errorhandler(WSAGetLastError());
 					}
-					free(query);
-					/*	Use a pointer to free memory	*/
-					asprintf(&query, TEXT("@%s"), pID);
-					for (int i = 0; i < rows * columns; i++) {
-						if (result[2 * i] == TEXT('1')) {
-							asprintf(&query, TEXT("%s %d"), query, i);
-						}
-					}
 					free(result);
-					buttonOnClick(hWnd, query);
-					free(query);
-					for (int i = 0; i < rows * columns; i++) {
-						HBITMAP tmp;
-						tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
-						if (tmp == hBitmapBooked) {
-							SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
-						}
+				}
+				free(query);
+				asprintf(&query, TEXT("@%s"), bookingCode);
+				for (int i = 0; i < rows * columns; i++) {
+					HBITMAP tmp;
+					tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
+					if (tmp == hBitmapRemove) {
+						slctd_flag = 1;
+						asprintf(&query, TEXT("%s %d"), query, i);
 					}
 				}
+				if (slctd_flag) {
+					if (query_server(query, &result)) {
+						errorhandler(WSAGetLastError());
+					}
+					free(result);
+				}
+				free(query);
+				for (int i = 0; i < rows * columns; i++) {
+					HBITMAP tmp;
+					tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
+					if (tmp == hBitmapSelected) {
+						SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
+					}
+					else if (tmp == hBitmapRemove) {
+						SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
+					}
+				}
+				RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+				SendMessage(hWnd, WM_TIMER, 0, 0);
 				break;
 			}
+			else if ((HWND)lParam == hButton3) {
+				int MessageBoxResult;
+				MessageBoxResult = MessageBox(
+					hWnd,
+					TEXT("Sei sicuro di voler eliminare la tua prenotazione?"),
+					TEXT("Elimina prenotazione"),
+					MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2 | MB_APPLMODAL
+				);
+				if (MessageBoxResult == IDNO) {
+					return 0;
+				}
+				/*	Create MessageBox to warn the user	*/
+				LPTSTR query;
+				LPTSTR result;
+				asprintf(&query, TEXT("~%s"), bookingCode);
+				if (query_server(query, &result)) {
+					errorhandler(WSAGetLastError());
+				}
+				free(query);
+				/*	Use a pointer to free memory	*/
+				asprintf(&query, TEXT("@%s"), bookingCode);
+				for (int i = 0; i < rows * columns; i++) {
+					if (result[2 * i] == TEXT('1')) {
+						asprintf(&query, TEXT("%s %d"), query, i);
+					}
+				}
+				free(result);
+				buttonOnClick(hWnd, query);
+				free(query);
+				for (int i = 0; i < rows * columns; i++) {
+					HBITMAP tmp;
+					tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
+					if (tmp == hBitmapBooked) {
+						SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
+					}
+				}
+			}
+			break;
 		}
 		else {
 			return DefWindowProc(hWnd, message, wParam, lParam);
 		}
 	}
-	case WM_DRAWITEM:
-	{
+	case WM_DRAWITEM: {
 		(LPDRAWITEMSTRUCT)lParam;
-		return DefWindowProc(hWnd, message, wParam, lParam);
 	}
-	case WM_DESTROY:
-	{
+		return DefWindowProc(hWnd, message, wParam, lParam);
+	case WM_DESTROY: {
 #ifdef _DEBUG
 		_tprintf(TEXT("RECEIVED DESTROY MESSAGE\n"));
 #endif
 		PostQuitMessage(0);
-		break;
 	}
+		break;
 	default:
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	}
@@ -661,35 +695,31 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
 	return (INT_PTR)FALSE;
 }
 
-void buttonViewMngr() {
-	if (!_tcscmp(pID, TEXT(""))) {
-		ShowWindow(hButton1, SW_SHOWNORMAL);
-		ShowWindow(hButton2, SW_HIDE);
-		ShowWindow(hButton3, SW_HIDE);
-	}
-	else {
-		ShowWindow(hButton1, SW_HIDE);
-		ShowWindow(hButton2, SW_SHOWNORMAL);
-		ShowWindow(hButton3, SW_SHOWNORMAL);
-	}
-}
-
 int buttonOnClick(HWND hWnd, LPCTSTR query) {
 	LPTSTR buffer;
+	LPTSTR bookingCode;
+
+	if ((bookingCode = GetBooking(hBooking)) == NULL) {
+		errorhandler(GetLastError());
+	}
 	if (query_server(query, &buffer)) {
 		errorhandler(WSAGetLastError());
 	}
 	if (!(_tcscmp(buffer, TEXT("OPERATION SUCCEDED")))) {
-		savStore(TEXT(""));
+		if (!SetBooking(hBooking, TEXT(""))) {
+			errorhandler(GetLastError());
+		}
 	}
 	else {
-		savStore(buffer);
+		if (!SetBooking(hBooking, buffer)) {
+			errorhandler(GetLastError());
+		}
 	}
 	free(buffer);
-	if ((pID = savLoad()) == NULL) {
+	if ((bookingCode = GetBooking(hBooking)) == NULL) {
 		errorhandler(GetLastError());
 	}
-	SendMessage(hStaticTextbox, WM_SETTEXT, _tcslen(pID), (LPARAM)pID);
+	SendMessage(hStaticTextbox, WM_SETTEXT, _tcslen(bookingCode), (LPARAM)bookingCode);
 	for (int i = 0; i < rows * columns; i++) {
 		HBITMAP tmp;
 		tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
