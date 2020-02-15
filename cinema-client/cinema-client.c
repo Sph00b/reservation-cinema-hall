@@ -36,8 +36,10 @@ ATOM                MyRegisterClass(HINSTANCE);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
-int					buttonOnClick(HWND hWnd, LPCTSTR query);
-int					QueryServer(LPCTSTR, LPTSTR*);
+BOOL				ButtonClickHandler(HWND hWnd, LPCTSTR* queries);
+BOOL				UpdateSeats(HWND hWnd);
+BOOL				QueryServer(LPCTSTR, LPTSTR*);
+BOOL				GetSeatsQuery(LPTSTR*, HBITMAP);
 void				ErrorHandler(int e);
 
 int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPTSTR lpCmdLine, _In_ int nCmdShow) {
@@ -83,12 +85,12 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 		ErrorHandler(GetLastError());
 	}
 	//	Retrive number of seats and rows
-	if (QueryServer(TEXT("GET ROWS FROM CONFIG"), &buffer)) {
+	if (!QueryServer(TEXT("GET ROWS FROM CONFIG"), &buffer)) {
 		ErrorHandler(WSAGetLastError());
 	}
 	rows = _tstoi(buffer);
 	free(buffer);
-	if (QueryServer(TEXT("GET COLUMNS FROM CONFIG"), &buffer)) {
+	if (!QueryServer(TEXT("GET COLUMNS FROM CONFIG"), &buffer)) {
 		ErrorHandler(WSAGetLastError());
 	}
 	columns = _tstoi(buffer);
@@ -224,7 +226,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 			NULL									//	PARAMETER
 		))) return FALSE;
 
-		if (QueryServer(TEXT("GET FILM FROM CONFIG"), &buffer)) {
+		if (!QueryServer(TEXT("GET FILM FROM CONFIG"), &buffer)) {
 			ErrorHandler(WSAGetLastError());
 		}
 		if (asprintf(&film, TEXT("Film: %s"), buffer) == -1) {
@@ -242,7 +244,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 			NULL									//	PARAMETER
 		))) return FALSE;
 
-		if (QueryServer(TEXT("GET SHOWTIME FROM CONFIG"), &buffer)) {
+		if (!QueryServer(TEXT("GET SHOWTIME FROM CONFIG"), &buffer)) {
 			ErrorHandler(WSAGetLastError());
 		}
 		if (asprintf(&showtime, TEXT("Orario: %s"), buffer) == -1) {
@@ -373,20 +375,24 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 		for (int i = 0; i < rows; i++) {
 			for (int j = 0; j < columns; j++) {
 				hStaticS[(i * columns) + j] = CreateWindow(
-					TEXT("STATIC"),									//	PREDEFINED CLASS
-					TEXT(""),										//	text 
-					WS_CHILD | WS_VISIBLE | SS_BITMAP | SS_NOTIFY,	//	Styles
-					(XRes / 2) - (16 * columns) + (32 * j),			//	x position
-					32 + ((YRes - 150) / 2) - (16 * rows) + (32 * i),//	y position
-					32, 32,											//	w,h size
-					hWnd, NULL, hInstance,							//	PARENT WINDOW, MENU, INSTANCE
-					NULL											//	PARAMETER
+					TEXT("STATIC"),										//	PREDEFINED CLASS
+					TEXT(""),											//	text 
+					WS_CHILD | WS_VISIBLE | SS_BITMAP | SS_NOTIFY,		//	Styles
+					(XRes / 2) - (16 * columns) + (32 * j),				//	x position
+					32 + ((YRes - 150) / 2) - (16 * rows) + (32 * i),	//	y position
+					32, 32,												//	w,h size
+					hWnd, NULL, hInstance,								//	PARENT WINDOW, MENU, INSTANCE
+					NULL												//	PARAMETER
 				);
 				if (!hStaticS[(i * columns) + j]) {
 					return FALSE;
 				}
 				SendMessage(hStaticS[(i * columns) + j], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
 			}
+		}
+
+		if (!UpdateSeats(hWnd)) {
+			ErrorHandler(GetLastError());
 		}
 	}
 
@@ -414,13 +420,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		if (!SetTimer(hWnd, 0, 1000, (TIMERPROC)NULL)) {
 			ErrorHandler(GetLastError());
 		}
-SendMessage(hWnd, WM_TIMER, 0, 0);
-	}
-		break;
-	case WM_SIZE: {
-#ifdef _DEBUG
-		_tprintf(TEXT("RECEIVED SIZE MESSAGE\n"));
-#endif
 	}
 		break;
 	case WM_PAINT: {
@@ -431,14 +430,13 @@ SendMessage(hWnd, WM_TIMER, 0, 0);
 		PAINTSTRUCT ps;
 		HDC hdc;
 
-		if ((bookingCode = GetBooking(hBooking)) == NULL) {
-			ErrorHandler(GetLastError());
-		}
-
 		hdc = BeginPaint(hWnd, &ps);
 		//	TODO: Aggiungere qui il codice di disegno che usa HDC...
 		EndPaint(hWnd, &ps);
 
+		if ((bookingCode = GetBooking(hBooking)) == NULL) {
+			ErrorHandler(GetLastError());
+		}
 		if (!_tcscmp(bookingCode, TEXT(""))) {
 			ShowWindow(hButton1, SW_SHOWNORMAL);
 			ShowWindow(hButton2, SW_HIDE);
@@ -449,6 +447,7 @@ SendMessage(hWnd, WM_TIMER, 0, 0);
 			ShowWindow(hButton2, SW_SHOWNORMAL);
 			ShowWindow(hButton3, SW_SHOWNORMAL);
 		}
+
 	}
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	case WM_CTLCOLORSTATIC: {
@@ -465,47 +464,8 @@ SendMessage(hWnd, WM_TIMER, 0, 0);
 #ifdef _DEBUG
 		_tprintf(TEXT("RECEIVED TIMER MESSAGE\n"));
 #endif
-		LPTSTR query;
-		LPTSTR result;
-		LPTSTR bookingCode;
-		int code_unused = 0;
-
-		if ((bookingCode = GetBooking(hBooking)) == NULL) {
+		if (!UpdateSeats(hWnd)) {
 			ErrorHandler(GetLastError());
-		}
-		asprintf(&query, TEXT("~%s"), bookingCode);
-		if (QueryServer(query, &result)) {
-			ErrorHandler(WSAGetLastError());
-		}
-		free(query);
-		for (int i = 0; i < rows * columns; i++) {
-			HBITMAP tmp;
-			tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
-			if (result[i * 2] == TEXT('1')) {
-				code_unused = 1;
-			}
-			if (tmp == hBitmapDefault) {
-				if (result[i * 2] == TEXT('1')) {
-					SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapBooked);
-				}
-				else if (result[i * 2] == TEXT('2')) {
-					SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDisabled);
-				}
-			}
-			else if (tmp == hBitmapDisabled && result[i * 2] == TEXT('0')) {
-				SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
-			}
-		}
-		free(result);
-		if (!code_unused) {
-			if (!SetBooking(hBooking, TEXT(""))) {
-				ErrorHandler(GetLastError());
-			}
-			if ((bookingCode = GetBooking(hBooking)) == NULL) {
-				ErrorHandler(GetLastError());
-			}
-			SendMessage(hStaticTextbox, WM_SETTEXT, _tcslen(bookingCode), (LPARAM)bookingCode);
-			RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
 		}
 	}
 		break;
@@ -514,140 +474,119 @@ SendMessage(hWnd, WM_TIMER, 0, 0);
 #ifdef _DEBUG
 			_tprintf(TEXT("RECEIVED WM_COMMAND CLICKED MESSAGE FROM CONTROL %d\n"), lParam);
 #endif
-			LPTSTR bookingCode;
+			/*	Static Control	*/
+			{
+				HBITMAP tmp;
+
+				tmp = (HBITMAP)SendMessage((HWND)lParam, STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
+				if (tmp != NULL) {
+					if (tmp == hBitmapDefault) {
+						SendMessage((HWND)lParam, STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapSelected);
+					}
+					else if (tmp == hBitmapSelected) {
+						SendMessage((HWND)lParam, STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
+					}
+					else if (tmp == hBitmapBooked) {
+						SendMessage((HWND)lParam, STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapRemove);
+					}
+					else if (tmp == hBitmapRemove) {
+						SendMessage((HWND)lParam, STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapBooked);
+					}
+					else {
+						return DefWindowProc(hWnd, message, wParam, lParam);
+					}
+					return 0;
+				}
+			}
+			/*	Button Control	*/
+			LPTSTR bookingCode = NULL;
+			LPTSTR* queries = NULL;
 
 			if ((bookingCode = GetBooking(hBooking)) == NULL) {
 				ErrorHandler(GetLastError());
 			}
-			for (int i = 0; i < rows * columns; i++) {
-				if ((HWND)lParam == hStaticS[i]) {
-					HBITMAP tmp;
-					tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
-					if (tmp == hBitmapDefault) {
-						SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapSelected);
-					}
-					else if (tmp == hBitmapSelected) {
-						SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
-					}
-					else if (tmp == hBitmapBooked) {
-						SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapRemove);
-					}
-					else if (tmp == hBitmapRemove) {
-						SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapBooked);
-					}
-					return 0;
-				}
-			}
+
 			if ((HWND)lParam == hButton1) {
-				LPTSTR query;
-				int slctd_flag = 0;
-				asprintf(&query, TEXT("#0"));
-				for (int i = 0; i < rows * columns; i++) {
-					HBITMAP tmp;
-					tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
-					if (tmp == hBitmapSelected) {
-						slctd_flag = 1;
-						asprintf(&query, TEXT("%s %d"), query, i);
-					}
+				if ((queries = malloc(sizeof(LPTSTR) * 2)) == NULL) {
+					ErrorHandler(GetLastError());
 				}
-				if (!slctd_flag) {
+				if (asprintf(&queries[0], TEXT("#0")) == -1) {
+					ErrorHandler(GetLastError());
+				}
+				if (!GetSeatsQuery(&queries[0], hBitmapSelected)) {
+					free(queries[0]);
+					free(queries);
 					return 0;
 				}
-				buttonOnClick(hWnd, query);
-				free(query);
+				queries[1] = NULL;
+				if (!ButtonClickHandler(hWnd, queries)) {
+					ErrorHandler(GetLastError());
+				}
+				free(queries[0]);
+				free(queries);
 			}
 			else if ((HWND)lParam == hButton2) {
-				LPTSTR query;
-				LPTSTR result;
-				int slctd_flag = 0;
-				asprintf(&query, TEXT("#%s"), bookingCode);
-				for (int i = 0; i < rows * columns; i++) {
-					HBITMAP tmp;
-					tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
-					if (tmp == hBitmapSelected) {
-						slctd_flag = 1;
-						asprintf(&query, TEXT("%s %d"), query, i);
-					}
+				int i = 1;
+
+				if ((queries = malloc(sizeof(LPTSTR) * 3)) == NULL) {
+					ErrorHandler(GetLastError());
 				}
-				if (slctd_flag) {
-					if (QueryServer(query, &result)) {
-						ErrorHandler(WSAGetLastError());
-					}
-					free(result);
+				if (asprintf(&queries[0], TEXT("#%s"), bookingCode) == -1) {
+					ErrorHandler(GetLastError());
 				}
-				free(query);
-				asprintf(&query, TEXT("@%s"), bookingCode);
-				for (int i = 0; i < rows * columns; i++) {
-					HBITMAP tmp;
-					tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
-					if (tmp == hBitmapRemove) {
-						slctd_flag = 1;
-						asprintf(&query, TEXT("%s %d"), query, i);
-					}
+				if (!GetSeatsQuery(&queries[0], hBitmapSelected)) {
+					free(queries[0]);
+					queries[0] = NULL;
+					queries[1] = NULL;
+					i = 0;
 				}
-				if (slctd_flag) {
-					if (QueryServer(query, &result)) {
-						ErrorHandler(WSAGetLastError());
-					}
-					free(result);
+				if (asprintf(&queries[i], TEXT("@%s"), bookingCode) == -1) {
+					ErrorHandler(GetLastError());
 				}
-				free(query);
-				for (int i = 0; i < rows * columns; i++) {
-					HBITMAP tmp;
-					tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
-					if (tmp == hBitmapSelected) {
-						SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
-					}
-					else if (tmp == hBitmapRemove) {
-						SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
-					}
+				if (!GetSeatsQuery(&queries[i], hBitmapRemove)) {
+					free(queries[i]);
+					queries[i] = NULL;
 				}
-				RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
-				SendMessage(hWnd, WM_TIMER, 0, 0);
-				break;
+				queries[2] = NULL;
+				if (!ButtonClickHandler(hWnd, queries)) {
+					ErrorHandler(GetLastError());
+				}
+				free(queries);
 			}
 			else if ((HWND)lParam == hButton3) {
 				int MessageBoxResult;
+
 				MessageBoxResult = MessageBox(
 					hWnd,
 					TEXT("Sei sicuro di voler eliminare la tua prenotazione?"),
 					TEXT("Elimina prenotazione"),
 					MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2 | MB_APPLMODAL
 				);
-				if (MessageBoxResult == IDNO) {
-					return 0;
-				}
-				/*	Create MessageBox to warn the user	*/
-				LPTSTR query;
-				LPTSTR result;
-				asprintf(&query, TEXT("~%s"), bookingCode);
-				if (QueryServer(query, &result)) {
-					ErrorHandler(WSAGetLastError());
-				}
-				free(query);
-				/*	Use a pointer to free memory	*/
-				asprintf(&query, TEXT("@%s"), bookingCode);
-				for (int i = 0; i < rows * columns; i++) {
-					if (result[2 * i] == TEXT('1')) {
-						asprintf(&query, TEXT("%s %d"), query, i);
+				if (MessageBoxResult == IDYES) {
+					BOOL booking;
+					if ((queries = malloc(sizeof(LPTSTR) * 2)) == NULL) {
+						ErrorHandler(GetLastError());
 					}
-				}
-				free(result);
-				buttonOnClick(hWnd, query);
-				free(query);
-				for (int i = 0; i < rows * columns; i++) {
-					HBITMAP tmp;
-					tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
-					if (tmp == hBitmapBooked) {
-						SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
+					if (asprintf(&queries[0], TEXT("@%s"), bookingCode) == -1) {
+						ErrorHandler(GetLastError());
 					}
+					booking = GetSeatsQuery(&queries[0], hBitmapBooked);
+					booking |= GetSeatsQuery(&queries[0], hBitmapRemove);
+					if (!booking) {
+						free(queries[0]);
+						free(queries);
+						return 0;
+					}
+					queries[1] = NULL;
+					if (!ButtonClickHandler(hWnd, queries)) {
+						ErrorHandler(GetLastError());
+					}
+					free(queries[0]);
+					free(queries);
 				}
 			}
-			break;
 		}
-		else {
-			return DefWindowProc(hWnd, message, wParam, lParam);
-		}
+		return DefWindowProc(hWnd, message, wParam, lParam);
 	}
 	case WM_DRAWITEM: {
 		(LPDRAWITEMSTRUCT)lParam;
@@ -666,67 +605,130 @@ SendMessage(hWnd, WM_TIMER, 0, 0);
 	return 0;
 }
 
-int buttonOnClick(HWND hWnd, LPCTSTR query) {
-	LPTSTR buffer;
+BOOL UpdateSeats(HWND hWnd) {
+	LPTSTR query;
+	LPTSTR result;
 	LPTSTR bookingCode;
+	int code_unused = 0;
 
 	if ((bookingCode = GetBooking(hBooking)) == NULL) {
-		ErrorHandler(GetLastError());
+		return FALSE;
 	}
-	if (QueryServer(query, &buffer)) {
+	if (asprintf(&query, TEXT("~%s"), bookingCode) == -1) {
+		return FALSE;
+	}
+	if (!QueryServer(query, &result)) {
 		ErrorHandler(WSAGetLastError());
 	}
-	if (!(_tcscmp(buffer, TEXT("OPERATION SUCCEDED")))) {
+	free(query);
+	for (int i = 0; i < rows * columns; i++) {
+		HBITMAP tmp;
+		if ((tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0)) == NULL) {
+			return FALSE;
+		}
+		if (result[i * 2] == TEXT('1')) {
+			code_unused = 1;
+		}
+		if (tmp == hBitmapDefault) {
+			if (result[i * 2] == TEXT('1')) {
+				SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapBooked);
+			}
+			else if (result[i * 2] == TEXT('2')) {
+				SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDisabled);
+			}
+		}
+		else if (tmp == hBitmapDisabled && result[i * 2] == TEXT('0')) {
+			SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
+		}
+	}
+	free(result);
+	if (!code_unused) {
 		if (!SetBooking(hBooking, TEXT(""))) {
 			ErrorHandler(GetLastError());
 		}
+		SendMessage(hStaticTextbox, WM_SETTEXT, _tcslen(TEXT("")), (LPARAM)TEXT(""));
+		RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
 	}
-	else {
-		if (!SetBooking(hBooking, buffer)) {
-			ErrorHandler(GetLastError());
+	return TRUE;
+}
+
+BOOL GetSeatsQuery(LPTSTR* lppQuery, HBITMAP hBitmapType) {
+	BOOL result = FALSE;
+	HBITMAP hBitmap = NULL;
+	LPTSTR lpTmp = NULL;
+
+	for (int i = 0; i < rows * columns; i++) {
+		hBitmap = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
+		if (hBitmap == hBitmapType) {
+			result = TRUE;
+			lpTmp = *lppQuery;
+			if (asprintf(lppQuery, TEXT("%s %d"), *lppQuery, i) == -1) {
+				ErrorHandler(GetLastError());
+			}
+			free(lpTmp);
 		}
 	}
-	free(buffer);
-	if ((bookingCode = GetBooking(hBooking)) == NULL) {
-		ErrorHandler(GetLastError());
+	return result;
+
+}
+
+BOOL ButtonClickHandler(HWND hWnd, LPCTSTR* queries) {
+	LPTSTR buffer;
+	
+	for (int i = 0; queries[i] != NULL; i++) {
+		if (!QueryServer(queries[i], &buffer)) {
+			ErrorHandler(WSAGetLastError());
+		}
+		if (!(_tcscmp(buffer, TEXT("OPERATION FAILED")))) {
+			MessageBox(
+				hWnd,
+				TEXT("Prenotazione falita, in caso di prenotazioni simultanee una prenotazione potrebbe fallire."),
+				NULL,
+				MB_OK | MB_ICONERROR | MB_APPLMODAL
+			);
+		}
+		if ((_tcscmp(buffer, TEXT("OPERATION SUCCEDED")))) {
+			if (!SetBooking(hBooking, buffer)) {
+				ErrorHandler(GetLastError());
+			}
+			SendMessage(hStaticTextbox, WM_SETTEXT, _tcslen(buffer), (LPARAM)buffer);
+		}
+		free(buffer);
 	}
-	SendMessage(hStaticTextbox, WM_SETTEXT, _tcslen(bookingCode), (LPARAM)bookingCode);
+
 	for (int i = 0; i < rows * columns; i++) {
 		HBITMAP tmp;
 		tmp = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
-		if (tmp == hBitmapSelected) {
-			SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
-		}
-		else if (tmp == hBitmapRemove) {
-			SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
-		}
+		SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
+	}
+	if (!UpdateSeats(hWnd)) {
+		ErrorHandler(GetLastError());
 	}
 	RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
-	SendMessage(hWnd, WM_TIMER, 0, 0);
-	return 0;
+	return TRUE;
 }
 
-int QueryServer(LPCTSTR query, LPTSTR* result) {
+BOOL QueryServer(LPCTSTR query, LPTSTR* result) {
 	connection_t cntn;
 	if (connection_init(&cntn, TEXT("127.0.0.1"), 55555)) {
-		return 1;
+		return FALSE;
 	}
 	if (connetcion_connect(&cntn)) {
-		return 1;
+		return FALSE;
 	}
 	if (connection_send(&cntn, query) == -1) {
-		return 1;
+		return FALSE;
 	}
 	while (connection_recv(&cntn, result) == -1) {
-		return 1;
+		return FALSE;
 	}
 #ifdef _DEBUG
 	_tprintf(TEXT("QUERY: %s\nRESULT: %s\n"), query, *result);
 #endif
 	if (connection_close(&cntn) == -1) {
-		return 1;
+		return FALSE;
 	}
-	return 0;
+	return TRUE;
 }
 
 void ErrorHandler(int e) {
