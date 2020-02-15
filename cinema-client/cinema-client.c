@@ -164,15 +164,10 @@ ATOM MyRegisterClass(HINSTANCE hInstance) {
 //
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 	HWND hWnd;
-	LPTSTR bookingCode;
 	int XRes = 1280;
 	int YRes = 720;
 
 	hInst = hInstance;	//	Archivia l'handle di istanza nella variabile globale
-
-	if ((bookingCode = GetBooking(hBooking)) == NULL) {
-		ErrorHandler(GetLastError());
-	}
 
 	if (!(hWnd = CreateWindow(
 		(LPCTSTR)szWindowClass,										//	CLASS
@@ -277,6 +272,11 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 
 	//	Creazione Textbox
 	{
+		LPTSTR bookingCode;
+
+		if ((bookingCode = GetBooking(hBooking)) == NULL) {
+			ErrorHandler(GetLastError());
+		}
 		if (!(hStaticTextbox = CreateWindowEx(
 			WS_EX_CLIENTEDGE,					//	EX style
 			TEXT("STATIC"),						//	PREDEFINED CLASS
@@ -288,6 +288,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 			hWnd, NULL, hInstance,				//	PARENT WINDOW, MENU, INSTANCE
 			NULL								//	PARAMETER
 		))) return FALSE;
+		free(bookingCode);
 #ifdef _DEBUG
 		_tprintf(TEXT("TEXTBOX CREATED\n"));
 #endif
@@ -447,7 +448,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			ShowWindow(hButton2, SW_SHOWNORMAL);
 			ShowWindow(hButton3, SW_SHOWNORMAL);
 		}
-
+		free(bookingCode);
 	}
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	case WM_CTLCOLORSTATIC: {
@@ -543,6 +544,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 				if (asprintf(&queries[i], TEXT("@%s"), bookingCode) == -1) {
 					ErrorHandler(GetLastError());
 				}
+				free(bookingCode);
 				if (!GetSeatsQuery(&queries[i], hBitmapRemove)) {
 					free(queries[i]);
 					queries[i] = NULL;
@@ -570,6 +572,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 					if (asprintf(&queries[0], TEXT("@%s"), bookingCode) == -1) {
 						ErrorHandler(GetLastError());
 					}
+					free(bookingCode);
 					booking = GetSeatsQuery(&queries[0], hBitmapBooked);
 					booking |= GetSeatsQuery(&queries[0], hBitmapRemove);
 					if (!booking) {
@@ -617,6 +620,7 @@ BOOL UpdateSeats(HWND hWnd, BOOL reset) {
 	if (asprintf(&query, TEXT("~%s"), bookingCode) == -1) {
 		return FALSE;
 	}
+	free(bookingCode);
 	if (!QueryServer(query, &result)) {
 		ErrorHandler(WSAGetLastError());
 	}
