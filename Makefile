@@ -38,7 +38,7 @@ $(OBJ_DIR)/$(TARGET)/%.c.o: %.c
 	$(MKDIR_P) $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-.PHONY: clean rebase clean-all
+.PHONY: clean rebase clean-all debug
 
 clean:
 	$(RM) -r $(OBJ_DIR)
@@ -50,5 +50,9 @@ rebase:
 clean-all:
 	$(RM) -r $(OBJ_DIR)
 	$(RM) -r $(DMN_DIR)
+
+debug:
+	$(CFLAGS) = $(CFLAGS) -D debug
+	$(TAGET)
 
 MKDIR_P ?= mkdir -p

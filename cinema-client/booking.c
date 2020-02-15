@@ -45,7 +45,7 @@ LPTSTR GetFilename(LPCTSTR lpParam) {
 	return lpBuffer;
 }
 
-HBOOKING CreateBooking(LPCTSTR lpParam) {
+HBOOKING InitializeBooking(LPCTSTR lpParam) {
 	HBOOKING hBooking = NULL;
 	LPTSTR filename = NULL;
 

@@ -6,7 +6,7 @@
 typedef HANDLE HBOOKING;
 
 //
-//	FUNZIONE: InitSavefile(HINSTANCE, int)
+//	FUNZIONE: InitializeBooking(LPCTSTR)
 //
 //	SCOPO: Crea e inizializza lo storage
 //
@@ -17,18 +17,18 @@ typedef HANDLE HBOOKING;
 //		In questa funzione viene aperta la sessione al file di salvataggio, se
 //		il file non esiste questo viene creato insieme alla sua directory d'appartenenza.
 //
-extern HBOOKING CreateBooking(LPCTSTR);
+extern HBOOKING InitializeBooking(LPCTSTR);
 
 //
-//	FUNZIONE: savStore(LPCTSTR)
+//	FUNZIONE: SetBooking(HBOOKING, LPCTSTR)
 //
-//	SCOPO: Sovrascrive la prenotazione
+//	SCOPO: Aggiorna la prenotazione
 //
 //	RETURN:	TRUE in caso di successo FALSE in caso di errore
 //
 extern BOOL SetBooking(HBOOKING, LPCTSTR);
 //
-//	FUNZIONE: InitInstance(HINSTANCE, int)
+//	FUNZIONE: GetBooking(HBOOKING)
 //
 //	SCOPO: Restituisce la stringa contenente il codice di prenotazione
 //
