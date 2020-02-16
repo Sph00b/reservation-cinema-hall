@@ -39,7 +39,7 @@ INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 BOOL				ButtonClickHandler(HWND, LPCTSTR*);
 BOOL				UpdateSeats(HWND, BOOL);
 BOOL				QueryServer(LPCTSTR, LPTSTR*);
-BOOL				GetSeatsQuery(LPTSTR*, HBITMAP);
+BOOL				GetSeatsQuery(LPTSTR*, HBITMAP, HBITMAP);
 void				ErrorHandler(int e);
 
 int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPTSTR lpCmdLine, _In_ int nCmdShow) {
@@ -514,7 +514,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 				if (asprintf(&queries[0], TEXT("#0")) == -1) {
 					ErrorHandler(GetLastError());
 				}
-				if (!GetSeatsQuery(&queries[0], hBitmapSelected)) {
+				if (!GetSeatsQuery(&queries[0], hBitmapSelected, (HBITMAP)NULL)) {
 					free(queries[0]);
 					free(queries);
 					return 0;
@@ -535,7 +535,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 				if (asprintf(&queries[0], TEXT("#%s"), bookingCode) == -1) {
 					ErrorHandler(GetLastError());
 				}
-				if (!GetSeatsQuery(&queries[0], hBitmapSelected)) {
+				if (!GetSeatsQuery(&queries[0], hBitmapSelected, (HBITMAP)NULL)) {
 					free(queries[0]);
 					queries[0] = NULL;
 					queries[1] = NULL;
@@ -545,7 +545,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 					ErrorHandler(GetLastError());
 				}
 				free(bookingCode);
-				if (!GetSeatsQuery(&queries[i], hBitmapRemove)) {
+				if (!GetSeatsQuery(&queries[i], hBitmapRemove, (HBITMAP)NULL)) {
 					free(queries[i]);
 					queries[i] = NULL;
 				}
@@ -573,8 +573,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 						ErrorHandler(GetLastError());
 					}
 					free(bookingCode);
-					booking = GetSeatsQuery(&queries[0], hBitmapBooked);
-					booking |= GetSeatsQuery(&queries[0], hBitmapRemove);
+					booking = GetSeatsQuery(&queries[0], hBitmapBooked, hBitmapRemove);
 					if (!booking) {
 						free(queries[0]);
 						free(queries);
@@ -669,14 +668,14 @@ BOOL UpdateSeats(HWND hWnd, BOOL reset) {
 	return TRUE;
 }
 
-BOOL GetSeatsQuery(LPTSTR* lppQuery, HBITMAP hBitmapType) {
+BOOL GetSeatsQuery(LPTSTR* lppQuery, HBITMAP hBitmapType1, HBITMAP hBitmapType2) {
 	BOOL result = FALSE;
 	HBITMAP hBitmap = NULL;
 	LPTSTR lpTmp = NULL;
 
 	for (int i = 0; i < rows * columns; i++) {
 		hBitmap = (HBITMAP)SendMessage(hStaticS[i], STM_GETIMAGE, (WPARAM)IMAGE_BITMAP, 0);
-		if (hBitmap == hBitmapType) {
+		if (hBitmap == hBitmapType1 || hBitmap == hBitmapType2) {
 			result = TRUE;
 			lpTmp = *lppQuery;
 			if (asprintf(lppQuery, TEXT("%s %d"), *lppQuery, i) == -1) {
