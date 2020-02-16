@@ -1,16 +1,15 @@
 #pragma once
 
-typedef struct _stack_node {
-	void* data;
-	struct _stack_node* next;
-} *_stack_t;
+typedef void* _stack_t;
 
-int stack_init(_stack_t* pstack);
+_stack_t stack_init();
 
-int stack_is_empty(_stack_t* pstack);
+void stack_destroy(_stack_t handle);
 
-int stack_push(_stack_t* pstack, void* data);
+int stack_is_empty(_stack_t handle);
 
-void* stack_pop(_stack_t* pstack);
+int stack_push(_stack_t handle, void* data);
 
-void* stack_peek(_stack_t* pstack);
+void* stack_pop(_stack_t handle);
+
+void* stack_peek(_stack_t handle);

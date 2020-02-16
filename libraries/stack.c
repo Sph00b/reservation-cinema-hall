@@ -1,42 +1,60 @@
 #include "stack.h"
 #include <stdlib.h>
 
-int stack_init(_stack_t* stack) {
-	*stack = NULL;
-	return 0;
-}
+struct stack_node {
+	void* data;
+	struct stack_node* next;
+};
 
-int stack_is_empty(_stack_t* stack) {
-	return !*stack;
-}
-
-int stack_push(_stack_t* stack, void* data) {
-	struct _stack_node* node;
-	if ((node = malloc(sizeof(struct _stack_node))) == NULL) {
-		return 1;
-	}
-	node->data = data;
-	node->next = *stack;
-	*stack = node;
-	return 0;
-}
-
-void* stack_pop(_stack_t* stack) {
-	struct _stack_node* tmp;
-	void* popped;
-	if (stack_is_empty(stack)) {
+_stack_t stack_init() {
+	struct stack_node* stack;
+	if ((stack = malloc(sizeof(struct stack_node))) == NULL) {
 		return NULL;
 	}
-	tmp = *stack;
-	*stack = (*stack)->next;
-	popped = tmp->data;
-	free(tmp);
+	stack->data = NULL;
+	stack->next = NULL;
+	return stack;
+}
+
+void stack_destroy(_stack_t handle) {
+	struct stack_node* stack = (struct stack_node*)handle;
+	while (!stack_is_empty(handle)) {
+		stack_pop(handle);
+	}
+	free(stack);
+}
+
+int stack_is_empty(_stack_t handle) {
+	struct stack_node* stack = (struct stack_node*)handle;
+	return !stack->next;
+}
+
+int stack_push(_stack_t handle, void* data) {
+	struct stack_node* stack = (struct stack_node*)handle;
+	struct stack_node* node;
+	if ((node = malloc(sizeof(struct stack_node))) == NULL) {
+		return 1;
+	}
+	node->data = stack->data;
+	node->next = stack->next;
+	stack->data = data;
+	stack->next = node;
+	return 0;
+}
+
+void* stack_pop(_stack_t handle) {
+	struct stack_node* stack = (struct stack_node*)handle;
+	struct stack_node* tmp = stack->next;
+	void* popped = stack->data;
+	if (!stack_is_empty(handle)) {
+		stack->data = stack->next->data;
+		stack->next = stack->next->next;
+		free(tmp);
+	}
 	return popped;
 }
 
-void* stack_peek(_stack_t* stack) {
-	if (stack_is_empty(stack)) {
-		return NULL;
-	}
-	return (*stack)->data;
+void* stack_peek(_stack_t handle) {
+	struct stack_node* stack = (struct stack_node*)handle;
+	return stack->data;
 }

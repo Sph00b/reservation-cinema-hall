@@ -17,6 +17,31 @@
 #define LOCK(mutex, ret) if (!ret) while ((ret = pthread_mutex_lock(mutex)) && errno == EINTR);
 #define UNLOCK(mutex, ret) if (!ret) while ((ret = pthread_mutex_unlock(mutex)) && errno == EINTR);
 
+/*
+struct _key_info {
+	char* key_name;
+	int key_offset;
+	pthread_rwlock_t key_lock;
+};
+
+struct _section_info {
+	char* section_name;
+	struct _key_info* section_key_table;
+};
+*/
+/*
+typedef struct {
+	int fd;
+	//struct _section_info* database_register;
+	pthread_rwlock_t* lock;
+} database_t;
+*/
+
+struct database{
+	int fd;
+	pthread_rwlock_t* lock;
+};
+
 /*	IDK how to name
 	undefined behaviour if the strings pointed are longer than WORDLEN
 */
@@ -305,43 +330,51 @@ int get(int fd, const struct info* info, char** dest) {
 
 /*	Initiazliza database from file return 1 and set properly errno on error	*/
 
-int database_init(database_t *database, const char* filename) {
+database_t database_init(const char* filename) {
+	struct database* database;
+	if ((database = malloc(sizeof(struct database))) == NULL) {
+		return NULL;
+	}
 	int ret = 0;
 	if ((database->fd = open(filename, O_RDWR, 0666)) == -1) {
-		return 1;
+		return NULL;
 	}
 	if (flock(database->fd, LOCK_EX | LOCK_NB) == -1) {	//instead of semget & ftok to avoid mix SysV and POSIX, replace with fcntl
 		close(database->fd);
-		return 1;
+		return NULL;
 	}
 	if ((database->lock = malloc(sizeof(pthread_rwlock_t))) == NULL) {
 		close(database->fd);
-		return 1;
+		return NULL;
 	}
 	while ((ret = pthread_rwlock_init(database->lock, NULL)) && errno == EINTR);
 	if (ret && errno == EINTR) {
 		close(database->fd);
 		free(database->lock);
-		return 1;
+		return NULL;
 	}
-	return 0;
+	return database;
 }
 
 /*	Close database return EOF and set properly errno on error */
 
-int database_close(database_t *database) {
+int database_close(database_t handle) {
+	struct database* database = (struct database*)handle;
 	int ret;
 	while ((ret = pthread_rwlock_destroy(database->lock)) && errno == EINTR);
 	if (ret && errno == EINTR) {
 		return 1;
 	}
 	free(database->lock);
-	return close(database->fd);
+	close(database->fd);
+	free(database);
+	return 0;
 }
 
 /*	Execute a query return 1 and set properly errno on error */
 
-int database_execute(database_t* database, const char* query, char** result) {
+int database_execute(database_t handle, const char* query, char** result) {
+	struct database* database = (struct database*)handle;
 	int ret = 0;
 	int mret = 0;
 	struct info* qinfo = NULL;

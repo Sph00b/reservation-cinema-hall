@@ -39,7 +39,7 @@ struct request_info {
 
 /*	Global variables	*/
 
-database_t db;
+database_t database;
 pthread_rwlock_t db_serializing_mutex;
 queue_t request_queue;
 pthread_mutex_t request_queue_mutex;
@@ -54,12 +54,12 @@ void*	connection_mngr(void* arg);
 void*	request_handler(void* arg);
 void	thread_exit(int sig) { pthread_exit(NULL); }	//SIAGALRM handler
 int		daemonize();
-int		db_create(database_t* database, const char* filename);
-int		db_configure(database_t* database);
-int		db_clean_data(database_t* database);
-int		db_book(database_t* database, const char* request, char** result);
-int		db_unbook(database_t* database, const char* request, char** result);
-int		db_send_status(database_t* database, const char* request, char** result);
+int		db_create(const char* filename);
+int		db_configure();
+int		db_clean_data();
+int		db_book(const char* request, char** result);
+int		db_unbook(const char* request, char** result);
+int		db_send_status(const char* request, char** result);
 
 int main(int argc, char *argv[]){
 	pthread_t joiner_tid;
@@ -88,7 +88,7 @@ try(
 #endif
 	/*	Initialize request queue and start joiner thread	*/
 try(
-	queue_init(&request_queue), (1)
+	request_queue = queue_init(), (1)
 )
 try(
 	pthread_mutex_init(&request_queue_mutex, NULL), (!0)
@@ -108,11 +108,11 @@ try(
 )
 	/*	Start database	*/
 try(
-	ret = database_init(&db, "etc/data.dat"), (1 * (errno != ENOENT))
+	database = database_init("etc/data.dat"), (1 * (errno != ENOENT))
 )
-	if (ret && errno == ENOENT) {
+	if (database == NULL && errno == ENOENT) {
 try(
-		db_create(&db, "etc/data.dat"), (1)
+		db_create("etc/data.dat"), (1)
 )
 #ifdef _DEBUG
 		syslog(LOG_DEBUG, "Main thread:\tDatabase created");
@@ -123,18 +123,18 @@ try(
 #endif
 	char* result;
 try(
-	database_execute(&db, "GET ROWS FROM CONFIG", &result), (1)
+	database_execute(database, "GET ROWS FROM CONFIG", &result), (1)
 )
 	rows = atoi(result);
 	free(result);
 try(
-	database_execute(&db, "GET COLUMNS FROM CONFIG", &result), (1)
+	database_execute(database, "GET COLUMNS FROM CONFIG", &result), (1)
 )
 	columns = atoi(result);
 	free(result);
 
 try(
-	db_configure(&db), (1)
+	db_configure(database), (1)
 )
 	/*	Register timestamp and PID in database	*/
 	char* qpid;
@@ -146,14 +146,14 @@ try(
 	asprintf(&qtsp, "%s %llu", "SET TIMESTAMP FROM CONFIG AS", (long long)time(NULL)), (-1)
 )
 try(
-	database_execute(&db, qpid, &result), (1)
+	database_execute(database, qpid, &result), (1)
 )	
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Main thread:\tPID stored: %s", result);
 #endif
 	free(result);
 try(
-	database_execute(&db, qtsp, &result), (1)
+	database_execute(database, qtsp, &result), (1)
 )
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Main thread:\tTIMESTAMP stored: %s", result);
@@ -165,10 +165,10 @@ try(
 	internet_info.pconnection = &internet_con;
 	internal_info.pconnection = &internal_con;
 try(
-	database_execute(&db, "GET IP FROM NETWORK", &internet_info.address), (1)
+	database_execute(database, "GET IP FROM NETWORK", &internet_info.address), (1)
 )
 try(
-	database_execute(&db, "GET PORT FROM NETWORK", &internet_info.port), (1)
+	database_execute(database, "GET PORT FROM NETWORK", &internet_info.port), (1)
 )
 try(
 	asprintf(&internal_info.address, "%s%s", getenv("HOME"), "/.cinema/tmp/socket"), (-1)
@@ -225,6 +225,8 @@ try(
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Main thread:\tAll thread joined");
 #endif
+	/*	Free queue	*/
+	queue_destroy(request_queue);
 	/*	Free connection info variabales	*/
 	free(internet_info.address);
 	free(internet_info.port);
@@ -244,7 +246,7 @@ try(
 	pthread_mutex_destroy(&request_queue_mutex), (!0)
 )
 try(
-	database_close(&db), (!0)
+	database_close(database), (!0)
 )
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Main thread:\tClosed database");
@@ -257,11 +259,11 @@ void* thread_joiner(void* arg) {
 	long* server_status = (long*)arg;
 	struct request_info* request;
 	while (*server_status) {
-		while(!queue_is_empty(&request_queue)){
+		while(!queue_is_empty(request_queue)){
 try(
 			pthread_mutex_lock(&request_queue_mutex), (!0)
 )
-			request = queue_pop(&request_queue);
+			request = queue_pop(request_queue);
 #ifdef _DEBUG
 			syslog(LOG_DEBUG, "Joiner thread:\tClosing request thread %ul", *(request->ptid));
 #endif
@@ -279,7 +281,7 @@ try(
 	}
 
 #ifdef _DEBUG
-	syslog(LOG_DEBUG, "Joiner thread:\tClosing joiner thread, queue empty: %d", queue_is_empty(&request_queue));
+	syslog(LOG_DEBUG, "Joiner thread:\tClosing joiner thread, queue empty: %d", queue_is_empty(request_queue));
 #endif
 	return NULL;
 }
@@ -368,7 +370,7 @@ try(
 		pthread_mutex_lock(&request_queue_mutex), (!0)
 )
 try(
-		queue_push(&request_queue, (void*)request), (1)
+		queue_push(request_queue, (void*)request), (1)
 )
 try(
 		pthread_mutex_unlock(&request_queue_mutex), (!0)
@@ -433,7 +435,7 @@ try(
 		pthread_rwlock_wrlock(&db_serializing_mutex), (!0)
 )
 try(
-		db_book(&db, buff + 1, &msg), (1)
+		db_book(buff + 1, &msg), (1)
 )
 	}
 	else if (buff[0] == '@') {
@@ -441,7 +443,7 @@ try(
 		pthread_rwlock_wrlock(&db_serializing_mutex), (!0)
 )
 try(
-		db_unbook(&db, buff + 1, &msg), (1)
+		db_unbook(buff + 1, &msg), (1)
 )
 	}
 	else if (buff[0] == '~') {
@@ -449,7 +451,7 @@ try(
 		pthread_rwlock_rdlock(&db_serializing_mutex), (!0)
 )
 try(
-		db_send_status(&db, buff + 1, &msg), (1)
+		db_send_status(buff + 1, &msg), (1)
 )
 	}
 	else {
@@ -457,7 +459,7 @@ try(
 		pthread_rwlock_rdlock(&db_serializing_mutex), (!0)
 )
 try(
-		database_execute(&db, buff, &msg), (-1)
+		database_execute(database, buff, &msg), (-1)
 )
 	}
 try(
@@ -528,7 +530,7 @@ int daemonize() {
 	return 0;
 }
 
-int db_create(database_t* database, const char* filename) {
+int db_create(const char* filename) {
 	char* msg_init[] = {
 	"ADD NETWORK",
 	"ADD IP FROM NETWORK",
@@ -556,7 +558,7 @@ int db_create(database_t* database, const char* filename) {
 	};
 	int dbfd = open(filename, O_CREAT | O_EXCL, 0666);
 	close(dbfd);
-	database_init(database, filename);
+	database = database_init(filename);
 	char* r;
 	for (int i = 0; msg_init[i]; i++) {
 		if (database_execute(database, msg_init[i], &r)) {
@@ -569,7 +571,7 @@ int db_create(database_t* database, const char* filename) {
 	return 0;
 }
 
-int db_configure(database_t* database) {
+int db_configure() {
 	char* result;
 	int clean = 0;
 	for (int i = 0; i < rows * columns; i++) {
@@ -610,7 +612,7 @@ int db_configure(database_t* database) {
 	return 0;
 }
 
-int db_clean_data(database_t* database) {
+int db_clean_data() {
 	char* result;
 	for (int i = 0; i < rows * columns; i++) {
 		char* query;
@@ -630,7 +632,7 @@ int db_clean_data(database_t* database) {
 	return 0;
 }
 
-int db_get_id(database_t* database) {
+int db_get_id() {
 	int id;
 	char* query;
 	char* result;
@@ -654,7 +656,7 @@ int db_get_id(database_t* database) {
 
 /*	Should I start threads to increase performance?	*/
 
-int db_send_status(database_t* database, const char* request, char** result) {
+int db_send_status(const char* request, char** result) {
 	int id = 0;
 	char* query = NULL;
 	char* buffer = NULL;
@@ -699,7 +701,7 @@ int db_send_status(database_t* database, const char* request, char** result) {
 }
 
 /*	# ID LIST OF DESIRED SEATS SEPARED WITH SPACE, ID = 0 IF NO ID*/
-int db_book(database_t* database, const char* request, char **result) {
+int db_book(const char* request, char **result) {
 	int id;
 	int ret;
 	int ntoken;
@@ -790,61 +792,8 @@ int db_book(database_t* database, const char* request, char **result) {
 	}
 	return 0;
 }
-/*
-int db_unbook(database_t* database, const char* request, char** result) {
-	int id;
-	int ntoken = 0;
-	char* buffer = NULL;
-	char* saveptr = NULL;
-	char** token = NULL;
-	char** query = NULL;
 
-	ntoken = 0;
-	buffer = strdup(request);
-	if ((token = malloc(sizeof(char*))) == NULL) {
-		return 1;
-	}
-	token[0] = strtok_r(buffer, " ", &saveptr);
-	ntoken++;
-	do {
-		ntoken++;
-		if ((token = realloc(token, sizeof(char*) * (size_t)ntoken)) == NULL) {
-			return 1;
-		}
-		token[ntoken - 1] = strtok_r(NULL, " ", &saveptr);
-	} while (token[ntoken - 1] != NULL);
-	ntoken--;
-
-	id = atoi(token[0]);
-	ntoken--;
-
-	if ((query = malloc(sizeof(char*) * (size_t)ntoken)) == NULL) {
-		return 1;
-	}
-	for (int i = 0; i < ntoken; i++) {
-		if (asprintf(&(query[i]), "SET %s FROM DATA AS 0", token[i + 1]) == -1) {
-			return 1;
-		}
-	}
-	free(buffer);
-	free(token);
-	for (int i = 0; i < ntoken; i++) {
-		if (database_execute(database, query[i], result) == 1) {
-			for (int j = i; j < ntoken; free(query[++j]));
-			free(query);
-			return 1;
-		}
-		free(query[i]);
-		free(*result);
-	}
-	free(query);
-	if (asprintf(result, DBMSG_SUCC) == -1) {
-		return 1;
-	}
-	return 0;
-}
-*/
-int db_unbook(database_t* database, const char* request, char** result) {
+int db_unbook(const char* request, char** result) {
 	int ret;
 	int ntoken;
 	char* id;

@@ -1,15 +1,13 @@
 #pragma once
-#include "stack.h"
 
-typedef struct {
-	_stack_t stack_in;
-	_stack_t stack_out;
-} queue_t;
+typedef void* queue_t;
 
-int queue_init(queue_t* queue);
+queue_t queue_init();
 
-int queue_is_empty(queue_t* queue);
+void queue_destroy(queue_t handle);
 
-int queue_push(queue_t* queue, void* data);
+int queue_is_empty(queue_t handle);
 
-void* queue_pop(queue_t* queue);
+int queue_push(queue_t handle, void* data);
+
+void* queue_pop(queue_t handle);

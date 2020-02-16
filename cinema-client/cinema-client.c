@@ -66,21 +66,20 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 	hCrt = _open_osfhandle((long)handle_err, _O_TEXT);
 	FILE* hf_err = _fdopen(hCrt, "w");
 	_tfreopen_s(&hf_err, TEXT("CONOUT$"), TEXT("w"), stderr);
-	
 #endif
-	
-#ifdef _DEBUG
-	_tprintf(TEXT("BOOKING CREATED\n"));
-#endif
+
 	//	Inizializzare le variabili globali
 	LPTSTR buffer;
 
 	szTitle = TEXT("Prenotazione");
 	szWindowClass = TEXT("generic_class");
 
-
 	//	Create the booking
 	hBooking = InitializeBooking(TEXT("PrenotazioneCinema"));
+#ifdef _DEBUG
+	_tprintf(TEXT("BOOKING CREATED\n"));
+#endif
+
 	if (hBooking == NULL) {
 		ErrorHandler(GetLastError());
 	}
