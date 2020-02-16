@@ -125,6 +125,8 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 	_tprintf(TEXT("RECEIVED DESTROY OR INVALID MESSAGE\n"));
 #endif
 
+	CloseHandle(hBooking);
+	free(hStaticS);
 	return (int)msg.wParam;
 }
 
@@ -237,6 +239,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 			hWnd, NULL, hInstance,					//	PARENT WINDOW, MENU, INSTANCE
 			NULL									//	PARAMETER
 		))) return FALSE;
+		free(film);
 
 		if (!QueryServer(TEXT("GET SHOWTIME FROM CONFIG"), &buffer)) {
 			ErrorHandler(WSAGetLastError());
@@ -255,6 +258,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 			hWnd, NULL, hInstance,					//	PARENT WINDOW, MENU, INSTANCE
 			NULL									//	PARAMETER
 		))) return FALSE;
+		free(showtime);
 
 		if (!(hStaticLabelScreen = CreateWindow(
 			TEXT("STATIC"),							//	PREDEFINED CLASS
@@ -516,6 +520,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 				if (!GetSeatsQuery(&queries[0], hBitmapSelected)) {
 					free(queries[0]);
 					free(queries);
+					free(bookingCode);
 					return 0;
 				}
 				queries[1] = NULL;
@@ -543,7 +548,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 				if (asprintf(&queries[i], TEXT("@%s"), bookingCode) == -1) {
 					ErrorHandler(GetLastError());
 				}
-				free(bookingCode);
 				if (!GetSeatsQuery(&queries[i], hBitmapRemove)) {
 					free(queries[i]);
 					queries[i] = NULL;
@@ -551,6 +555,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 				queries[2] = NULL;
 				if (!ButtonClickHandler(hWnd, queries)) {
 					ErrorHandler(GetLastError());
+				}
+				free(queries[0]);
+				if (i) {
+					free(queries[1]);
 				}
 				free(queries);
 			}
@@ -571,12 +579,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 					if (asprintf(&queries[0], TEXT("@%s"), bookingCode) == -1) {
 						ErrorHandler(GetLastError());
 					}
-					free(bookingCode);
 					booking = GetSeatsQuery(&queries[0], hBitmapBooked);
 					booking |= GetSeatsQuery(&queries[0], hBitmapRemove);
 					if (!booking) {
 						free(queries[0]);
 						free(queries);
+						free(bookingCode);
 						return 0;
 					}
 					queries[1] = NULL;
@@ -587,6 +595,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 					free(queries);
 				}
 			}
+
+			free(bookingCode);
 		}
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	}
