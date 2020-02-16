@@ -70,7 +70,6 @@ int main(int argc, char *argv[]){
 	struct connection_info internet_info;
 	struct connection_info internal_info;
 	long server_status = 1;
-	int ret;
 	/*	Ignore all signals	*/
 	sigset_t sigset;
 try(
@@ -88,7 +87,7 @@ try(
 #endif
 	/*	Initialize request queue and start joiner thread	*/
 try(
-	request_queue = queue_init(), (1)
+	request_queue = queue_init(), (NULL)
 )
 try(
 	pthread_mutex_init(&request_queue_mutex, NULL), (!0)
@@ -108,9 +107,9 @@ try(
 )
 	/*	Start database	*/
 try(
-	database = database_init("etc/data.dat"), (1 * (errno != ENOENT))
+	database = database_init("etc/data.dat"), (NULL || (errno == ENOENT))
 )
-	if (database == NULL && errno == ENOENT) {
+	if (!database) {
 try(
 		db_create("etc/data.dat"), (1)
 )
@@ -558,7 +557,9 @@ int db_create(const char* filename) {
 	};
 	int dbfd = open(filename, O_CREAT | O_EXCL, 0666);
 	close(dbfd);
-	database = database_init(filename);
+	if ((database = database_init(filename)) == NULL) {
+		return 1;
+	}
 	char* r;
 	for (int i = 0; msg_init[i]; i++) {
 		if (database_execute(database, msg_init[i], &r)) {

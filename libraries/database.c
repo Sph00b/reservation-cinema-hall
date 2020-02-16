@@ -337,20 +337,24 @@ database_t database_init(const char* filename) {
 	}
 	int ret = 0;
 	if ((database->fd = open(filename, O_RDWR, 0666)) == -1) {
+		free(database);
 		return NULL;
 	}
 	if (flock(database->fd, LOCK_EX | LOCK_NB) == -1) {	//instead of semget & ftok to avoid mix SysV and POSIX, replace with fcntl
 		close(database->fd);
+		free(database);
 		return NULL;
 	}
 	if ((database->lock = malloc(sizeof(pthread_rwlock_t))) == NULL) {
 		close(database->fd);
+		free(database);
 		return NULL;
 	}
 	while ((ret = pthread_rwlock_init(database->lock, NULL)) && errno == EINTR);
 	if (ret && errno == EINTR) {
 		close(database->fd);
 		free(database->lock);
+		free(database);
 		return NULL;
 	}
 	return database;
