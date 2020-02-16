@@ -24,19 +24,6 @@
 
 #define TIMEOUT 5
 
-/*	Data structures	*/
-
-struct connection_info {
-	connection_t* pconnection;
-	char* address;
-	char* port;
-};
-
-struct request_info {
-	pthread_t* ptid;
-	connection_t* paccepted_connection;
-};
-
 /*	Global variables	*/
 
 database_t database;
@@ -65,10 +52,8 @@ int main(int argc, char *argv[]){
 	pthread_t joiner_tid;
 	pthread_t internet_mngr_tid;
 	pthread_t internal_mngr_tid;
-	connection_t internet_con;
-	connection_t internal_con;
-	struct connection_info internet_info;
-	struct connection_info internal_info;
+	connection_t internet_connection;
+	connection_t internal_connection;
 	long server_status = 1;
 	/*	Ignore all signals	*/
 	sigset_t sigset;
@@ -160,27 +145,33 @@ try(
 	free(qpid);
 	free(qtsp);
 	free(result);
-	/*	Prepare connection info variabales	*/
-	internet_info.pconnection = &internet_con;
-	internal_info.pconnection = &internal_con;
+	/*	Setup connections	*/
+	char* address;
+	char* port;
 try(
-	database_execute(database, "GET IP FROM NETWORK", &internet_info.address), (1)
+	database_execute(database, "GET IP FROM NETWORK", &address), (1)
 )
 try(
-	database_execute(database, "GET PORT FROM NETWORK", &internet_info.port), (1)
+	database_execute(database, "GET PORT FROM NETWORK", &port), (1)
 )
 try(
-	asprintf(&internal_info.address, "%s%s", getenv("HOME"), "/.cinema/tmp/socket"), (-1)
+	internet_connection = connection_init(address, (uint16_t)atoi(port)), (NULL)
+)
+	free(address);
+	free(port);
+try(
+	asprintf(&address, "%s%s", getenv("HOME"), "/.cinema/tmp/socket"), (-1)
 )
 try(
-	asprintf(&internal_info.port, "0"), (-1)
+	internal_connection = connection_init(address, 0), (NULL)
 )
+	free(address);
 	/*	Start connection manager threads	*/
 try(
-	pthread_create(&internet_mngr_tid, NULL, connection_mngr, (void*)&internet_info), (!0)
+	pthread_create(&internet_mngr_tid, NULL, connection_mngr, internet_connection), (!0)
 )
 try(
-	pthread_create(&internal_mngr_tid, NULL, connection_mngr, (void*)&internal_info), (!0)
+	pthread_create(&internal_mngr_tid, NULL, connection_mngr, internal_connection), (!0)
 )
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Main thread:\tConnection manager threads started");
@@ -226,17 +217,12 @@ try(
 #endif
 	/*	Free queue	*/
 	queue_destroy(request_queue);
-	/*	Free connection info variabales	*/
-	free(internet_info.address);
-	free(internet_info.port);
-	free(internal_info.address);
-	free(internal_info.port);
 	/*	Close connections and database	*/
 try(
-	connection_close(&internet_con), (-1)
+	connection_close(internet_connection), (-1)
 )
 try(
-	connection_close(&internal_con), (-1)
+	connection_close(internal_connection), (-1)
 )
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Main thread:\tClosed connections");
@@ -256,25 +242,22 @@ try(
 
 void* thread_joiner(void* arg) {
 	long* server_status = (long*)arg;
-	struct request_info* request;
+	pthread_t closing_tid;
 	while (*server_status) {
 		while(!queue_is_empty(request_queue)){
 try(
 			pthread_mutex_lock(&request_queue_mutex), (!0)
 )
-			request = queue_pop(request_queue);
-#ifdef _DEBUG
-			syslog(LOG_DEBUG, "Joiner thread:\tClosing request thread %ul", *(request->ptid));
-#endif
-try(
-			pthread_join(*(request->ptid), NULL), (!0)
-)
-			free(request->ptid);
-			free(request->paccepted_connection);
-			free(request);
+			closing_tid = queue_pop(request_queue);
 try(
 			pthread_mutex_unlock(&request_queue_mutex), (!0)
 )
+try(
+			pthread_join(closing_tid, NULL), (!0)
+)
+#ifdef _DEBUG
+			syslog(LOG_DEBUG, "Joiner thread:\tJoined request thread %ul", closing_tid);
+#endif
 		}
 		sleep(1);
 	}
@@ -285,7 +268,8 @@ try(
 	return NULL;
 }
 
-void* thread_timer(void* parent_tid) {
+void* thread_timer(void* arg) {
+	pthread_t parent_tid = arg;
 	/*	Capture SIGALRM signal	*/
 	sigset_t sigalrm;
 try(
@@ -300,21 +284,20 @@ try(
 	/*	Send SIGALRM after TIMEOUT elapsed	*/
 	sleep(TIMEOUT);
 try(
-	pthread_kill((pthread_t)parent_tid, SIGALRM), (!0)
+	pthread_kill(parent_tid, SIGALRM), (!0)
 )
 #ifdef _DEBUG
-	syslog(LOG_DEBUG, "Timer thread:\tSended SIGALRM to request thread %ul", (pthread_t)parent_tid);
+	syslog(LOG_DEBUG, "Timer thread:\tSended SIGALRM to request thread %ul", parent_tid);
 #endif
 	/*	Detach thread	*/
 try(
-	pthread_detach((pthread_t)parent_tid), (!0)
+	pthread_detach(parent_tid), (!0)
 )
 	return NULL;
 }
 
 void* connection_mngr(void* arg) {
-	struct connection_info* cinfo;
-	cinfo = (struct connection_info*)arg;
+	connection_t connection = arg;
 
 	/*	Setup SIGALRM signal handler	*/
 	sigset_t sigalrm;
@@ -335,51 +318,29 @@ try(
 try(
 	pthread_sigmask(SIG_UNBLOCK, &sigalrm, NULL), (!0)
 )
-	/*	Setup connection	*/
+	/*	Start listen on connection	*/
 try(
-	connection_init(cinfo->pconnection, cinfo->address, (uint16_t)atoi(cinfo->port)), (-1)
-)
-try(
-	connection_listen(cinfo->pconnection), (-1)
+	connection_listen(connection), (-1)
 )
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "CntMng thread:\tlistening on socket");
 #endif
-	/*	Start request handler threads	*/
+
 	do {
-		struct request_info* request;
+		pthread_t tid;
+		connection_t accepted_connection;
+	/*	Wait for incoming connection	*/
 try(
-		request = malloc(sizeof(struct request_info)), (NULL)
-)
-try(
-		request->paccepted_connection = malloc(sizeof(connection_t)), (NULL)
-)
-try(
-		connection_get_accepted(cinfo->pconnection, request->paccepted_connection), (-1)
+		accepted_connection = connection_accepted(connection), (NULL)
 )
 	/*	Ignore SIGALRM signal	*/
 try(
 		pthread_sigmask(SIG_BLOCK, &sigalrm, NULL), (!0)
 )
-	/*	Create a new thread and register it in the queue	*/
+	/*	Create request handler thread	*/
 try(
-		request->ptid = malloc(sizeof(pthread_t)), (NULL)
+		pthread_create(&tid, NULL, request_handler, accepted_connection), (!0)
 )
-try(
-		pthread_mutex_lock(&request_queue_mutex), (!0)
-)
-try(
-		queue_push(request_queue, (void*)request), (1)
-)
-try(
-		pthread_mutex_unlock(&request_queue_mutex), (!0)
-)
-try(
-		pthread_create(request->ptid, NULL, request_handler, (void*)request), (!0)
-)
-#ifdef _DEBUG
-		syslog(LOG_DEBUG, "CntMng thread:\tRequest thread %ul spowned", *(request->ptid));
-#endif
 	/*	Capture SIGALRM signal	*/
 try(
 		pthread_sigmask(SIG_UNBLOCK, &sigalrm, NULL), (!0)
@@ -388,14 +349,26 @@ try(
 }
 
 void* request_handler(void* arg) {
+	connection_t connection = arg;
 	pthread_t timer_tid;
-	struct request_info* info;
-	info = (struct request_info*)arg;
 	char* buff;
 	char* msg;
+#ifdef _DEBUG
+	syslog(LOG_DEBUG, "Request thread:\t%ul spowned", pthread_self());
+#endif
+	/*	Reister thread in the queue	*/
+try(
+	pthread_mutex_lock(&request_queue_mutex), (!0)
+)
+try(
+	queue_push(request_queue, (void*)pthread_self()), (1)
+)
+try(
+	pthread_mutex_unlock(&request_queue_mutex), (!0)
+)
 	/*	Start timeout thread	*/
 try(
-	pthread_create(&timer_tid, NULL, thread_timer, (void*)*(info->ptid)), (!0)
+	pthread_create(&timer_tid, NULL, thread_timer, (void*)pthread_self()), (!0)
 )
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Request thread:\tCreated timer thread");
@@ -413,7 +386,7 @@ try(
 )
 	/*	Get the request	*/
 try(
-	connection_recv(info->paccepted_connection, &buff), (-1)
+	connection_recv(connection, &buff), (-1)
 )
 	/*	Ignore SIGALRM	and stop timeout thread	*/
 try(
@@ -429,6 +402,7 @@ try(
 	syslog(LOG_DEBUG, "Request thread:\tStopped timer thread");
 #endif
 	/*	Elaborate the response */
+{
 	if (buff[0] == '#') {
 try(
 		pthread_rwlock_wrlock(&db_serializing_mutex), (!0)
@@ -465,18 +439,17 @@ try(
 	pthread_rwlock_unlock(&db_serializing_mutex), (!0)
 )
 	free(buff);
+}
 	/*	Send the response	*/
 	/*	Handle broken pipe!	*/
-try(
-	connection_send(info->paccepted_connection, msg), (-1)
-)
+	connection_send(connection, msg);
 	free(msg);
 	/*	Close connection	*/
 try(
-	connection_close(info->paccepted_connection), (-1)
+	connection_close(connection), (-1)
 )
 #ifdef _DEBUG
-	syslog(LOG_DEBUG, "Request thread:\t%ul ready to exit", *(info->ptid));
+	syslog(LOG_DEBUG, "Request thread:\t%ul ready to exit", pthread_self());
 #endif
 	return NULL;
 }

@@ -728,23 +728,23 @@ BOOL ButtonClickHandler(HWND hWnd, LPCTSTR* queries) {
 }
 
 BOOL QueryServer(LPCTSTR query, LPTSTR* result) {
-	connection_t cntn;
-	if (connection_init(&cntn, TEXT("127.0.0.1"), 55555)) {
+	connection_t connection;
+	if ((connection = connection_init(TEXT("127.0.0.1"), 55555)) == NULL) {
 		return FALSE;
 	}
-	if (connetcion_connect(&cntn)) {
+	if (connetcion_connect(connection)) {
 		return FALSE;
 	}
-	if (connection_send(&cntn, query) == -1) {
+	if (connection_send(connection, query) == -1) {
 		return FALSE;
 	}
-	while (connection_recv(&cntn, result) == -1) {
+	while (connection_recv(connection, result) == -1) {
 		return FALSE;
 	}
 #ifdef _DEBUG
 	_tprintf(TEXT("QUERY: %s\nRESULT: %s\n"), query, *result);
 #endif
-	if (connection_close(&cntn) == -1) {
+	if (connection_close(connection) == -1) {
 		return FALSE;
 	}
 	return TRUE;

@@ -362,7 +362,7 @@ database_t database_init(const char* filename) {
 
 /*	Close database return EOF and set properly errno on error */
 
-int database_close(database_t handle) {
+int database_close(const database_t handle) {
 	struct database* database = (struct database*)handle;
 	int ret;
 	while ((ret = pthread_rwlock_destroy(database->lock)) && errno == EINTR);
@@ -377,7 +377,7 @@ int database_close(database_t handle) {
 
 /*	Execute a query return 1 and set properly errno on error */
 
-int database_execute(database_t handle, const char* query, char** result) {
+int database_execute(const database_t handle, const char* query, char** result) {
 	struct database* database = (struct database*)handle;
 	int ret = 0;
 	int mret = 0;

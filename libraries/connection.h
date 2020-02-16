@@ -1,59 +1,57 @@
 #pragma once
 #ifdef _WIN32
 #pragma comment (lib, "Ws2_32.lib")
-#endif
-
-#include <stdint.h>
-
-#ifdef _WIN32
 #ifndef _WINSOCKAPI_
 #define _WINSOCKAPI_
 #endif
 #include <Windows.h>
 #include <WinSock2.h>
 #include <WS2tcpip.h>
-typedef struct {
-	SOCKET socket;
-	struct sockaddr* addr;
-	socklen_t addrlen;
-} connection_t;
-#elif __unix__
-#include <sys/socket.h>
-#define LPTSTR char*
-#define LPCTSTR const char*
-#define INVALID_SOCKET -1
-#define SOCKET_ERROR  -1
-typedef struct {
-	int socket;
-	struct sockaddr* addr;
-	socklen_t addrlen;
-} connection_t;
 #endif
+#include <stdint.h>
 
+typedef void* connection_t;
+
+#ifdef _WIN32
 /**/
 
-int connection_init(connection_t* connection, LPCTSTR address, const uint16_t port);
+extern connection_t connection_init(LPCTSTR address, const uint16_t port);
 
 /* Close connection return 1 and set properly errno on error */
 
-extern int connection_close(const connection_t* connection);
+extern int connection_close(const connection_t handle);
 
-extern int connetcion_connect(const connection_t* connection);
+extern int connetcion_connect(const connection_t handle);
 
 /* Get a malloc'd buffer wich contain a received message return number of byte read or -1 on error*/
-extern int connection_recv(const connection_t* connection, LPTSTR* buff);
+extern int connection_recv(const connection_t handle, LPTSTR* buff);
 
 /**/
-extern int connection_send(const connection_t* connection, LPCTSTR buff);
+extern int connection_send(const connection_t handle, LPCTSTR buff);
 
-#ifdef __unix__
+#elif __unix__
+/**/
+
+extern connection_t connection_init(const char* address, const uint16_t port);
+
+/* Close connection return 1 and set properly errno on error */
+
+extern int connection_close(const connection_t handle);
+
+extern int connetcion_connect(const connection_t handle);
+
+/* Get a malloc'd buffer wich contain a received message return number of byte read or -1 on error*/
+extern int connection_recv(const connection_t handle, char** buff);
+
+/**/
+extern int connection_send(const connection_t handle, const char* buff);
 
 /* Initiazlize connection return 1 and set properly errno on error */
 
-extern int connection_listen(connection_t*);
+extern int connection_listen(const connection_t handle);
 
 /* Get an accepted connection return 1 and set properly errno on error */
 
-extern int connection_get_accepted(const connection_t*, connection_t*);
+extern connection_t connection_accepted(const connection_t handle);
 
 #endif

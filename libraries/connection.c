@@ -25,22 +25,58 @@
 	#define InetPton(Family, pszAddrString, pAddrBuf) inet_aton(pszAddrString, pAddrBuf)
 	#define SSIZE_T ssize_t
 	#define TCHAR char
-#define _tcslen strlen
-#define closesocket close
+	#define _tcslen strlen
+	#define closesocket close
+#endif
+
+#ifdef _WIN32
+#ifndef _WINSOCKAPI_
+#define _WINSOCKAPI_
+#endif
+#include <Windows.h>
+#include <WinSock2.h>
+#include <WS2tcpip.h>
+#elif __unix__
+#include <sys/socket.h>
+#define LPTSTR char*
+#define LPCTSTR const char*
+#define INVALID_SOCKET -1
+#define SOCKET_ERROR  -1
+#endif
+
+#ifdef _WIN32
+struct connection {
+	SOCKET socket;
+	struct sockaddr* addr;
+	socklen_t addrlen;
+};
+#elif __unix__
+struct connection {
+	int socket;
+	struct sockaddr* addr;
+	socklen_t addrlen;
+};
 #endif
 
 #define BACKLOG 4096
 #define MSG_LEN 4096
 
-int connection_init(connection_t* connection, LPCTSTR address, const uint16_t port) {
+connection_t connection_init(LPCTSTR address, const uint16_t port) {
+	struct connection* connection;
+	if ((connection = malloc(sizeof(struct connection))) == NULL) {
+		return NULL;
+	}
 #ifdef __unix__
+	/*	If port is zero create a unix socket	*/
 	if (!port) {
 		struct sockaddr_un* paddr_un;
 		if ((connection->socket = socket(AF_UNIX, SOCK_STREAM, 0)) == INVALID_SOCKET) {
-			return -1;
+			free(connection);
+			return NULL;
 		}
 		if ((paddr_un = malloc(sizeof(struct sockaddr_un))) == NULL) {
-			return -1;
+			free(connection);
+			return NULL;
 		}
 		memset(paddr_un, 'x', sizeof(struct sockaddr_un));
 		paddr_un->sun_family = AF_UNIX;
@@ -48,7 +84,7 @@ int connection_init(connection_t* connection, LPCTSTR address, const uint16_t po
 		strncpy(paddr_un->sun_path + 1, address, strlen(address));
 		connection->addr = (struct sockaddr*)paddr_un;
 		connection->addrlen = (socklen_t)(offsetof(struct sockaddr_un, sun_path) + 1 + strlen(address));
-		return 0;
+		return connection;
 	}
 #endif
 	struct sockaddr_in* paddr_in;
@@ -56,19 +92,25 @@ int connection_init(connection_t* connection, LPCTSTR address, const uint16_t po
 #ifdef _WIN32
 	WSADATA WSAData;
 	if (WSAStartup(MAKEWORD(1, 1), &WSAData) != 0) {
-		return -1;
+		free(connection);
+		return NULL;
 	}
 #endif
 	if ((connection->socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
-		return -1;
+		free(connection);
+		return NULL;
 	}
 	if ((paddr_in = malloc(sizeof(struct sockaddr_in))) == NULL) {
-		return -1;
+		free(connection);
+		return NULL;
 	}
 	if (!InetPton(AF_INET, address, &haddr)) {
+		free(connection);
 		free(paddr_in);
+#ifdef __unix__
 		errno = EINVAL;
-		return -1;
+#endif
+		return NULL;
 	}
 	memset(&connection->addr, 0, sizeof(connection->addr));
 	paddr_in->sin_family = AF_INET;
@@ -76,21 +118,24 @@ int connection_init(connection_t* connection, LPCTSTR address, const uint16_t po
 	paddr_in->sin_addr = haddr;
 	connection->addr = (struct sockaddr*)paddr_in;
 	connection->addrlen = sizeof(struct sockaddr_in);
-	return 0;
+	return connection;
 }
 
-int connection_close(const connection_t* connection){
+int connection_close(const connection_t handle){
+	struct connection* connection = (struct connection*)handle;
 	if (closesocket(connection->socket) == -1){
 		return -1;
 	}
 	free(connection->addr);
+	free(connection);
 #ifdef _WIN32
 	WSACleanup();
 #endif
 	return 0;
 }
 
-int connection_recv(const connection_t* connection, LPTSTR* buff) {
+int connection_recv(const connection_t handle, LPTSTR* buff) {
+	struct connection* connection = (struct connection*)handle;
 #ifdef _UNICODE
 	char* utf8_buff;
 #else
@@ -107,14 +152,6 @@ int connection_recv(const connection_t* connection, LPTSTR* buff) {
 		utf8_buff = NULL;
 		return -1;
 	}
-	/*	Resize if string is shorter than len	*/
-	/*
-	if (realloc(utf8_buff, sizeof(char) * (strlen(utf8_buff) + 1)) == NULL) {
-		free(utf8_buff);
-		utf8_buff = NULL;
-		return -1;
-	}
-	*/
 #ifdef _UNICODE
 	int str_len;
 	if (!(str_len = MultiByteToWideChar(CP_UTF8, 0, (LPCCH)utf8_buff, -1, NULL, 0))) {
@@ -140,7 +177,8 @@ int connection_recv(const connection_t* connection, LPTSTR* buff) {
 
 /* return number of bytes sended */
 
-int connection_send(const connection_t* connection, LPCTSTR buff) {
+int connection_send(const connection_t handle, LPCTSTR buff) {
+	struct connection* connection = (struct connection*)handle;
 	int len;
 #ifdef _UNICODE
 	char* utf8_buff = NULL;
@@ -167,7 +205,8 @@ int connection_send(const connection_t* connection, LPCTSTR buff) {
 	return len;
 }
 
-int connetcion_connect(const connection_t* connection) {
+int connetcion_connect(const connection_t handle) {
+	struct connection* connection = (struct connection*)handle;
 	if (connect(connection->socket, connection->addr, connection->addrlen) == SOCKET_ERROR) {
 		return -1;
 	}
@@ -176,7 +215,8 @@ int connetcion_connect(const connection_t* connection) {
 
 #ifdef __unix__
 
-int connection_listen(connection_t* connection) {
+int connection_listen(const connection_t handle) {
+	struct connection* connection = (struct connection*)handle;
 	if (bind(connection->socket, connection->addr, connection->addrlen) == -1) {
 		return -1;
 	}
@@ -186,13 +226,18 @@ int connection_listen(connection_t* connection) {
 	return 0;
 }
 
-int connection_get_accepted(const connection_t* listener, connection_t* accepted) {
+connection_t connection_accepted(const connection_t handle) {
+	struct connection* listener = (struct connection*)handle;
+	struct connection* accepted;
+	if ((accepted = malloc(sizeof(struct connection))) == NULL) {
+		return NULL;
+	}
 	memset(&accepted->addrlen, 0, sizeof(socklen_t));
 	accepted->addr = malloc(sizeof(accepted->addrlen));
 	if ((accepted->socket = accept(listener->socket, accepted->addr, &accepted->addrlen)) == -1) {
-		return -1;
+		return NULL;
 	}
-	return 0;
+	return accepted;
 }
 
 #endif

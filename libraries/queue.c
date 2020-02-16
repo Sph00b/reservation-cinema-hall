@@ -18,24 +18,24 @@ queue_t queue_init() {
 	return queue;
 }
 
-void queue_destroy(queue_t handle) {
+void queue_destroy(const queue_t handle) {
 	struct queue* queue = (struct queue*)handle;
 	stack_destroy(queue->stack_in);
 	stack_destroy(queue->stack_out);
 	free(queue);
 }
 
-int queue_is_empty(queue_t handle) {
+int queue_is_empty(const queue_t handle) {
 	struct queue* queue = (struct queue*)handle;
 	return (stack_is_empty(queue->stack_in) && stack_is_empty(queue->stack_out));
 }
 
-int queue_push(queue_t handle, void* data) {
+int queue_push(const queue_t handle, void* data) {
 	struct queue* queue = (struct queue*)handle;
 	return stack_push(queue->stack_in, data);
 }
 
-void* queue_pop(queue_t handle) {
+void* queue_pop(const queue_t handle) {
 	struct queue* queue = (struct queue*)handle;
 	if (queue_is_empty(queue)) {
 		return NULL;
