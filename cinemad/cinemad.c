@@ -243,17 +243,22 @@ try(
 void* thread_joiner(void* arg) {
 	long* server_status = (long*)arg;
 	pthread_t closing_tid;
-	while (*server_status) {
+	connection_t closing_connection;
+	while (*server_status || !queue_is_empty(request_queue)) {
 		while(!queue_is_empty(request_queue)){
 try(
 			pthread_mutex_lock(&request_queue_mutex), (!0)
 )
 			closing_tid = queue_pop(request_queue);
+			closing_connection = queue_pop(request_queue);
 try(
 			pthread_mutex_unlock(&request_queue_mutex), (!0)
 )
 try(
 			pthread_join(closing_tid, NULL), (!0)
+)
+try(
+			connection_close(closing_connection), (-1)
 )
 #ifdef _DEBUG
 			syslog(LOG_DEBUG, "Joiner thread:\tJoined request thread %ul", closing_tid);
@@ -364,6 +369,9 @@ try(
 	queue_push(request_queue, (void*)pthread_self()), (1)
 )
 try(
+	queue_push(request_queue, (void*)connection), (1)
+)
+try(
 	pthread_mutex_unlock(&request_queue_mutex), (!0)
 )
 	/*	Start timeout thread	*/
@@ -441,13 +449,9 @@ try(
 	free(buff);
 }
 	/*	Send the response	*/
-	/*	Handle broken pipe!	*/
 	connection_send(connection, msg);
 	free(msg);
 	/*	Close connection	*/
-try(
-	connection_close(connection), (-1)
-)
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Request thread:\t%ul ready to exit", pthread_self());
 #endif
