@@ -36,12 +36,12 @@ int queue_is_empty(const queue_t handle) {
 	return (stack_is_empty(queue->stack_in) && stack_is_empty(queue->stack_out));
 }
 
-int queue_push(const queue_t handle, void* data) {
+int queue_enqueue(const queue_t handle, void* data) {
 	struct queue* queue = (struct queue*)handle;
 	return stack_push(queue->stack_in, data);
 }
 
-void* queue_pop(const queue_t handle) {
+void* queue_dequeue(const queue_t handle) {
 	struct queue* queue = (struct queue*)handle;
 	if (stack_is_empty(queue->stack_out)) {
 		while (!stack_is_empty(queue->stack_in)) {

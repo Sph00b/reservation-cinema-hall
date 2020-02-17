@@ -228,7 +228,9 @@ try(
 #endif
 	/*	Free queue	*/
 //need a try
-	concurrent_queue_destroy(request_queue);
+try(
+	concurrent_queue_destroy(request_queue), (1)
+)
 	/*	Close connections and database	*/
 try(
 	connection_close(internet_connection), (-1)
@@ -251,16 +253,25 @@ try(
 
 void* thread_joiner(void* arg) {
 	long* server_status = (long*)arg;
+	int queue_empty;
+try(
+	concurrent_queue_is_empty(request_queue, &queue_empty), (1)
+)
 try(
 	pthread_mutex_lock(&server_status_mutex), (!0)
 )
-	while (*server_status || !concurrent_queue_is_empty(request_queue)) {
+	while (*server_status || !queue_empty) {
 try(
 		pthread_mutex_unlock(&server_status_mutex), (!0)
 )
-		while(!concurrent_queue_is_empty(request_queue)){
+try(
+		concurrent_queue_is_empty(request_queue, &queue_empty), (1)
+)
+		while(!queue_empty){
 			struct request_info* info;
-			info = concurrent_queue_pop(request_queue);
+try(
+			concurrent_queue_dequeue(request_queue, &info), (1)
+)
 try(
 			pthread_join(info->tid, NULL), (!0)
 )
@@ -271,15 +282,20 @@ try(
 syslog(LOG_DEBUG, "Joiner thread:\tJoined request thread %ul", info->tid);
 #endif
 			free(info);
+try(
+			concurrent_queue_is_empty(request_queue, &queue_empty), (1)
+)
 		}
 		sleep(1);
 try(
 		pthread_mutex_lock(&server_status_mutex), (!0)
 )
 	}
-
 #ifdef _DEBUG
-	syslog(LOG_DEBUG, "Joiner thread:\tClosing joiner thread, queue empty: %d", concurrent_queue_is_empty(request_queue));
+try(
+	concurrent_queue_is_empty(request_queue, &queue_empty), (1)
+)
+	syslog(LOG_DEBUG, "Joiner thread:\tClosing joiner thread, queue empty: %d", queue_empty);
 #endif
 	return NULL;
 }
@@ -384,7 +400,7 @@ try(
 	info->tid = pthread_self();
 	info->connection = connection;
 try(
-	concurrent_queue_push(request_queue, (void*)info), (1)
+	concurrent_queue_enqueue(request_queue, (void*)info), (1)
 )
 	/*	Start timeout thread	*/
 try(

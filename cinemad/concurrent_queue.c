@@ -29,36 +29,60 @@ concurrent_queue_t concurrent_queue_init() {
 	return concurrent_queue;
 }
 
-void concurrent_queue_destroy(const concurrent_queue_t handle) {
-	struct concurrent_queue* concurrent_queue = (struct concurrent_queue*)handle;
-	queue_destroy(concurrent_queue->queue);
-	while (pthread_mutex_destroy(&concurrent_queue->mutex) && errno == EINTR);
-	free(concurrent_queue);
-}
-
-int concurrent_queue_is_empty(const concurrent_queue_t handle) {
-	struct concurrent_queue* concurrent_queue = (struct concurrent_queue*)handle;
-	int is_empty;
-	while (pthread_mutex_lock(&concurrent_queue->mutex) && errno == EINTR);
-	is_empty = queue_is_empty(concurrent_queue->queue);
-	while (pthread_mutex_unlock(&concurrent_queue->mutex) && errno == EINTR);
-	return is_empty;
-}
-
-int concurrent_queue_push(const concurrent_queue_t handle, void* data) {
-	struct concurrent_queue* concurrent_queue = (struct concurrent_queue*)handle;
+int concurrent_queue_destroy(const concurrent_queue_t handle) {
 	int ret;
-	while (pthread_mutex_lock(&concurrent_queue->mutex) && errno == EINTR);
-	ret = queue_push(concurrent_queue->queue, data);
-	while (pthread_mutex_unlock(&concurrent_queue->mutex) && errno == EINTR);
-	return ret;
+	struct concurrent_queue* concurrent_queue = (struct concurrent_queue*)handle;
+	while ((ret = pthread_mutex_destroy(&concurrent_queue->mutex)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	queue_destroy(concurrent_queue->queue);
+	free(concurrent_queue);
+	return 0;
 }
 
-void* concurrent_queue_pop(const concurrent_queue_t handle) {
+int concurrent_queue_is_empty(const concurrent_queue_t handle, int* result) {
+	int ret;
 	struct concurrent_queue* concurrent_queue = (struct concurrent_queue*)handle;
-	void* popped;
-	while (pthread_mutex_lock(&concurrent_queue->mutex) && errno == EINTR);
-	popped = queue_pop(concurrent_queue->queue);
-	while (pthread_mutex_unlock(&concurrent_queue->mutex) && errno == EINTR);
-	return popped;
+	while ((ret = pthread_mutex_lock(&concurrent_queue->mutex)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	*result = queue_is_empty(concurrent_queue->queue);
+	while ((ret = pthread_mutex_unlock(&concurrent_queue->mutex)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	return 0;
+}
+
+int concurrent_queue_enqueue(const concurrent_queue_t handle, void* item) {
+	int ret;
+	int result;
+	struct concurrent_queue* concurrent_queue = (struct concurrent_queue*)handle;
+	while ((ret = pthread_mutex_lock(&concurrent_queue->mutex)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	result = queue_enqueue(concurrent_queue->queue, item);
+	while ((ret = pthread_mutex_unlock(&concurrent_queue->mutex)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	return result;
+}
+
+int concurrent_queue_dequeue(const concurrent_queue_t handle, void** result) {
+	int ret;
+	struct concurrent_queue* concurrent_queue = (struct concurrent_queue*)handle;
+	while ((ret = pthread_mutex_lock(&concurrent_queue->mutex)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	*result = queue_dequeue(concurrent_queue->queue);
+	while ((ret = pthread_mutex_unlock(&concurrent_queue->mutex)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	return 0;
 }

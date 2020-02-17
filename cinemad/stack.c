@@ -29,7 +29,7 @@ int stack_is_empty(const _stack_t handle) {
 	return !stack->next;
 }
 
-int stack_push(const _stack_t handle, void* data) {
+int stack_push(const _stack_t handle, void* item) {
 	struct stack_node* stack = (struct stack_node*)handle;
 	struct stack_node* node;
 	if ((node = malloc(sizeof(struct stack_node))) == NULL) {
@@ -37,7 +37,7 @@ int stack_push(const _stack_t handle, void* data) {
 	}
 	node->data = stack->data;
 	node->next = stack->next;
-	stack->data = data;
+	stack->data = item;
 	stack->next = node;
 	return 0;
 }
