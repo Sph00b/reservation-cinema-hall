@@ -764,11 +764,8 @@ void ErrorHandler(int e) {
 #ifdef _DEBUG
 	_ftprintf(stderr, TEXT("%s\n"), p_errmsg);
 #endif
-	MessageBox(
-		NULL,
-		p_errmsg,
-		NULL,
-		MB_OK | MB_ICONERROR | MB_TASKMODAL
+	FatalAppExit(
+		0,
+		p_errmsg
 	);
-	exit(e);
 }
