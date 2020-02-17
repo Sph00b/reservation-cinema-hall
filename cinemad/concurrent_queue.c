@@ -6,7 +6,7 @@
 #include "queue.h"
 
 struct concurrent_queue {
-	concurrent_queue_t queue;
+	queue_t queue;
 	pthread_mutex_t mutex;
 };
 

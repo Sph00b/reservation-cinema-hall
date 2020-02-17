@@ -5,7 +5,7 @@ struct flag {
 	int value;
 };
 
-flag_t stack_init() {
+flag_t flag_init() {
 	struct flag* flag;
 	if ((flag = malloc(sizeof(struct flag))) == NULL) {
 		return NULL;

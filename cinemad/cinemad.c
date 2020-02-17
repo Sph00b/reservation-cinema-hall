@@ -15,6 +15,7 @@
 #include "database.h"
 #include "connection.h"
 #include "concurrent_queue.h"
+#include "concurrent_flag.h"
 
 #define try(foo, err_value)\
 	if ((foo) == (err_value)){\
@@ -34,7 +35,6 @@ struct request_info {
 database_t database;
 pthread_rwlock_t db_serializing_mutex;
 concurrent_queue_t request_queue;
-pthread_mutex_t server_status_mutex;
 int rows;
 int columns;
 
@@ -59,7 +59,7 @@ int main(int argc, char *argv[]){
 	pthread_t internal_mngr_tid;
 	connection_t internet_connection;
 	connection_t internal_connection;
-	long server_status = 1;
+	concurrent_flag_t server_status;
 	/*	Ignore all signals	*/
 	sigset_t sigset;
 try(
@@ -75,15 +75,18 @@ try(
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Main thread:\tDemonized");
 #endif
-	/*	Initialize request queue and start joiner thread	*/
+	/*	Initialize status flag, request queue and start joiner thread	*/
 try(
 	request_queue = concurrent_queue_init(), (NULL)
 )
 try(
-	pthread_mutex_init(&server_status_mutex, NULL), (!0)
+	server_status = concurrent_flag_init(), (NULL)
 )
 try(
-	pthread_create(&joiner_tid, NULL, thread_joiner, (void*)&server_status), (!0)
+	concurrent_flag_set(server_status), (1)
+)
+try(
+	pthread_create(&joiner_tid, NULL, thread_joiner, server_status), (!0)
 )
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Main thread:\tJoiner thread started");
@@ -214,11 +217,7 @@ try(
 	syslog(LOG_DEBUG, "Main thread:\tConnection manager threads joined");
 #endif
 try(
-	pthread_mutex_lock(&server_status_mutex), (!0)
-)
-	server_status = 0;
-try(
-	pthread_mutex_unlock(&server_status_mutex), (!0)
+	concurrent_flag_unset(server_status), (1)
 )
 try(
 	pthread_join(joiner_tid, NULL), (!0)
@@ -226,10 +225,12 @@ try(
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Main thread:\tAll thread joined");
 #endif
-	/*	Free queue	*/
-//need a try
+	/*	Free queue and flag	*/
 try(
 	concurrent_queue_destroy(request_queue), (1)
+)
+try(
+	concurrent_flag_destroy(server_status), (1)
 )
 	/*	Close connections and database	*/
 try(
@@ -252,21 +253,16 @@ try(
 }
 
 void* thread_joiner(void* arg) {
-	long* server_status = (long*)arg;
+	concurrent_flag_t server_status = arg;
+	int status;
 	int queue_empty;
+try(
+	concurrent_flag_status(server_status, &status), (1)
+)
 try(
 	concurrent_queue_is_empty(request_queue, &queue_empty), (1)
 )
-try(
-	pthread_mutex_lock(&server_status_mutex), (!0)
-)
-	while (*server_status || !queue_empty) {
-try(
-		pthread_mutex_unlock(&server_status_mutex), (!0)
-)
-try(
-		concurrent_queue_is_empty(request_queue, &queue_empty), (1)
-)
+	while (status || !queue_empty) {
 		while(!queue_empty){
 			struct request_info* info;
 try(
@@ -288,7 +284,10 @@ try(
 		}
 		sleep(1);
 try(
-		pthread_mutex_lock(&server_status_mutex), (!0)
+		concurrent_flag_status(server_status, &status), (1)
+)
+try(
+		concurrent_queue_is_empty(request_queue, &queue_empty), (1)
 )
 	}
 #ifdef _DEBUG
