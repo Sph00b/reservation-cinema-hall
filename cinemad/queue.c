@@ -13,8 +13,14 @@ queue_t queue_init() {
 	if ((queue = malloc(sizeof(struct queue))) == NULL) {
 		return NULL;
 	}
-	queue->stack_in = stack_init();
-	queue->stack_out = stack_init();
+	if ((queue->stack_in = stack_init()) == NULL) {
+		free(queue);
+		return NULL;
+	}
+	if ((queue->stack_out = stack_init()) == NULL) {
+		free(queue);
+		return NULL;
+	}
 	return queue;
 }
 
@@ -37,9 +43,6 @@ int queue_push(const queue_t handle, void* data) {
 
 void* queue_pop(const queue_t handle) {
 	struct queue* queue = (struct queue*)handle;
-	if (queue_is_empty(queue)) {
-		return NULL;
-	}
 	if (stack_is_empty(queue->stack_out)) {
 		while (!stack_is_empty(queue->stack_in)) {
 			stack_push(queue->stack_out, stack_pop(queue->stack_in));

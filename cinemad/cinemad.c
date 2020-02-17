@@ -14,7 +14,7 @@
 #include "asprintf.h"
 #include "database.h"
 #include "connection.h"
-#include "queue.h"
+#include "concurrent_queue.h"
 
 #define try(foo, err_value)\
 	if ((foo) == (err_value)){\
@@ -24,12 +24,17 @@
 
 #define TIMEOUT 5
 
+struct request_info {
+	pthread_t tid;
+	connection_t connection;
+};
+
 /*	Global variables	*/
 
 database_t database;
 pthread_rwlock_t db_serializing_mutex;
-queue_t request_queue;
-pthread_mutex_t request_queue_mutex;
+concurrent_queue_t request_queue;
+pthread_mutex_t server_status_mutex;
 int rows;
 int columns;
 
@@ -72,10 +77,10 @@ try(
 #endif
 	/*	Initialize request queue and start joiner thread	*/
 try(
-	request_queue = queue_init(), (NULL)
+	request_queue = concurrent_queue_init(), (NULL)
 )
 try(
-	pthread_mutex_init(&request_queue_mutex, NULL), (!0)
+	pthread_mutex_init(&server_status_mutex, NULL), (!0)
 )
 try(
 	pthread_create(&joiner_tid, NULL, thread_joiner, (void*)&server_status), (!0)
@@ -118,7 +123,7 @@ try(
 	free(result);
 
 try(
-	db_configure(database), (1)
+	db_configure(), (1)
 )
 	/*	Register timestamp and PID in database	*/
 	char* qpid;
@@ -208,7 +213,13 @@ try(
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Main thread:\tConnection manager threads joined");
 #endif
+try(
+	pthread_mutex_lock(&server_status_mutex), (!0)
+)
 	server_status = 0;
+try(
+	pthread_mutex_unlock(&server_status_mutex), (!0)
+)
 try(
 	pthread_join(joiner_tid, NULL), (!0)
 )
@@ -216,7 +227,8 @@ try(
 	syslog(LOG_DEBUG, "Main thread:\tAll thread joined");
 #endif
 	/*	Free queue	*/
-	queue_destroy(request_queue);
+//need a try
+	concurrent_queue_destroy(request_queue);
 	/*	Close connections and database	*/
 try(
 	connection_close(internet_connection), (-1)
@@ -227,9 +239,6 @@ try(
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Main thread:\tClosed connections");
 #endif
-try(
-	pthread_mutex_destroy(&request_queue_mutex), (!0)
-)
 try(
 	database_close(database), (!0)
 )
@@ -242,39 +251,44 @@ try(
 
 void* thread_joiner(void* arg) {
 	long* server_status = (long*)arg;
-	pthread_t closing_tid;
-	connection_t closing_connection;
-	while (*server_status || !queue_is_empty(request_queue)) {
-		while(!queue_is_empty(request_queue)){
 try(
-			pthread_mutex_lock(&request_queue_mutex), (!0)
+	pthread_mutex_lock(&server_status_mutex), (!0)
 )
-			closing_tid = queue_pop(request_queue);
-			closing_connection = queue_pop(request_queue);
+	while (*server_status || !concurrent_queue_is_empty(request_queue)) {
 try(
-			pthread_mutex_unlock(&request_queue_mutex), (!0)
+		pthread_mutex_unlock(&server_status_mutex), (!0)
 )
+		while(!concurrent_queue_is_empty(request_queue)){
+			struct request_info* info;
+			info = concurrent_queue_pop(request_queue);
 try(
-			pthread_join(closing_tid, NULL), (!0)
+			pthread_join(info->tid, NULL), (!0)
 )
 try(
-			connection_close(closing_connection), (-1)
+			connection_close(info->connection), (-1)
 )
 #ifdef _DEBUG
-			syslog(LOG_DEBUG, "Joiner thread:\tJoined request thread %ul", closing_tid);
+syslog(LOG_DEBUG, "Joiner thread:\tJoined request thread %ul", info->tid);
 #endif
+			free(info);
 		}
 		sleep(1);
+try(
+		pthread_mutex_lock(&server_status_mutex), (!0)
+)
 	}
 
 #ifdef _DEBUG
-	syslog(LOG_DEBUG, "Joiner thread:\tClosing joiner thread, queue empty: %d", queue_is_empty(request_queue));
+	syslog(LOG_DEBUG, "Joiner thread:\tClosing joiner thread, queue empty: %d", concurrent_queue_is_empty(request_queue));
 #endif
 	return NULL;
 }
 
 void* thread_timer(void* arg) {
-	pthread_t parent_tid = arg;
+	pthread_t parent_tid = (pthread_t)arg;
+#ifdef _DEBUG
+	syslog(LOG_DEBUG, "Timer thread:\tSpowned");
+#endif
 	/*	Capture SIGALRM signal	*/
 	sigset_t sigalrm;
 try(
@@ -354,6 +368,7 @@ try(
 }
 
 void* request_handler(void* arg) {
+	struct request_info* info;
 	connection_t connection = arg;
 	pthread_t timer_tid;
 	char* buff;
@@ -362,25 +377,19 @@ void* request_handler(void* arg) {
 	syslog(LOG_DEBUG, "Request thread:\t%ul spowned", pthread_self());
 #endif
 	/*	Reister thread in the queue	*/
+	/*	Put value in a structure	*/
 try(
-	pthread_mutex_lock(&request_queue_mutex), (!0)
+	info = malloc(sizeof(struct request_info)), (NULL)
 )
+	info->tid = pthread_self();
+	info->connection = connection;
 try(
-	queue_push(request_queue, (void*)pthread_self()), (1)
-)
-try(
-	queue_push(request_queue, (void*)connection), (1)
-)
-try(
-	pthread_mutex_unlock(&request_queue_mutex), (!0)
+	concurrent_queue_push(request_queue, (void*)info), (1)
 )
 	/*	Start timeout thread	*/
 try(
 	pthread_create(&timer_tid, NULL, thread_timer, (void*)pthread_self()), (!0)
 )
-#ifdef _DEBUG
-	syslog(LOG_DEBUG, "Request thread:\tCreated timer thread");
-#endif
 /*	Capture SIGALRM signal	*/
 	sigset_t sigalrm;
 try(
@@ -537,14 +546,14 @@ int db_create(const char* filename) {
 	if ((database = database_init(filename)) == NULL) {
 		return 1;
 	}
-	char* r;
+	char* result;
 	for (int i = 0; msg_init[i]; i++) {
-		if (database_execute(database, msg_init[i], &r)) {
+		if (database_execute(database, msg_init[i], &result)) {
 			remove(filename);
-			free(r);
+			free(result);
 			return 1;
 		}
-		free(r);
+		free(result);
 	}
 	return 0;
 }

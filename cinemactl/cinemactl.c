@@ -155,25 +155,25 @@ int server_status() {
 }
 
 int server_query(char* query, char** result) {
-	connection_t con;
+	connection_t connection;
 	char* filename;
 	if (asprintf(&filename, "%s%s", getenv("HOME"), "/.cinema/tmp/socket") == -1) {
 		return 1;
 	}
-	if (connection_init(&con, filename, 0) == -1) {
+	if ((connection = connection_init(filename, 0)) == NULL) {
 		return 1;
 	}
 	free(filename);
-	if (connetcion_connect(&con) == -1) {
+	if (connetcion_connect(connection) == -1) {
 		return 1;
 	}
-	if (connection_send(&con, query) == -1) {
+	if (connection_send(connection, query) == -1) {
 		return 1;
 	}
-	if (connection_recv(&con, result) == -1) {
+	if (connection_recv(connection, result) == -1) {
 		return 1;
 	}
-	if (connection_close(&con) == -1) {
+	if (connection_close(connection) == -1) {
 		return 1;
 	}
 	return 0;
