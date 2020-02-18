@@ -732,7 +732,7 @@ BOOL QueryServer(LPCTSTR query, LPTSTR* result) {
 	if ((connection = connection_init(TEXT("127.0.0.1"), 55555)) == NULL) {
 		return FALSE;
 	}
-	if (connetcion_connect(connection)) {
+	if (connetcion_connect(connection) == -1) {
 		return FALSE;
 	}
 	if (connection_send(connection, query) == -1) {
