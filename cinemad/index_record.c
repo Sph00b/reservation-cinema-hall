@@ -107,6 +107,7 @@ int index_record_locate(const index_record_t handle, void** storage) {
 }
 
 /*	Hope I'll have enought time to develop a storage structure	*/
+/*	True = 1, False = 0	*/
 int index_record_storage_is_valid(void** storage) {
 	FILE** stream = (FILE**)storage;
 	int c;

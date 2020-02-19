@@ -33,8 +33,8 @@ struct request_info {
 /*	Global variables	*/
 
 database_t database;
-pthread_rwlock_t db_serializing_mutex;
 concurrent_queue_t request_queue;
+
 int rows;
 int columns;
 
@@ -49,9 +49,6 @@ int		daemonize();
 int		db_create(const char* filename);
 int		db_configure();
 int		db_clean_data();
-int		db_book(const char* request, char** result);
-int		db_unbook(const char* request, char** result);
-int		db_send_status(const char* request, char** result);
 
 int main(int argc, char *argv[]){
 	pthread_t joiner_tid;
@@ -434,48 +431,13 @@ try(
 	syslog(LOG_DEBUG, "Request thread:\tStopped timer thread");
 #endif
 	/*	Elaborate the response */
-{
-	if (buff[0] == '#') {
 try(
-		pthread_rwlock_wrlock(&db_serializing_mutex), (!0)
-)
-try(
-		db_book(buff + 1, &msg), (1)
-)
-	}
-	else if (buff[0] == '@') {
-try(
-		pthread_rwlock_wrlock(&db_serializing_mutex), (!0)
-)
-try(
-		db_unbook(buff + 1, &msg), (1)
-)
-	}
-	else if (buff[0] == '~') {
-try(
-		pthread_rwlock_rdlock(&db_serializing_mutex), (!0)
-)
-try(
-		db_send_status(buff + 1, &msg), (1)
-)
-	}
-	else {
-try(
-		pthread_rwlock_rdlock(&db_serializing_mutex), (!0)
-)
-try(
-		database_execute(database, buff, &msg), (1)
-)
-	}
-try(
-	pthread_rwlock_unlock(&db_serializing_mutex), (!0)
+	database_execute(database, buff, &msg), (1)
 )
 	free(buff);
-}
 	/*	Send the response	*/
 	connection_send(connection, msg);
 	free(msg);
-	/*	Close connection	*/
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Request thread:\t%ul ready to exit", pthread_self());
 #endif
@@ -611,253 +573,5 @@ int db_clean_data() {
 		return 1;
 	}
 	free(result);
-	return 0;
-}
-
-int db_get_id() {
-	int id;
-	char* query;
-	char* result;
-	if (database_execute(database, "GET ID_COUNTER", &result) == 1) {
-		return -1;
-	}
-	id = atoi(result);
-	id++;
-	free(result);
-	if (asprintf(&query, "SET ID_COUNTER AS %d", id) == -1) {
-		return -1;
-	}
-	if (database_execute(database, query, &result) == 1) {
-		free(query);
-		return -1;
-	}
-	free(query);
-	free(result);
-	return id;
-}
-
-/*	Should I start threads to increase performance?	*/
-
-int db_send_status(const char* request, char** result) {
-	int id = 0;
-	char* query = NULL;
-	char* buffer = NULL;
-	char* ptr;
-	id = !strlen(request) ? -1 : atoi(request);
-	if (!(rows && columns)) {
-		asprintf(result, "");
-		return 0;
-	}
-	database_execute(database, "GET 0", &buffer);
-	if (atoi(buffer)) {
-		if (atoi(buffer) == id) {
-			free(buffer);
-			asprintf(&buffer, "1");
-		}
-		else {
-			free(buffer);
-			asprintf(&buffer, "2");
-		}
-	}
-	asprintf(result, "%s", buffer);
-	for (int i = 1; i < rows * columns; i++) {
-		asprintf(&query, "GET %d", i);
-		database_execute(database, query, &buffer);
-		ptr = &(**result);
-		if (atoi(buffer)) {
-			if (atoi(buffer) == id) {
-				free(buffer);
-				asprintf(&buffer, "1");
-			}
-			else {
-				free(buffer);
-				asprintf(&buffer, "2");
-			}
-		}
-		asprintf(result, "%s %s", *result, buffer);
-		free(ptr);
-		free(query);
-		free(buffer);
-	}
-	return 0;
-}
-
-/*	# ID LIST OF DESIRED SEATS SEPARED WITH SPACE, ID = 0 IF NO ID*/
-int db_book(const char* request, char **result) {
-	int id;
-	int ret;
-	int ntoken;
-	char* buffer = NULL;
-	char* saveptr = NULL;
-	char** token = NULL;
-	char** rquery = NULL;
-	char** wquery = NULL;
-
-	ntoken = 0;
-	if ((buffer = strdup(request)) == NULL) {
-		return 1;
-	}
-	if ((token = malloc(sizeof(char*))) == NULL) {
-		return 1;
-	}
-	token[0] = strtok_r(buffer, " ", &saveptr);
-	ntoken++;
-	do {
-		ntoken++;
-		if ((token = realloc(token, sizeof(char*) * (size_t)ntoken)) == NULL) {
-			return 1;
-		}
-		token[ntoken - 1] = strtok_r(NULL, " ", &saveptr);
-	} while (token[ntoken - 1] != NULL);
-	ntoken--;
-	if (!strcmp(token[0],"0")) {
-		if ((id = db_get_id(database)) == -1) {
-			return 1;
-		}
-	}
-	else {
-		id = atoi(token[0]);
-	}
-	ntoken--;
-	/*	free memory on error	*/
-	if ((rquery = malloc(sizeof(char*) * (size_t)(ntoken))) == NULL) {
-		return 1;
-	}
-	if ((wquery = malloc(sizeof(char*) * (size_t)(ntoken))) == NULL) {
-		return 1;
-	}
-	for (int i = 0; i < ntoken; i++) {
-		if (asprintf(&(rquery[i]), "GET %s", token[i + 1]) == -1) {
-			return 1;
-		}
-		if (asprintf(&(wquery[i]), "SET %s AS %d", token[i + 1], id) == -1) {
-			return 1;
-		}
-	}
-	free(buffer);
-	free(token);
-	ret = 0;
-	for (int i = 0; i < ntoken; i++) {
-		if (database_execute(database, rquery[i], result) == 1) {
-			for (int j = i; j < ntoken; free(rquery[++j]));
-			for (int j = 0; j < ntoken; free(wquery[j++]));
-			free(rquery);
-			free(wquery);
-			return 1;
-		}
-		if (strcmp(*result, "0")) {
-			ret = 1;
-		}
-		free(rquery[i]);
-		free(*result);
-		if (ret) {
-			for (int j = i; j < ntoken; free(rquery[++j]));
-			for (int j = 0; j < ntoken; free(wquery[j++]));
-			free(rquery);
-			free(wquery);
-			return 1;
-		}
-	}
-	free(rquery);
-	for (int i = 0; i < ntoken; i++) {
-		if (database_execute(database, wquery[i], result) == 1) {
-			for (int j = i; j < ntoken; free(wquery[++j]));
-			free(wquery);
-			return 1;
-		}
-		free(wquery[i]);
-		free(*result);
-	}
-	free(wquery);
-	if (asprintf(result, "%d", id) == -1) {
-		return 1;
-	}
-	return 0;
-}
-
-int db_unbook(const char* request, char** result) {
-	int ret;
-	int ntoken;
-	char* id;
-	char* buffer = NULL;
-	char* saveptr = NULL;
-	char** token = NULL;
-	char** rquery = NULL;
-	char** wquery = NULL;
-
-	ntoken = 0;
-	if ((buffer = strdup(request)) == NULL) {
-		return 1;
-	}
-	if ((token = malloc(sizeof(char*))) == NULL) {
-		return 1;
-	}
-	token[0] = strtok_r(buffer, " ", &saveptr);
-	ntoken++;
-	do {
-		ntoken++;
-		if ((token = realloc(token, sizeof(char*) * (size_t)ntoken)) == NULL) {
-			return 1;
-		}
-		token[ntoken - 1] = strtok_r(NULL, " ", &saveptr);
-	} while (token[ntoken - 1] != NULL);
-	ntoken--;
-	id = strdup(*token);
-	ntoken--;
-	/*	free memory on error	*/
-	if ((rquery = malloc(sizeof(char*) * (size_t)(ntoken))) == NULL) {
-		return 1;
-	}
-	if ((wquery = malloc(sizeof(char*) * (size_t)(ntoken))) == NULL) {
-		return 1;
-	}
-	for (int i = 0; i < ntoken; i++) {
-		if (asprintf(&(rquery[i]), "GET %s", token[i + 1]) == -1) {
-			return 1;
-		}
-		if (asprintf(&(wquery[i]), "SET %s AS 0", token[i + 1]) == -1) {
-			return 1;
-		}
-	}
-	free(buffer);
-	free(token);
-	ret = 0;
-	for (int i = 0; i < ntoken; i++) {
-		if (database_execute(database, rquery[i], result) == 1) {
-			for (int j = i; j < ntoken; free(rquery[++j]));
-			for (int j = 0; j < ntoken; free(wquery[j++]));
-			free(rquery);
-			free(wquery);
-			return 1;
-		}
-		if (strcmp(*result, id)) {
-			ret = 1;
-		}
-		free(rquery[i]);
-		free(*result);
-		if (ret) {
-			for (int j = i; j < ntoken; free(rquery[++j]));
-			for (int j = 0; j < ntoken; free(wquery[j++]));
-			free(rquery);
-			free(wquery);
-			free(id);
-			return 1;
-		}
-	}
-	free(rquery);
-	free(id);
-	for (int i = 0; i < ntoken; i++) {
-		if (database_execute(database, wquery[i], result) == 1) {
-			for (int j = i; j < ntoken; free(wquery[++j]));
-			free(wquery);
-			return 1;
-		}
-		free(wquery[i]);
-		free(*result);
-	}
-	free(wquery);
-	if (asprintf(result, DBMSG_SUCC) == -1) {
-		return 1;
-	}
 	return 0;
 }
