@@ -251,7 +251,6 @@ int database_get(const database_t handle, struct query parsed_query, char** resu
 	if ((*result = malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
 		return 1;
 	}
-	if (fseek(strm, *offset, SEEK_SET) == -1) {
 	while ((ret = pthread_rwlock_rdlock(lock)) && errno == EINTR);
 	if (ret) {
 		free(*result);
