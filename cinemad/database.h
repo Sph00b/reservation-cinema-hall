@@ -1,18 +1,5 @@
 #pragma once
 
-#include <stdio.h>
-#include <stdint.h>
-#include <pthread.h>
-
-/*
- *	query language:
- *	
- *				ADD [SECTION]
- *				ADD [KEY] FROM [SECTION]
- *				GET [KEY] FROM [SECTION]
- *				SET [KEY] FROM [SECTION] AS [VALUE]
- * */
-
 #define DBMSG_SUCC "OPERATION SUCCEDED"
 #define DBMSG_FAIL "OPERATION FAILED"
 #define DBMSG_ERR "DATABASE FAILURE"

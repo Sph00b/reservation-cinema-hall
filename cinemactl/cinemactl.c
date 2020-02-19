@@ -88,7 +88,7 @@ default:
 int server_stop(){
 	char* pid;
 try(
-	server_query("GET PID FROM CONFIG", &pid), (1)
+	server_query("GET PID", &pid), (1)
 )
 try(
 	kill(atoi(pid), SIGTERM), (-1)
@@ -115,8 +115,8 @@ int server_status() {
 	char* timestr = NULL;
 	char* icon = NULL;
 	char* status = NULL;
-	if (server_query("GET PID FROM CONFIG", &pid) == 1 ||
-		server_query("GET TIMESTAMP FROM CONFIG", &timestr) == 1)	{
+	if (server_query("GET PID", &pid) == 1 ||
+		server_query("GET TIMESTAMP", &timestr) == 1)	{
 		if (asprintf(&icon, "●") == -1) {
 			return 1;
 		}

@@ -1,8 +1,10 @@
 #include "flag.h"
 #include <stdlib.h>
 
+#define byte unsigned char
+
 struct flag {
-	int value;
+	byte value;
 };
 
 flag_t flag_init() {
@@ -10,7 +12,7 @@ flag_t flag_init() {
 	if ((flag = malloc(sizeof(struct flag))) == NULL) {
 		return NULL;
 	}
-	flag->value = 0;
+	flag_unset(flag);
 	return flag;
 }
 

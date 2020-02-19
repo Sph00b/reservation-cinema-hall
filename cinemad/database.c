@@ -1,6 +1,13 @@
+/*	NoSQL Database	*/
+
 #include "database.h"
 
-#ifdef __unix__
+/*
+ *	query language:
+ *
+ *				SET [KEY] AS [VALUE]
+ *				GET [KEY]
+ */
 
 #include <stdio.h>
 #include <pthread.h>
@@ -12,60 +19,173 @@
 #include <sys/file.h>
 #include <errno.h>
 
-#define WORDLEN 16
+#include "resources.h"
+#include "index_table.h"
 
-#define LOCK(mutex, ret) if (!ret) while ((ret = pthread_mutex_lock(mutex)) && errno == EINTR);
-#define UNLOCK(mutex, ret) if (!ret) while ((ret = pthread_mutex_unlock(mutex)) && errno == EINTR);
-
-/*
-struct _key_info {
-	char* key_name;
-	int key_offset;
-	pthread_rwlock_t key_lock;
-};
-
-struct _section_info {
-	char* section_name;
-	struct _key_info* section_key_table;
-};
-*/
-/*
-typedef struct {
+struct database {
 	int fd;
-	//struct _section_info* database_register;
-	pthread_rwlock_t* lock;
-} database_t;
-*/
-
-struct database{
-	int fd;
-	pthread_rwlock_t* lock;
+	index_table_t index_table;
 };
 
-/*	IDK how to name
-	undefined behaviour if the strings pointed are longer than WORDLEN
-*/
-
-struct info {
-	char* section;
-	char* key;
-	char* value;
+struct query {
+	char key[WORDLEN + 1];
+	char value[WORDLEN + 1];
 };
 
-/* return 0 on success, 1 on sys failure, -1 if not found */
+int database_read(FILE* strm, char** result);
+int database_write(FILE* strm, char* data);
+int database_get_stream(FILE** pstrm, int fd);
+int get_parsed_query(struct query* parsed_query, const char* query);
+int database_get(const database_t handle, struct query parsed_query, char** result);
+int database_set(const database_t handle, struct query parsed_query, char** result);
 
-int get_info(struct info** info, const char* str) {
+database_t database_init(const char* filename) {
+	struct database* database;
+	FILE* stream;
+	if ((database = malloc(sizeof(struct database))) == NULL) {
+		return NULL;
+	}
+	if ((database->fd = open(filename, O_RDWR, 0666)) == -1) {
+		free(database);
+		return NULL;
+	}
+	if (flock(database->fd, LOCK_EX | LOCK_NB) == -1) {	//instead of semget & ftok to avoid mix SysV and POSIX, replace with fcntl
+		close(database->fd);
+		free(database);
+		return NULL;
+	}
+	if ((database->index_table = index_table_init()) == NULL) {
+		close(database->fd);
+		free(database);
+		return NULL;
+	}
+	if (database_get_stream(&stream, database->fd)) {
+		index_table_destroy(database->index_table);
+		close(database->fd);
+		free(database);
+		return NULL;
+	}
+	if (index_table_wrlock(database->index_table)) {
+		fclose(stream);
+		index_table_destroy(database->index_table);
+		close(database->fd);
+		free(database);
+		return NULL;
+	}
+	if (index_table_update(database->index_table, stream)) {
+		fclose(stream);
+		index_table_destroy(database->index_table);
+		close(database->fd);
+		free(database);
+		return NULL;
+	}
+	if (index_table_unlock(database->index_table)) {
+		fclose(stream);
+		index_table_destroy(database->index_table);
+		close(database->fd);
+		free(database);
+		return NULL;
+	}
+	if (fclose(stream) == EOF) {
+		index_table_destroy(database->index_table);
+		close(database->fd);
+		free(database);
+		return NULL;
+	}
+	return database;
+}
+
+/*	Close database return EOF and set properly errno on error */
+
+int database_close(const database_t handle) {
+	struct database* database = (struct database*)handle;
+	index_table_destroy(&database->index_table);
+	close(database->fd);
+	free(database);
+	return 0;
+}
+
+/*	Execute a query return 1 and set properly errno on error */
+
+int database_execute(const database_t handle, const char* query, char** result) {
+	struct database* database = (struct database*)handle;
 	int ret = 0;
-	int ntoken = 1;
-	char* buff;
-	char* saveptr;
-	char** token = NULL;
-	if ((*info = malloc(sizeof(struct info))) == NULL) {
+	struct query parsed_query;
+	if (strlen(query) < 5) {
+		ret = 1;
+	}
+	else {
+		ret = get_parsed_query(&parsed_query, query + 4);
+		if (!ret) {
+			if (!strncmp(query, "SET ", 4)) {
+				ret = database_set(database, parsed_query, result);
+			}
+			else if (!strncmp(query, "GET ", 4)) {
+				ret = database_get(database, parsed_query, result);
+			}
+			else {
+				*result = strdup(DBMSG_FAIL);
+			}
+		}
+	}
+	if (ret) {
+		*result = strdup(DBMSG_ERR);
 		return 1;
 	}
-	ntoken = 0;
-	if ((buff = strdup(str)) == NULL) {
-		free(*info);
+	return 0;
+}
+
+/* return 0 on success, 1 on failure */
+
+int database_read(FILE* strm, char** result) {
+	for (int i = 0; i < WORDLEN; i++) {
+		if ((int)((*result)[i] = (char)fgetc(strm)) == EOF) {
+			return 1;
+		}
+	}
+	(*result)[WORDLEN] = 0;
+	return 0;
+}
+
+/* return 0 on success, 1 on failure */
+
+int database_write(FILE* strm, char* data) {
+	for (int i = 0; i < WORDLEN; i++) {
+		if (fputc(data[i], strm) == EOF) {
+			return 1;
+		}
+	}
+	fflush(strm);
+	return 0;
+}
+
+/*	return 0 on success, 1 on sys failure	*/
+
+int database_get_stream(FILE** pstrm, int fd) {
+	int newfd;
+	while ((newfd = dup(fd)) == -1) {
+		if (errno != EMFILE) {
+			return 1;
+		}
+		sleep(1);
+	}
+	if ((*pstrm = fdopen(newfd, "r+")) == NULL) {
+		return 1;
+	}
+	return 0;
+}
+
+/* return 0 on success, 1 on failure */
+
+int get_parsed_query(struct query* parsed_query, const char* query) {
+	int ret = 0;
+	int ntoken = 0;
+	char* buff;
+	char* saveptr;
+	char** token;
+	memset(parsed_query->key, 0, WORDLEN + 1);
+	memset(parsed_query->value, 0, WORDLEN + 1);
+	if ((buff = strdup(query)) == NULL) {
 		return 1;
 	}
 	if ((token = malloc(sizeof(char*))) == NULL) {
@@ -81,370 +201,142 @@ int get_info(struct info** info, const char* str) {
 		token[ntoken - 1] = strtok_r(NULL, " ", &saveptr);
 	} while (token[ntoken - 1] != NULL);
 	ntoken--;
-	if (ntoken == 1) {
-		(*info)->section = strdup(token[0]);
-		(*info)->key = NULL;
-		(*info)->value = NULL;
-	}
-	if (ntoken == 3 || ntoken == 5) {
-		(*info)->key = strdup(token[0]);
-		if (!strcmp(token[1], "FROM")) {
-			(*info)->section = strdup(token[2]);
-			(*info)->value = NULL;
-		}
-		else {
+	switch (ntoken) {
+	case 1:
+		if (strlen(token[0]) > WORDLEN) {
 			ret = 1;
+			break;
 		}
-	}
-	if (ntoken == 5) {
-		if (!strcmp(token[3], "AS")) {
-			(*info)->value = strdup(token[4]);
-		}
-		else {
+		strncpy(parsed_query->key, token[0], WORDLEN + 1);
+		break;
+	case 3:
+		if (strlen(token[0]) > WORDLEN || strlen(token[2]) > WORDLEN || strcmp(token[1], "AS")) {
 			ret = 1;
+			break;
 		}
+		strncpy(parsed_query->key, token[0], WORDLEN + 1);
+		strncpy(parsed_query->value, token[2], WORDLEN + 1);
+		break;
+	default:
+		ret = 1;
 	}
 	free(buff);
 	free(token);
 	if (ret) {
-		free(*info);
-		return -1;
-	}
-	return 0;
-}
-
-/*	return 0 on success, 1 on sys failure, set offset to -1 if not found */
-
-int get_offset(int** offset, FILE* strm, const struct info* info) {
-	char* buff;
-	char* pbuff;
-	int strm_size;
-	if (fseek(strm, 0, SEEK_END) == -1) {
-		return 1;
-	}
-	if ((strm_size = (int)ftell(strm)) == -1) {
-		return 1;
-	}
-	if ((*offset = malloc(sizeof(int))) == NULL) {
-		return 1;
-	}
-	if (strm_size < WORDLEN) {
-		**offset = -1;
-		return 0;
-	}
-	if ((buff = malloc(sizeof(char) * (size_t)strm_size)) == NULL) {
-		free(*offset);
-		return 1;
-	}
-	if (fseek(strm, 0, SEEK_SET) == -1) {
-		free(*offset);
-		free(buff);
-		return 1;
-	}
-	if (fgets(buff, strm_size, strm) == NULL) {
-		free(*offset);
-		free(buff);
-		return 1;
-	}
-	pbuff = buff;
-	do {
-		if ((pbuff = strstr(pbuff, info->section)) == NULL) {
-			**offset = -1;
-			free(buff);
-			return 0;
-		}
-		if (pbuff < buff + strm_size) {
-			pbuff++;
-		}
-	} while (!((pbuff - 1 != buff) && (pbuff[-2] == '<') && (pbuff[strlen(info->section) - 1] == '>')));
-	pbuff--;
-	do {
-		if ((pbuff = strstr(pbuff, info->key)) == NULL) {
-			**offset = -1;
-			free(buff);
-			return 0;
-		}
-		if (pbuff < buff + strm_size) {
-			pbuff++;
-		}
-	} while (!((pbuff - 1 != buff) && (pbuff[-2] == '[') && (pbuff[ strlen(info->key) - 1] == ']')));
-	pbuff--;
-	**offset = (int)((size_t)(pbuff - buff) / sizeof(char)) + WORDLEN - 1;
-	free(buff);
-	return 0;
-}
-
-/*	return 0 on success, 1 on sys failure	*/
-
-int get_stream(FILE** pstrm, int fd) {
-	int newfd;
-	while ((newfd = dup(fd)) == -1) {
-		if (errno != EMFILE) {
-			return 1;
-		}
-	}
-	if ((*pstrm = fdopen(newfd, "r+")) == NULL) {
 		return 1;
 	}
 	return 0;
 }
 
-/* return 0 on success, 1 on sys failure */
-
-int add(int fd, const struct info* info) {
-	FILE* strm;
-	char* buff;
-	if (get_stream(&strm, fd)) {
-		return 1;
-	}
-	if (info->section == NULL) {
-		return -1;
-	}
-	if (strlen(info->section) > WORDLEN - 2) {
-		return -1;
-	}
-	if (info->key == NULL) {
-		if ((buff = malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
-			return 1;
-		}
-		memset(buff, ' ', WORDLEN);
-		buff[0] = '<';
-		strcpy(buff + 1, info->section);
-		buff[strlen(buff)] = '>';
-		buff[WORDLEN] = 0;
-	}
-	else {
-		/*TODO:
-		move the seek to the last position of the section
-		make room for data if the section is not in tail
-		*/
-		if (strlen(info->key) > WORDLEN - 2) {
-			return -1;
-		}
-		if ((buff = malloc(sizeof(char) * (2 * WORDLEN + 1))) == NULL) {
-			return 1;
-		}
-		memset(buff, ' ', WORDLEN * 2);
-		buff[0] = '[';
-		strcpy(buff + 1, info->key);
-		buff[strlen(buff)] = ']';
-		buff[WORDLEN * 2] = 0;
-	}
-	if (fprintf(strm, buff) < 0) {
-		free(buff);
-		return 1;
-	}
-	fflush(strm);
-	if (fclose(strm)) {
-		free(buff);
-		return 1;
-	}
-	free(buff);
-	return 0;
-}
-
-/* return 0 on success, 1 on sys failure, -1 if not found */
-
-int set(int fd, const struct info* info) {
-	FILE* strm;
-	int* offset;
-	char* value;
-	if (get_stream(&strm, fd)) {
-		return 1;
-	}
-	if (info->value == NULL) {
-		return -1;
-	}
-	if (strlen(info->value) > WORDLEN) {
-		return -1;
-	}
-	if ((value = malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
-		return 1;
-	}
-	memset(value, ' ', WORDLEN);
-	value[WORDLEN] = '\0';
-	strcpy(value, info->value);
-	if (strlen(value) < WORDLEN) {
-		value[strlen(value)] = ' ';
-	}
-	if (get_offset(&offset, strm, info)) {
-		free(value);
-		return 1;
-	}
-	if (*offset == -1) {
-		free(value);
-		return -1;
-	}
-	if (fseek(strm, *offset, SEEK_SET) == -1) {
-		free(value);
-		free(offset);
-		return 1;
-	}
-	if (fprintf(strm, "%s", value) < 0) {
-		free(value);
-		free(offset);
-		return 1;
-	}
-	fflush(strm);
-	if (fclose(strm)) {
-		return 1;
-	}
-	free(value);
-	free(offset);
-	return 0;
-}
-
-/* return 2 on success, 1 on sys failure, -1 if not found */
-
-int get(int fd, const struct info* info, char** dest) {
-	FILE* strm;
-	int* offset;
-	if (get_stream(&strm, fd)) {
-		return 1;
-	}
-	if (get_offset(&offset, strm, info)) {
-		return 1;
-	}
-	if (*offset == -1) {
-		return -1;
-	}
-	if (fseek(strm, *offset, SEEK_SET) == -1) {
-		free(offset);
-		return 1;
-	}
-	if ((*dest = malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
-		free(offset);
-		return 1;
-	}
-	if (fgets(*dest, WORDLEN + 1, strm) == NULL) {
-		free(*dest);
-		free(offset);
-		return 1;
-	}
-	if (fclose(strm)) {
-		return 1;
-	}
-	free(offset);
-	return 2;
-}
-
-/*	Initiazliza database from file return 1 and set properly errno on error	*/
-
-database_t database_init(const char* filename) {
-	struct database* database;
-	if ((database = malloc(sizeof(struct database))) == NULL) {
-		return NULL;
-	}
-	int ret = 0;
-	if ((database->fd = open(filename, O_RDWR, 0666)) == -1) {
-		free(database);
-		return NULL;
-	}
-	if (flock(database->fd, LOCK_EX | LOCK_NB) == -1) {	//instead of semget & ftok to avoid mix SysV and POSIX, replace with fcntl
-		close(database->fd);
-		free(database);
-		return NULL;
-	}
-	if ((database->lock = malloc(sizeof(pthread_rwlock_t))) == NULL) {
-		close(database->fd);
-		free(database);
-		return NULL;
-	}
-	while ((ret = pthread_rwlock_init(database->lock, NULL)) && errno == EINTR);
-	if (ret && errno == EINTR) {
-		close(database->fd);
-		free(database->lock);
-		free(database);
-		return NULL;
-	}
-	return database;
-}
-
-/*	Close database return EOF and set properly errno on error */
-
-int database_close(const database_t handle) {
+int database_get(const database_t handle, struct query parsed_query, char** result) {
 	struct database* database = (struct database*)handle;
 	int ret;
-	while ((ret = pthread_rwlock_destroy(database->lock)) && errno == EINTR);
-	if (ret && errno == EINTR) {
+	FILE* strm;
+	long offset;
+	pthread_rwlock_t* lock;
+	if (database_get_stream(&strm, database->fd)) {
 		return 1;
 	}
-	free(database->lock);
-	close(database->fd);
-	free(database);
+	if (index_table_rdlock(database->index_table)) {
+		return 1;
+	}
+	if ((offset = index_table_key_offset(database->index_table, parsed_query.key)) == -1) {
+		*result = strdup(DBMSG_FAIL);
+		return 0;
+	}
+	if (fseek(strm, offset, SEEK_SET) == -1) {
+		return 1;
+	}
+	lock = index_table_key_lock(database->index_table, parsed_query.key);
+	if ((*result = malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
+		return 1;
+	}
+	if (fseek(strm, *offset, SEEK_SET) == -1) {
+	while ((ret = pthread_rwlock_rdlock(lock)) && errno == EINTR);
+	if (ret) {
+		free(*result);
+		return 1;
+	}
+	if (database_read(strm, result)) {
+		free(*result);
+		return 1;
+	}
+	while ((ret = pthread_rwlock_unlock(lock)) && errno == EINTR);
+	if (ret) {
+		free(*result);
+		return 1;
+	}
+	if (index_table_unlock(database->index_table)) {
+		free(*result);
+		return 1;
+	}
+	if (fclose(strm) == EOF) {
+		free(*result);
+		return 1;
+	}
 	return 0;
 }
 
-/*	Execute a query return 1 and set properly errno on error */
-
-int database_execute(const database_t handle, const char* query, char** result) {
+int database_set(const database_t handle, struct query parsed_query, char** result) {
 	struct database* database = (struct database*)handle;
-	int ret = 0;
-	int mret = 0;
-	struct info* qinfo = NULL;
-	if (database == NULL) {
-		ret = 1;
-		errno = EINVAL;
-	}
-	if (!ret && query == NULL) {
-		ret = -1;
-	}
-	if (!ret && result == NULL) {
-		ret = -1;
-	}
-	if (!ret && strlen(query) < 5) {
-		ret = -1;
-	}
-	if (!ret) {
-		ret = get_info(&qinfo, query + 4);
-	}
-	if (!ret) {
-		if (!strncmp(query, "ADD ", 4)) {
-			while ((mret = pthread_rwlock_wrlock(database->lock)) && errno == EINTR);
-			if (!mret) {
-				ret = add(database->fd, qinfo);
-				while ((mret = pthread_rwlock_unlock(database->lock)) && errno == EINTR);
-			}
-		}
-		else if (!strncmp(query, "SET ", 4)) {
-			while ((mret = pthread_rwlock_wrlock(database->lock)) && errno == EINTR);
-			if (!mret) {
-				ret = set(database->fd, qinfo);
-				while ((mret = pthread_rwlock_unlock(database->lock)) && errno == EINTR);
-			}
-		}
-		else if (!strncmp(query, "GET ", 4)) {
-			while ((mret = pthread_rwlock_rdlock(database->lock)) && errno == EINTR);
-			if (!mret) {
-				ret = get(database->fd, qinfo, result);
-				while ((mret = pthread_rwlock_unlock(database->lock)) && errno == EINTR);
-			}
-		}
-		else {
-			ret = -1;
-		}
-		free(qinfo->section);
-		free(qinfo->key);
-		free(qinfo->value);
-		free(qinfo);
-	}
-	if (mret) {
-		ret = 1;
-	}
-	switch (ret) {
-	case -1:
-		*result = strdup(DBMSG_FAIL);
-		return 0;
-	case 0:
-		*result = strdup(DBMSG_SUCC);
-		return 0;
-	case 1:
-		*result = strdup(DBMSG_ERR);
+	FILE* strm;
+	long offset;
+	pthread_rwlock_t* lock;
+	if (database_get_stream(&strm, database->fd)) {
 		return 1;
-	default:
-		strtok(*result, " ");	//souldn't be handled here
-		return 0;
 	}
+	if (index_table_rdlock(database->index_table)) {
+		return 1;
+	}
+	if ((offset = index_table_key_offset(database->index_table, parsed_query.key)) == -1) {
+		if (index_table_unlock(database->index_table)) {
+			return 1;
+		}
+		if (index_table_wrlock(database->index_table)) {
+			return 1;
+		}
+		if ((offset = index_table_key_offset(database->index_table, parsed_query.key)) == -1) {
+			if (fseek(strm, 0, SEEK_END) == -1) {
+				return 1;
+			}
+			if (database_write(strm, parsed_query.key)) {
+				return 1;
+			}
+			if (database_write(strm, parsed_query.value)) {
+				return 1;
+			}
+			if (index_table_update(database->index_table, strm)) {
+				return 1;
+			}
+		}
+	}
+	if (offset != -1) {
+		int ret;
+		if (fseek(strm, offset, SEEK_SET) == -1) {
+			return 1;
+		}
+		lock = index_table_key_lock(database->index_table, parsed_query.key);
+		while ((ret = pthread_rwlock_wrlock(lock)) && errno == EINTR);
+		if (ret) {
+			return 1;
+		}
+		if (database_write(strm, parsed_query.value)) {
+			return 1;
+		}
+		while ((ret = pthread_rwlock_unlock(lock)) && errno == EINTR);
+		if (ret) {
+			return 1;
+		}
+	}
+	if (index_table_unlock(database->index_table)) {
+		return 1;
+	}
+	if (fclose(strm) == EOF) {
+		return 1;
+	}
+	if ((*result = malloc(sizeof(char) * (WORDLEN + 1))) == NULL) {
+		return 1;
+	}
+	*result = strdup(DBMSG_SUCC);
+	return 0;
 }
-
-#endif

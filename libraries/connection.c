@@ -234,9 +234,12 @@ connection_t connection_accepted(const connection_t handle) {
 	}
 	memset(&accepted->addrlen, 0, sizeof(socklen_t));
 	accepted->addr = malloc(sizeof(accepted->addrlen));
-	if ((accepted->socket = accept(listener->socket, accepted->addr, &accepted->addrlen)) == -1) {
-		free(accepted);
-		return NULL;
+	while ((accepted->socket = accept(listener->socket, accepted->addr, &accepted->addrlen)) == -1) {
+		if (errno != EMFILE) {
+			free(accepted);
+			return NULL;
+		}
+		sleep(1);
 	}
 	return accepted;
 }

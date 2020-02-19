@@ -59,7 +59,7 @@ int main(int argc, char *argv[]){
 	pthread_t internal_mngr_tid;
 	connection_t internet_connection;
 	connection_t internal_connection;
-	concurrent_flag_t server_status;
+	concurrent_flag_t server_status_flag;
 	/*	Ignore all signals	*/
 	sigset_t sigset;
 try(
@@ -80,13 +80,13 @@ try(
 	request_queue = concurrent_queue_init(), (NULL)
 )
 try(
-	server_status = concurrent_flag_init(), (NULL)
+	server_status_flag = concurrent_flag_init(), (NULL)
 )
 try(
-	concurrent_flag_set(server_status), (1)
+	concurrent_flag_set(server_status_flag), (1)
 )
 try(
-	pthread_create(&joiner_tid, NULL, thread_joiner, server_status), (!0)
+	pthread_create(&joiner_tid, NULL, thread_joiner, server_status_flag), (!0)
 )
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Main thread:\tJoiner thread started");
@@ -115,12 +115,12 @@ try(
 #endif
 	char* result;
 try(
-	database_execute(database, "GET ROWS FROM CONFIG", &result), (1)
+	database_execute(database, "GET ROWS", &result), (1)
 )
 	rows = atoi(result);
 	free(result);
 try(
-	database_execute(database, "GET COLUMNS FROM CONFIG", &result), (1)
+	database_execute(database, "GET COLUMNS", &result), (1)
 )
 	columns = atoi(result);
 	free(result);
@@ -132,14 +132,14 @@ try(
 	char* qpid;
 	char* qtsp;
 try(
-	asprintf(&qpid, "%s %d", "SET PID FROM CONFIG AS", getpid()), (-1)
+	asprintf(&qpid, "%s %d", "SET PID AS", getpid()), (-1)
 )
 try(
-	asprintf(&qtsp, "%s %llu", "SET TIMESTAMP FROM CONFIG AS", (long long)time(NULL)), (-1)
+	asprintf(&qtsp, "%s %llu", "SET TIMESTAMP AS", (long long)time(NULL)), (-1)
 )
 try(
 	database_execute(database, qpid, &result), (1)
-)	
+)
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Main thread:\tPID stored: %s", result);
 #endif
@@ -150,17 +150,17 @@ try(
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Main thread:\tTIMESTAMP stored: %s", result);
 #endif
+	free(result);
 	free(qpid);
 	free(qtsp);
-	free(result);
 	/*	Setup connections	*/
 	char* address;
 	char* port;
 try(
-	database_execute(database, "GET IP FROM NETWORK", &address), (1)
+	database_execute(database, "GET IP", &address), (1)
 )
 try(
-	database_execute(database, "GET PORT FROM NETWORK", &port), (1)
+	database_execute(database, "GET PORT", &port), (1)
 )
 try(
 	internet_connection = connection_init(address, (uint16_t)atoi(port)), (NULL)
@@ -217,7 +217,7 @@ try(
 	syslog(LOG_DEBUG, "Main thread:\tConnection manager threads joined");
 #endif
 try(
-	concurrent_flag_unset(server_status), (1)
+	concurrent_flag_unset(server_status_flag), (1)
 )
 try(
 	pthread_join(joiner_tid, NULL), (!0)
@@ -230,7 +230,7 @@ try(
 	concurrent_queue_destroy(request_queue), (1)
 )
 try(
-	concurrent_flag_destroy(server_status), (1)
+	concurrent_flag_destroy(server_status_flag), (1)
 )
 	/*	Close connections and database	*/
 try(
@@ -253,11 +253,11 @@ try(
 }
 
 void* thread_joiner(void* arg) {
-	concurrent_flag_t server_status = arg;
+	concurrent_flag_t server_status_flag = arg;
 	int status;
 	int queue_empty;
 try(
-	concurrent_flag_status(server_status, &status), (1)
+	concurrent_flag_status(server_status_flag, &status), (1)
 )
 try(
 	concurrent_queue_is_empty(request_queue, &queue_empty), (1)
@@ -266,7 +266,7 @@ try(
 		while(!queue_empty){
 			struct request_info* info;
 try(
-			concurrent_queue_dequeue(request_queue, &info), (1)
+			concurrent_queue_dequeue(request_queue, (void**)&info), (1)
 )
 try(
 			pthread_join(info->tid, NULL), (!0)
@@ -284,7 +284,7 @@ try(
 		}
 		sleep(1);
 try(
-		concurrent_flag_status(server_status, &status), (1)
+		concurrent_flag_status(server_status_flag, &status), (1)
 )
 try(
 		concurrent_queue_is_empty(request_queue, &queue_empty), (1)
@@ -532,28 +532,16 @@ int daemonize() {
 
 int db_create(const char* filename) {
 	char* msg_init[] = {
-	"ADD NETWORK",
-	"ADD IP FROM NETWORK",
-	"SET IP FROM NETWORK AS 127.0.0.1",
-	"ADD PORT FROM NETWORK",
-	"SET PORT FROM NETWORK AS 55555",
-	"ADD CONFIG",
-	"ADD PID FROM CONFIG",
-	"SET PID FROM CONFIG AS 0",
-	"ADD TIMESTAMP FROM CONFIG",
-	"SET TIMESTAMP FROM CONFIG AS 0",
-	"ADD ROWS FROM CONFIG",
-	"SET ROWS FROM CONFIG AS 1",
-	"ADD COLUMNS FROM CONFIG",
-	"SET COLUMNS FROM CONFIG AS 1",
-	"ADD FILM FROM CONFIG",
-	"ADD SHOWTIME FROM CONFIG",
-	"SET SHOWTIME FROM CONFIG AS 00:00",
-	"ADD ID_COUNTER FROM CONFIG",
-	"SET ID_COUNTER FROM CONFIG AS 0",
-	"ADD DATA",
-	"ADD 0 FROM DATA",
-	"SET 0 FROM DATA AS 0",
+	"SET IP AS 127.0.0.1",
+	"SET PORT AS 55555",
+	"SET PID AS 0",
+	"SET TIMESTAMP AS 0",
+	"SET ROWS AS 1",
+	"SET COLUMNS AS 1",
+	"SET FILM AS Titolo",
+	"SET SHOWTIME AS 00:00",
+	"SET ID_COUNTER AS 0",
+	"SET 0 AS 0",
 	NULL
 	};
 	int dbfd = open(filename, O_CREAT | O_EXCL, 0666);
@@ -578,7 +566,7 @@ int db_configure() {
 	int clean = 0;
 	for (int i = 0; i < rows * columns; i++) {
 		char* query;
-		if (asprintf(&query, "GET %d FROM DATA", i) == -1) {
+		if (asprintf(&query, "GET %d", i) == -1) {
 			return 1;	
 		}
 		if (database_execute(database, query, &result) == 1) {
@@ -588,15 +576,7 @@ int db_configure() {
 			clean = 1;
 			free(query);
 			free(result);
-			if (asprintf(&query, "ADD %d FROM DATA", i) == -1) {
-				return 1;
-			}
-			if (database_execute(database, query, &result) == 1) {
-				return 1;
-			}
-			free(query);
-			free(result);
-			if (asprintf(&query, "SET %d FROM DATA AS 0", i) == -1) {
+			if (asprintf(&query, "SET %d AS 0", i) == -1) {
 				return 1;
 			}
 			if (database_execute(database, query, &result) == 1) {
@@ -618,7 +598,7 @@ int db_clean_data() {
 	char* result;
 	for (int i = 0; i < rows * columns; i++) {
 		char* query;
-		if (asprintf(&query, "SET %d FROM DATA AS 0", i) == -1) {
+		if (asprintf(&query, "SET %d AS 0", i) == -1) {
 			return 1;
 		}
 		if (database_execute(database, query, &result) == 1) {
@@ -627,7 +607,7 @@ int db_clean_data() {
 		free(query);
 		free(result);
 	}
-	if (database_execute(database, "SET ID_COUNTER FROM CONFIG AS 0", &result) == 1) {
+	if (database_execute(database, "SET ID_COUNTER AS 0", &result) == 1) {
 		return 1;
 	}
 	free(result);
@@ -638,13 +618,13 @@ int db_get_id() {
 	int id;
 	char* query;
 	char* result;
-	if (database_execute(database, "GET ID_COUNTER FROM CONFIG", &result) == 1) {
+	if (database_execute(database, "GET ID_COUNTER", &result) == 1) {
 		return -1;
 	}
 	id = atoi(result);
 	id++;
 	free(result);
-	if (asprintf(&query, "SET ID_COUNTER FROM CONFIG AS %d", id) == -1) {
+	if (asprintf(&query, "SET ID_COUNTER AS %d", id) == -1) {
 		return -1;
 	}
 	if (database_execute(database, query, &result) == 1) {
@@ -668,7 +648,7 @@ int db_send_status(const char* request, char** result) {
 		asprintf(result, "");
 		return 0;
 	}
-	database_execute(database, "GET 0 FROM DATA", &buffer);
+	database_execute(database, "GET 0", &buffer);
 	if (atoi(buffer)) {
 		if (atoi(buffer) == id) {
 			free(buffer);
@@ -681,7 +661,7 @@ int db_send_status(const char* request, char** result) {
 	}
 	asprintf(result, "%s", buffer);
 	for (int i = 1; i < rows * columns; i++) {
-		asprintf(&query, "GET %d FROM DATA", i);
+		asprintf(&query, "GET %d", i);
 		database_execute(database, query, &buffer);
 		ptr = &(**result);
 		if (atoi(buffer)) {
@@ -747,10 +727,10 @@ int db_book(const char* request, char **result) {
 		return 1;
 	}
 	for (int i = 0; i < ntoken; i++) {
-		if (asprintf(&(rquery[i]), "GET %s FROM DATA", token[i + 1]) == -1) {
+		if (asprintf(&(rquery[i]), "GET %s", token[i + 1]) == -1) {
 			return 1;
 		}
-		if (asprintf(&(wquery[i]), "SET %s FROM DATA AS %d", token[i + 1], id) == -1) {
+		if (asprintf(&(wquery[i]), "SET %s AS %d", token[i + 1], id) == -1) {
 			return 1;
 		}
 	}
@@ -832,10 +812,10 @@ int db_unbook(const char* request, char** result) {
 		return 1;
 	}
 	for (int i = 0; i < ntoken; i++) {
-		if (asprintf(&(rquery[i]), "GET %s FROM DATA", token[i + 1]) == -1) {
+		if (asprintf(&(rquery[i]), "GET %s", token[i + 1]) == -1) {
 			return 1;
 		}
-		if (asprintf(&(wquery[i]), "SET %s FROM DATA AS 0", token[i + 1]) == -1) {
+		if (asprintf(&(wquery[i]), "SET %s AS 0", token[i + 1]) == -1) {
 			return 1;
 		}
 	}

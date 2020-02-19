@@ -84,12 +84,12 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 		ErrorHandler(GetLastError());
 	}
 	//	Retrive number of seats and rows
-	if (!QueryServer(TEXT("GET ROWS FROM CONFIG"), &buffer)) {
+	if (!QueryServer(TEXT("GET ROWS"), &buffer)) {
 		ErrorHandler(WSAGetLastError());
 	}
 	rows = _tstoi(buffer);
 	free(buffer);
-	if (!QueryServer(TEXT("GET COLUMNS FROM CONFIG"), &buffer)) {
+	if (!QueryServer(TEXT("GET COLUMNS"), &buffer)) {
 		ErrorHandler(WSAGetLastError());
 	}
 	columns = _tstoi(buffer);
@@ -222,7 +222,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 			NULL									//	PARAMETER
 		))) return FALSE;
 
-		if (!QueryServer(TEXT("GET FILM FROM CONFIG"), &buffer)) {
+		if (!QueryServer(TEXT("GET FILM"), &buffer)) {
 			ErrorHandler(WSAGetLastError());
 		}
 		if (asprintf(&film, TEXT("Film: %s"), buffer) == -1) {
@@ -241,7 +241,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow) {
 		))) return FALSE;
 		free(film);
 
-		if (!QueryServer(TEXT("GET SHOWTIME FROM CONFIG"), &buffer)) {
+		if (!QueryServer(TEXT("GET SHOWTIME"), &buffer)) {
 			ErrorHandler(WSAGetLastError());
 		}
 		if (asprintf(&showtime, TEXT("Orario: %s"), buffer) == -1) {
