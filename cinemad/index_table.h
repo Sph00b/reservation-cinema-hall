@@ -12,8 +12,14 @@ extern int index_table_rdlock(const index_table_t handle);
 
 extern int index_table_unlock(const index_table_t handle);
 
-extern int index_table_update(const index_table_t handle, void* storage);
+extern int index_table_load(const index_table_t handle, void** storage);
 
-extern long index_table_key_offset(const index_table_t handle, const void* key);
+extern int index_table_update(const index_table_t handle, void** storage);
 
-extern void* index_table_key_lock(const index_table_t handle, const void* key);
+extern int index_table_record_wrlock(const index_table_t handle, const void* key);
+
+extern int index_table_record_rdlock(const index_table_t handle, const void* key);
+
+extern int index_table_record_unlock(const index_table_t handle, const void* key);
+
+extern int index_table_record_locate(const index_table_t handle, const void* key, void** storage);

@@ -464,7 +464,7 @@ try(
 		pthread_rwlock_rdlock(&db_serializing_mutex), (!0)
 )
 try(
-		database_execute(database, buff, &msg), (-1)
+		database_execute(database, buff, &msg), (1)
 )
 	}
 try(
