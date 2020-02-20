@@ -221,6 +221,54 @@ try(
 	return 0;
 }
 
+int daemonize() {
+	pid_t pid;	//process id
+	pid_t sid;	//session id
+	char* wdir;	//working directory
+	/* run process in backgound */
+	if ((pid = fork()) == -1) {
+		return 1;
+	}
+	if (pid != 0) {
+		exit(EXIT_SUCCESS);
+	}
+	/* close standars stream */
+	if (fclose(stdin) == EOF) {
+		return 1;
+	}
+	if (fclose(stdout) == EOF) {
+		return 1;
+	}
+	if (fclose(stderr) == EOF) {
+		return 1;
+	}
+	/* create a new session where process is group leader */
+	if ((sid = setsid()) == -1) {
+		return 1;
+	}
+	/* fork and kill group leader, lose control of terminal */
+	if ((pid = fork()) == -1) {
+		return 1;
+	}
+	if (pid != 0) {
+		exit(EXIT_SUCCESS);
+	}
+	/* change working directory */
+	if (asprintf(&wdir, "%s%s", getenv("HOME"), "/.cinema") == -1) {
+		return 1;
+	}
+	if (chdir(wdir) == -1) {
+		return 1;
+	}
+	if (setenv("PWD", wdir, 1)) {
+		return 1;
+	}
+	free(wdir);
+	/* reset umask */
+	umask(0);
+	return 0;
+}
+
 void* thread_joiner(void* arg) {
 	concurrent_flag_t server_status_flag = arg;
 	int status;
@@ -414,52 +462,4 @@ try(
 	syslog(LOG_DEBUG, "Request thread:\t%ul ready to exit", pthread_self());
 #endif
 	return NULL;
-}
-
-int daemonize() {
-	pid_t pid;	//process id
-	pid_t sid;	//session id
-	char* wdir;	//working directory
-	/* run process in backgound */
-	if ((pid = fork()) == -1) {
-		return 1;
-	}
-	if (pid != 0) {
-		exit(EXIT_SUCCESS);
-	}
-	/* close standars stream */
-	if (fclose(stdin) == EOF) {
-		return 1;
-	}
-	if (fclose(stdout) == EOF) {
-		return 1;
-	}
-	if (fclose(stderr) == EOF) {
-		return 1;
-	}
-	/* create a new session where process is group leader */
-	if ((sid = setsid()) == -1) {
-		return 1;
-	}
-	/* fork and kill group leader, lose control of terminal */
-	if ((pid = fork()) == -1) {
-		return 1;
-	}
-	if (pid != 0) {
-		exit(EXIT_SUCCESS);
-	}
-	/* change working directory */
-	if (asprintf(&wdir, "%s%s", getenv("HOME"), "/.cinema") == -1) {
-		return 1;
-	}
-	if (chdir(wdir) == -1) {
-		return 1;
-	}
-	if (setenv("PWD", wdir, 1)) {
-		return 1;
-	}
-	free(wdir);
-	/* reset umask */
-	umask(0);
-	return 0;
 }
