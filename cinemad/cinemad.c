@@ -378,6 +378,7 @@ try(
 #endif
 
 	do {
+		struct request_info* accepted_request;
 		pthread_t tid;
 		connection_t accepted_connection;
 	/*	Wait for incoming connection	*/
@@ -390,7 +391,15 @@ try(
 )
 	/*	Create request handler thread	*/
 try(
-		pthread_create(&tid, NULL, request_handler, accepted_connection), (!0)
+		accepted_request = malloc(sizeof(struct request_info)), (NULL)
+)
+		accepted_request->connection = accepted_connection;
+try(
+		pthread_create(&accepted_request->tid, NULL, request_handler, accepted_connection), (!0)
+)
+	/*	Register thread in the queue	*/
+try(
+		concurrent_queue_enqueue(request_queue, (void*)accepted_request), (1)
 )
 	/*	Capture SIGALRM signal	*/
 try(
@@ -400,7 +409,6 @@ try(
 }
 
 void* request_handler(void* arg) {
-	struct request_info* info;
 	connection_t connection = arg;
 	pthread_t timer_tid;
 	char* buff;
@@ -408,16 +416,6 @@ void* request_handler(void* arg) {
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Request thread:\t%ul spowned", pthread_self());
 #endif
-	/*	Reister thread in the queue	*/
-	/*	Put value in a structure	*/
-try(
-	info = malloc(sizeof(struct request_info)), (NULL)
-)
-	info->tid = pthread_self();
-	info->connection = connection;
-try(
-	concurrent_queue_enqueue(request_queue, (void*)info), (1)
-)
 	/*	Start timeout thread	*/
 try(
 	pthread_create(&timer_tid, NULL, thread_timer, (void*)pthread_self()), (!0)

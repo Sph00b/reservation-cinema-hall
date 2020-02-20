@@ -61,7 +61,7 @@ int database_procedure_unbook(const database_t handle, FILE** stream, const char
 database_t database_init(const char* filename) {
 	struct database* database;
 	FILE* stream;
-	int new_database;
+	int new_database = 0;
 	if ((database = malloc(sizeof(struct database))) == NULL) {
 		return NULL;
 	}
