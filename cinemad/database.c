@@ -1,13 +1,6 @@
-/*	NoSQL Database	*/
+/*	Simple NoSQL Database	*/
 
 #include "database.h"
-
-/*
- *	query language:
- *
- *				SET [KEY] AS [VALUE]
- *				GET [KEY]
- */
 
 #include <stdio.h>
 #include <stdint.h>
