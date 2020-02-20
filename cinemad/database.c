@@ -32,12 +32,28 @@ struct query {
 	char value[WORDLEN + 1];
 };
 
+char* msg_init[] = {
+	"SET IP AS 127.0.0.1",
+	"SET PORT AS 55555",
+	"SET PID AS 0",
+	"SET TIMESTAMP AS 0",
+	"SET ROWS AS 1",
+	"SET COLUMNS AS 1",
+	"SET FILM AS Titolo",
+	"SET SHOWTIME AS 00:00",
+	"SET ID_COUNTER AS 0",
+	"SET 0 AS 0",
+	NULL
+};
+
 int database_read(FILE** strm, char** result);
 int database_write(FILE** strm, char* data);
 int database_get_stream(FILE** pstrm, int fd);
 int get_parsed_query(struct query* parsed_query, const char* query);
-int database_get(const database_t handle, FILE** stream, const char* query, char** result);
-int database_set(const database_t handle, FILE** stream, const char* query, char** result);
+int database_procedure_get(const database_t handle, FILE** stream, const char* query, char** result);
+int database_procedure_set(const database_t handle, FILE** stream, const char* query, char** result);
+int database_procedure_configure(const database_t handle, FILE** stream);
+int database_procedure_clean(const database_t handle, FILE** stream, const char* query, char** result);
 int database_procedure_map(const database_t handle, FILE** stream, const char* query, char** result);
 int database_procedure_book(const database_t handle, FILE** stream, const char* query, char** result);
 int database_procedure_unbook(const database_t handle, FILE** stream, const char* query, char** result);
@@ -45,12 +61,18 @@ int database_procedure_unbook(const database_t handle, FILE** stream, const char
 database_t database_init(const char* filename) {
 	struct database* database;
 	FILE* stream;
+	int new_database;
 	if ((database = malloc(sizeof(struct database))) == NULL) {
 		return NULL;
 	}
 	if ((database->fd = open(filename, O_RDWR, 0666)) == -1) {
-		free(database);
-		return NULL;
+		if (errno != ENOENT) {
+			return NULL;
+		}
+		if ((database->fd = open(filename, O_RDWR | O_CREAT | O_EXCL, 0666)) == -1) {
+			return NULL;
+		}
+		new_database = 1;
 	}
 	if (flock(database->fd, LOCK_EX | LOCK_NB) == -1) {	//instead of semget & ftok to avoid mix SysV and POSIX, replace with fcntl
 		close(database->fd);
@@ -96,11 +118,31 @@ database_t database_init(const char* filename) {
 		free(database);
 		return NULL;
 	}
+	if (database_procedure_configure(database, &stream)) {
+		fclose(stream);
+		index_table_destroy(database->index_table);
+		close(database->fd);
+		free(database);
+		return NULL;
+	}
 	if (fclose(stream) == EOF) {
 		index_table_destroy(database->index_table);
 		close(database->fd);
 		free(database);
 		return NULL;
+	}
+	if (new_database) {
+		char* result;
+		for (int i = 0; msg_init[i]; i++) {
+			if (database_execute(database, msg_init[i], &result)) {
+				free(result);
+				index_table_destroy(database->index_table);
+				free(database);
+				remove(filename);
+				return NULL;
+			}
+			free(result);
+		}
 	}
 	return database;
 }
@@ -131,10 +173,13 @@ int database_execute(const database_t handle, const char* query, char** result) 
 	if (!ret) {
 		stream_open = 1;
 		if (!strncmp(query, "SET ", 4)) {
-			ret = database_set(database, &stream, query + 4, result);
+			ret = database_procedure_set(database, &stream, query + 4, result);
 		}
 		else if (!strncmp(query, "GET ", 4)) {
-			ret = database_get(database, &stream, query + 4, result);
+			ret = database_procedure_get(database, &stream, query + 4, result);
+		}
+		else if (!strncmp(query, "CLN ", 4)) {
+			ret = database_procedure_clean(database, &stream, query + 4, result);
 		}
 		else if (!strncmp(query, "BOK ", 4)) {
 			ret = database_procedure_book(database, &stream, query + 4, result);
@@ -259,7 +304,7 @@ int get_parsed_query(struct query* parsed_query, const char* query) {
 	return 0;
 }
 
-int database_get(const database_t handle, FILE** stream, const char* query, char** result) {
+int database_procedure_get(const database_t handle, FILE** stream, const char* query, char** result) {
 	struct database* database = (struct database*)handle;
 	struct query parsed_query;
 	if (get_parsed_query(&parsed_query, query)) {
@@ -299,7 +344,7 @@ int database_get(const database_t handle, FILE** stream, const char* query, char
 	return 0;
 }
 
-int database_set(const database_t handle, FILE** stream, const char* query, char** result) {
+int database_procedure_set(const database_t handle, FILE** stream, const char* query, char** result) {
 	struct database* database = (struct database*)handle;
 	int key_found;
 	struct query parsed_query;
@@ -351,6 +396,78 @@ int database_set(const database_t handle, FILE** stream, const char* query, char
 		return 1;
 	}
 	*result = strdup(DBMSG_SUCC);
+	return 0;
+}
+
+int database_procedure_configure(const database_t handle, FILE** stream) {
+	struct database* database = (struct database*)handle;
+	int rows;
+	int columns;
+	int clean = 0;
+	char* result;
+	database_execute(database, "GET ROWS", &result);
+	rows = atoi(result);
+	free(result);
+	database_execute(database, "GET COLUMNS", &result);
+	columns = atoi(result);
+	free(result);
+	for (int i = 0; i < rows * columns; i++) {
+		char* query;
+		if (asprintf(&query, "GET %d", i) == -1) {
+			return 1;
+		}
+		if (database_execute(database, query, &result) == 1) {
+			return 1;
+		}
+		if (!strncmp(result, DBMSG_FAIL, strlen(DBMSG_FAIL))) {
+			clean = 1;
+			free(query);
+			free(result);
+			if (asprintf(&query, "SET %d AS 0", i) == -1) {
+				return 1;
+			}
+			if (database_execute(database, query, &result) == 1) {
+				return 1;
+			}
+		}
+		free(query);
+		free(result);
+	}
+	if (clean) {
+		char* query = "";
+		char* result;
+		if (database_procedure_clean(database, stream, query, &result)) {
+			return 1;
+		}
+		free(result);
+	}
+	return 0;
+}
+
+int database_procedure_clean(const database_t handle, FILE** stream, const char* query, char** result) {
+	struct database* database = (struct database*)handle;
+	int rows;
+	int columns;
+	database_execute(database, "GET ROWS", result);
+	rows = atoi(*result);
+	free(*result);
+	database_execute(database, "GET COLUMNS", result);
+	columns = atoi(*result);
+	free(*result);
+	for (int i = 0; i < rows * columns; i++) {
+		char* query;
+		if (asprintf(&query, "SET %d AS 0", i) == -1) {
+			return 1;
+		}
+		if (database_execute(database, query, result) == 1) {
+			return 1;
+		}
+		free(query);
+		free(*result);
+	}
+	if (database_execute(database, "SET ID_COUNTER AS 0", result) == 1) {
+		return 1;
+	}
 	return 0;
 }
 

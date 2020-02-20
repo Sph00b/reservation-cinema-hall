@@ -35,9 +35,6 @@ struct request_info {
 database_t database;
 concurrent_queue_t request_queue;
 
-int rows;
-int columns;
-
 /*	Prototype declarations of functions included in this code module	*/
 
 void*	thread_joiner(void* arg);
@@ -46,9 +43,6 @@ void*	connection_mngr(void* arg);
 void*	request_handler(void* arg);
 void	thread_exit(int sig) { pthread_exit(NULL); }	//SIAGALRM handler
 int		daemonize();
-int		db_create(const char* filename);
-int		db_configure();
-int		db_clean_data();
 
 int main(int argc, char *argv[]){
 	pthread_t joiner_tid;
@@ -97,35 +91,13 @@ try(
 )
 	/*	Start database	*/
 try(
-	database = database_init("etc/data.dat"), (NULL || (errno == ENOENT))
+	database = database_init("etc/data.dat"), (NULL)
 )
-	if (!database) {
-try(
-		db_create("etc/data.dat"), (1)
-)
-#ifdef _DEBUG
-		syslog(LOG_DEBUG, "Main thread:\tDatabase created");
-#endif
-	}
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Main thread:\tDatabase connected");
 #endif
-	char* result;
-try(
-	database_execute(database, "GET ROWS", &result), (1)
-)
-	rows = atoi(result);
-	free(result);
-try(
-	database_execute(database, "GET COLUMNS", &result), (1)
-)
-	columns = atoi(result);
-	free(result);
-
-try(
-	db_configure(), (1)
-)
 	/*	Register timestamp and PID in database	*/
+	char* result;
 	char* qpid;
 	char* qtsp;
 try(
@@ -489,89 +461,5 @@ int daemonize() {
 	free(wdir);
 	/* reset umask */
 	umask(0);
-	return 0;
-}
-
-int db_create(const char* filename) {
-	char* msg_init[] = {
-	"SET IP AS 127.0.0.1",
-	"SET PORT AS 55555",
-	"SET PID AS 0",
-	"SET TIMESTAMP AS 0",
-	"SET ROWS AS 1",
-	"SET COLUMNS AS 1",
-	"SET FILM AS Titolo",
-	"SET SHOWTIME AS 00:00",
-	"SET ID_COUNTER AS 0",
-	"SET 0 AS 0",
-	NULL
-	};
-	int dbfd = open(filename, O_CREAT | O_EXCL, 0666);
-	close(dbfd);
-	if ((database = database_init(filename)) == NULL) {
-		return 1;
-	}
-	char* result;
-	for (int i = 0; msg_init[i]; i++) {
-		if (database_execute(database, msg_init[i], &result)) {
-			remove(filename);
-			free(result);
-			return 1;
-		}
-		free(result);
-	}
-	return 0;
-}
-
-int db_configure() {
-	char* result;
-	int clean = 0;
-	for (int i = 0; i < rows * columns; i++) {
-		char* query;
-		if (asprintf(&query, "GET %d", i) == -1) {
-			return 1;	
-		}
-		if (database_execute(database, query, &result) == 1) {
-			return 1;
-		}
-		if (!strncmp(result, DBMSG_FAIL, strlen(DBMSG_FAIL))) {
-			clean = 1;
-			free(query);
-			free(result);
-			if (asprintf(&query, "SET %d AS 0", i) == -1) {
-				return 1;
-			}
-			if (database_execute(database, query, &result) == 1) {
-				return 1;
-			}
-		}
-		free(query);
-		free(result);
-	}
-	if (clean) {
-		if (db_clean_data(database)) {
-			return 1;
-		}
-	}
-	return 0;
-}
-
-int db_clean_data() {
-	char* result;
-	for (int i = 0; i < rows * columns; i++) {
-		char* query;
-		if (asprintf(&query, "SET %d AS 0", i) == -1) {
-			return 1;
-		}
-		if (database_execute(database, query, &result) == 1) {
-			return 1;
-		}
-		free(query);
-		free(result);
-	}
-	if (database_execute(database, "SET ID_COUNTER AS 0", &result) == 1) {
-		return 1;
-	}
-	free(result);
 	return 0;
 }

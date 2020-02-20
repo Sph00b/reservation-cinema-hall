@@ -662,7 +662,7 @@ BOOL UpdateSeats(HWND hWnd, BOOL reset) {
 					SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDisabled);
 				}
 			}
-			else if (tmp == hBitmapDisabled && result[i * 2] == TEXT('0')) {
+			else if (((tmp == hBitmapDisabled) || (tmp == hBitmapBooked)) && result[i * 2] == TEXT('0')) {
 				SendMessage(hStaticS[i], STM_SETIMAGE, (WPARAM)IMAGE_BITMAP, (LPARAM)hBitmapDefault);
 			}
 		}
