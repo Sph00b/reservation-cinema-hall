@@ -25,23 +25,12 @@
 	#define InetPton(Family, pszAddrString, pAddrBuf) inet_aton(pszAddrString, pAddrBuf)
 	#define SSIZE_T ssize_t
 	#define TCHAR char
+	#define LPTSTR char*
+	#define LPCTSTR const char*
+	#define INVALID_SOCKET -1
+	#define SOCKET_ERROR  -1
 	#define _tcslen strlen
 	#define closesocket close
-#endif
-
-#ifdef _WIN32
-#ifndef _WINSOCKAPI_
-#define _WINSOCKAPI_
-#endif
-#include <Windows.h>
-#include <WinSock2.h>
-#include <WS2tcpip.h>
-#elif __unix__
-#include <sys/socket.h>
-#define LPTSTR char*
-#define LPCTSTR const char*
-#define INVALID_SOCKET -1
-#define SOCKET_ERROR  -1
 #endif
 
 #ifdef _WIN32
