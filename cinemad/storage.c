@@ -19,7 +19,7 @@ struct storage {
 
 FILE* storage_get_stream(const storage_t handle);
 
-storage_t storage_init(char* filename) {
+storage_t storage_init(const char* filename) {
 	struct storage* storage;
 	FILE* stream;
 	if ((storage = malloc(sizeof(struct storage))) == NULL) {
@@ -69,7 +69,7 @@ int storage_close(const storage_t handle) {
 	return 0;
 }
 
-int storage_store(const storage_t handle, char* key, char* value) {
+int storage_store(const storage_t handle, char* key, char* value, char** result) {
 	struct storage* storage = (struct storage*)handle;
 	FILE* stream;
 	if ((stream = storage_get_stream(storage)) == NULL) {
