@@ -37,11 +37,11 @@ concurrent_queue_t request_queue;
 
 /*	Prototype declarations of functions included in this code module	*/
 
+void	thread_exit(int sig) { pthread_exit(NULL); }	//SIAGALRM handler
 void*	thread_joiner(void* arg);
 void*	thread_timer(void* arg);
 void*	connection_mngr(void* arg);
 void*	request_handler(void* arg);
-void	thread_exit(int sig) { pthread_exit(NULL); }	//SIAGALRM handler
 int		daemonize();
 
 int main(int argc, char *argv[]){
@@ -90,14 +90,31 @@ try(
 	mkdir("tmp", 0775), (-1 * (errno != EEXIST))
 )
 	/*	Start database	*/
+	char* result;
 try(
-	database = database_init("etc/data.dat"), (NULL)
+	database = database_init("etc/data.dat"), (NULL || (errno == ENOENT))
 )
+	if (!database) {
+		int fd;
+try(
+		fd = open("etc/data.dat", O_RDWR | O_CREAT | O_EXCL, 0666), (-1)
+)
+try(
+		database = database_init("etc/data.dat"), (NULL)
+)
+try(
+		database_execute(database, "PLT ", &result), (1)
+)
+		free(result);
+	}
+try(
+	database_execute(database, "STP ", &result), (1)
+)
+	free(result);
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Main thread:\tDatabase connected");
 #endif
 	/*	Register timestamp and PID in database	*/
-	char* result;
 	char* qpid;
 	char* qtsp;
 try(
@@ -376,12 +393,9 @@ try(
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "CntMng thread:\tlistening on socket");
 #endif
-
-	do {
-		struct request_info* accepted_request;
-		pthread_t tid;
-		connection_t accepted_connection;
+	while (1) {
 	/*	Wait for incoming connection	*/
+		connection_t accepted_connection;
 try(
 		accepted_connection = connection_accepted(connection), (NULL)
 )
@@ -390,6 +404,7 @@ try(
 		pthread_sigmask(SIG_BLOCK, &sigalrm, NULL), (!0)
 )
 	/*	Create request handler thread	*/
+		struct request_info* accepted_request;
 try(
 		accepted_request = malloc(sizeof(struct request_info)), (NULL)
 )
@@ -405,7 +420,7 @@ try(
 try(
 		pthread_sigmask(SIG_UNBLOCK, &sigalrm, NULL), (!0)
 )
-	} while (1);
+	}
 }
 
 void* request_handler(void* arg) {
@@ -454,7 +469,9 @@ try(
 )
 	free(buff);
 	/*	Send the response	*/
-	connection_send(connection, msg);
+try(
+	connection_send(connection, msg), (-1)	//ECONNRESET?
+)
 	free(msg);
 #ifdef _DEBUG
 	syslog(LOG_DEBUG, "Request thread:\t%ul ready to exit", pthread_self());
