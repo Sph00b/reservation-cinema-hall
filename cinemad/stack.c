@@ -18,8 +18,8 @@ _stack_t stack_init() {
 
 void stack_destroy(const _stack_t handle) {
 	struct stack_node* stack = (struct stack_node*)handle;
-	while (!stack_is_empty(handle)) {
-		stack_pop(handle);
+	while (!stack_is_empty(stack)) {
+		stack_pop(stack);
 	}
 	free(stack);
 }
@@ -46,7 +46,7 @@ void* stack_pop(const _stack_t handle) {
 	struct stack_node* stack = (struct stack_node*)handle;
 	struct stack_node* tmp = stack->next;
 	void* popped = stack->data;
-	if (!stack_is_empty(handle)) {
+	if (!stack_is_empty(stack)) {
 		stack->data = stack->next->data;
 		stack->next = stack->next->next;
 		free(tmp);
