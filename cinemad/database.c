@@ -14,8 +14,14 @@
 #include "resources.h"
 #include "storage.h"
 
+struct cinema_info {
+	int rows;
+	int columns;
+};
+
 struct database {
 	storage_t storage;
+	struct cinema_info cinema_info;
 };
 
 struct query {
@@ -23,15 +29,15 @@ struct query {
 	char value[WORDLEN + 1];
 };
 
-int get_parsed_query(struct query* parsed_query, const char* query);
-int	database_procedure_get(const database_t handle, const char* query, char** result);
-int	database_procedure_set(const database_t handle, const char* query, char** result);
-int	database_procedure_populate(const database_t handle, const char* query, char** result);
-int	database_procedure_setup(const database_t handle, const char* query, char** result);
-int	database_procedure_clean(const database_t handle, const char* query, char** result);
-int	database_procedure_map(const database_t handle, const char* query, char** result);
-int	database_procedure_book(const database_t handle, const char* query, char** result);
-int	database_procedure_unbook(const database_t handle, const char* query, char** result);
+int parse_query(struct query* parsed_query, const char* query);
+int	procedure_get(const database_t handle, const char* query, char** result);
+int	procedure_set(const database_t handle, const char* query, char** result);
+int	procedure_populate(const database_t handle, const char* query, char** result);
+int	procedure_setup(const database_t handle, const char* query, char** result);
+int	procedure_clean(const database_t handle, const char* query, char** result);
+int	procedure_map(const database_t handle, const char* query, char** result);
+int	procedure_book(const database_t handle, const char* query, char** result);
+int	procedure_unbook(const database_t handle, const char* query, char** result);
 
 database_t database_init(const char* filename) {
 	struct database* database;
@@ -42,6 +48,8 @@ database_t database_init(const char* filename) {
 		free(database);
 		return NULL;
 	}
+	database->info.columns = 0;
+	database->info.rows = 0;
 	return database;
 }
 
@@ -60,38 +68,38 @@ int database_execute(const database_t handle, const char* query, char** result) 
 	struct database* database = (struct database*)handle;
 	/*	Parse query	*/
 	if (!strncmp(query, "SET ", 4)) {
-		return database_procedure_set(database, query + 4, result);
+		return procedure_set(database, query + 4, result);
 	}
 	else if (!strncmp(query, "GET ", 4)) {
-		return database_procedure_get(database, query + 4, result);
+		return procedure_get(database, query + 4, result);
 	}
 	else if (!strncmp(query, "PLT ", 4)) {
-		return database_procedure_clean(database, query + 4, result);
+		return procedure_clean(database, query + 4, result);
 	}
 	else if (!strncmp(query, "STP ", 4)) {
-		return database_procedure_clean(database, query + 4, result);
+		return procedure_clean(database, query + 4, result);
 	}
 	else if (!strncmp(query, "CLN ", 4)) {
-		return database_procedure_clean(database, query + 4, result);
+		return procedure_clean(database, query + 4, result);
 	}
 	else if (!strncmp(query, "BOK ", 4)) {
-		return database_procedure_book(database, query + 4, result);
+		return procedure_book(database, query + 4, result);
 	}
 	else if (!strncmp(query, "DLT ", 4)) {
-		return database_procedure_unbook(database, query + 4, result);
+		return procedure_unbook(database, query + 4, result);
 	}
 	else if (!strncmp(query, "MAP ", 4)) {
-		return database_procedure_map(database, query + 4, result);
+		return procedure_map(database, query + 4, result);
 	}
 	else {
-		*result = strdup(DBMSG_FAIL);
+		*result = strdup(MSG_FAIL);
 		return 0;
 	}
 }
 
 /* return 0 on success, 1 on failure */
 
-int get_parsed_query(struct query* parsed_query, const char* query) {
+int parse_query(struct query* parsed_query, const char* query) {
 	int ret = 0;
 	int ntoken = 0;
 	char* buff;
@@ -144,7 +152,7 @@ int get_parsed_query(struct query* parsed_query, const char* query) {
 	return 0;
 }
 
-int database_procedure_populate(const database_t handle, const char* query, char** result) {
+int procedure_populate(const database_t handle, const char* query, char** result) {
 	struct database* database = (struct database*)handle;
 	char* msg_init[] = {
 	"SET IP AS 127.0.0.1",
@@ -168,7 +176,7 @@ int database_procedure_populate(const database_t handle, const char* query, char
 	return 0;
 }
 
-int database_procedure_setup(const database_t handle, const char* query, char** result) {
+int procedure_setup(const database_t handle, const char* query, char** result) {
 	struct database* database = (struct database*)handle;
 	int rows;
 	int columns;
@@ -187,7 +195,7 @@ int database_procedure_setup(const database_t handle, const char* query, char** 
 		if (database_execute(database, query, result) == 1) {
 			return 1;
 		}
-		if (!strncmp(*result, DBMSG_FAIL, strlen(DBMSG_FAIL))) {
+		if (!strncmp(*result, MSG_FAIL, strlen(MSG_FAIL))) {
 			clean = 1;
 			free(query);
 			free(*result);
@@ -203,17 +211,17 @@ int database_procedure_setup(const database_t handle, const char* query, char** 
 	}
 	if (clean) {
 		char* query = "";
-		if (database_procedure_clean(database, query, result)) {
+		if (procedure_clean(database, query, result)) {
 			return 1;
 		}
 	}
 	return 0;
 }
 
-int database_procedure_get(const database_t handle, const char* query, char** result) {
+int procedure_get(const database_t handle, const char* query, char** result) {
 	struct database* database = (struct database*)handle;
 	struct query parsed_query;
-	if (get_parsed_query(&parsed_query, query)) {
+	if (parse_query(&parsed_query, query)) {
 		return 1;
 	}
 	if (storage_lock_shared(database->storage, parsed_query.key)) {
@@ -228,10 +236,10 @@ int database_procedure_get(const database_t handle, const char* query, char** re
 	return 0;
 }
 
-int database_procedure_set(const database_t handle, const char* query, char** result) {
+int procedure_set(const database_t handle, const char* query, char** result) {
 	struct database* database = (struct database*)handle;
 	struct query parsed_query;
-	if (get_parsed_query(&parsed_query, query)) {
+	if (parse_query(&parsed_query, query)) {
 		return 1;
 	}
 	if (storage_lock_exclusive(database->storage, parsed_query.key)) {
@@ -246,7 +254,7 @@ int database_procedure_set(const database_t handle, const char* query, char** re
 	return 0;
 }
 
-int database_procedure_clean(const database_t handle, const char* query, char** result) {
+int procedure_clean(const database_t handle, const char* query, char** result) {
 	struct database* database = (struct database*)handle;
 	int rows;
 	int columns;
@@ -273,7 +281,7 @@ int database_procedure_clean(const database_t handle, const char* query, char** 
 	return 0;
 }
 
-int database_procedure_map(const database_t handle, const char* query, char** result) {
+int procedure_map(const database_t handle, const char* query, char** result) {
 	struct database* database = (struct database*)handle;
 	int id = 0;
 	int rows;
@@ -327,7 +335,7 @@ int database_procedure_map(const database_t handle, const char* query, char** re
 	return 0;
 }
 
-int database_procedure_book(const database_t handle, const char* query, char** result) {
+int procedure_book(const database_t handle, const char* query, char** result) {
 	struct database* database = (struct database*)handle;
 	int id;
 	int ret;
@@ -437,7 +445,7 @@ int database_procedure_book(const database_t handle, const char* query, char** r
 	return 0;
 }
 
-int database_procedure_unbook(const database_t handle, const char* query, char** result) {
+int procedure_unbook(const database_t handle, const char* query, char** result) {
 	struct database* database = (struct database*)handle;
 	int ret;
 	int ntoken;
@@ -519,7 +527,7 @@ int database_procedure_unbook(const database_t handle, const char* query, char**
 		free(*result);
 	}
 	free(wquery);
-	if (asprintf(result, DBMSG_SUCC) == -1) {
+	if (asprintf(result, MSG_SUCC) == -1) {
 		return 1;
 	}
 	return 0;

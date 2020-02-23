@@ -10,7 +10,17 @@
 
 #include "storage.h"
 #include "index_record.h"
-#include "resources.h"
+
+#define MAXLEN 16
+
+#define MSG_SUCC "OPERATION SUCCEDED"
+#define MSG_FAIL "OPERATION FAILED"
+
+struct index_record {
+	char key[MAXLEN + 1];
+	long offset;
+	pthread_rwlock_t lock;
+};
 
 struct storage {
 	int fd;
@@ -18,6 +28,27 @@ struct storage {
 };
 
 FILE* storage_get_stream(const storage_t handle);
+FILE* storage_get_stream(const storage_t handle);
+
+int lexicographical_order(char* str1, char* str2) {
+	for (int i = 0; ; i++) { 
+		if (!str1[i] && !str2[i]) {
+			return 0;
+		}
+		else if (str1[i] && !str2[i]) {
+			return 1;
+		}
+		else if (!str1[i] && str2[i]) {
+			return -1;
+		}
+		else if (str1[i] < str2[i]) {
+			return -1;
+		}
+		else if (str1[i] > str2[i]) {
+			return 1;
+		}
+	}
+}
 
 storage_t storage_init(const char* filename) {
 	struct storage* storage;
@@ -82,18 +113,18 @@ int storage_store(const storage_t handle, char* key, char* value, char** result)
 			if (fseek(stream, 0, SEEK_END) == -1) {
 				return 1;
 			}
-			for (int i = 0; i < WORDLEN; i++) {
-				if (fputc((int)key, stream) == EOF) {
+			for (int i = 0; i < MAXLEN; i++) {
+				if (fputc(key[i], stream) == EOF) {
 					return 1;
 				}
 			}
-			for (int i = 0; i < WORDLEN; i++) {
+			for (int i = 0; i < MAXLEN; i++) {
 				if (fputc(0, stream) == EOF) {
 					return 1;
 				}
 			}
 			fflush(stream);
-			if (fseek(stream, -2 * WORDLEN, SEEK_END) == -1) {
+			if (fseek(stream, -2 * MAXLEN, SEEK_END) == -1) {
 				return 1;
 			}
 			if (index_table_update(storage->index_table, (void**)&stream)) {
@@ -102,7 +133,7 @@ int storage_store(const storage_t handle, char* key, char* value, char** result)
 			/*		*/
 		}
 	}
-	for (int i = 0; i < WORDLEN; i++) {
+	for (int i = 0; i < MAXLEN; i++) {
 		if (fputc(value[i], stream) == EOF) {
 			return 1;
 		}
@@ -119,12 +150,12 @@ int storage_load(const storage_t handle, char* key, char** result) {
 	if (index_table_record_locate(storage->index_table, key, (void**)&stream)) {
 		return 1;
 	}
-	for (int i = 0; i < WORDLEN; i++) {
+	for (int i = 0; i < MAXLEN; i++) {
 		if ((int)((*result)[i] = (char)fgetc(stream)) == EOF) {
 			return 1;
 		}
 	}
-	(result)[WORDLEN] = 0;
+	(result)[MAXLEN] = 0;
 	return 0;
 }
 
