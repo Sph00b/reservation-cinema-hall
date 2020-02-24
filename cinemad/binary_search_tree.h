@@ -1,5 +1,7 @@
 #pragma once
 
+#include "tree.h"
+
 /*
     Questo modulo contiene l'implementazione
     dell'albero binario di ricerca (BST)
@@ -14,6 +16,6 @@
 
 typedef void* binary_search_tree_t;
 
-binary_search_tree_t binary_search_tree_init();
+binary_search_tree_t binary_search_tree_init(void* (*order_function)(void*, void*));
 
 int binary_search_tree_destroy(binary_search_tree_t handle);

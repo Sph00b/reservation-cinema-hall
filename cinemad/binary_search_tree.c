@@ -7,27 +7,44 @@
 #define KEY_INDEX = 0	//indici usati per trovare le relative informazioni da un nodo
 #define	VALUE_INDEX = 1	//nodo.info[KEY_INDEX] è la chiave del nodo
 
-binary_search_tree_t binary_search_tree_init() {
-	return binary_tree_init(NULL);
-	//self.tree = BinaryTree()  # node's info now is a list_! [key, value]
+struct binary_search_tree {
+	binary_tree_t binary_tree;
+	void* (*order_function)(void*, void*);
+};
+
+binary_search_tree_t binary_search_tree_init(void* (*order_function)(void*, void*)) {
+	struct binary_search_tree* binary_search_tree;
+	if ((binary_search_tree = malloc(sizeof(struct binary_search_tree))) == NULL) {
+		return NULL;
+	}
+	if ((binary_search_tree->binary_tree = binary_tree_init(NULL)) == NULL)  {
+		free(binary_search_tree);
+		return NULL;
+	}
+	binary_search_tree->order_function = order_function;
+	return binary_search_tree;
 }
 
 int binary_search_tree_destroy(binary_search_tree_t handle) {
-	return binary_tree_destroy(handle);
+	struct binary_search_tree* binary_search_tree = (struct binary_search_tree*)handle;
+	if (binary_tree_destroy(binary_search_tree->binary_tree)) {
+		return 1;
+	}
+	free(binary_search_tree);
+	return 0;
 }
 
-#undef KEY_INDEX
-#undef VALUE_INDEX
-
 void* get_key(binary_search_tree_t handle, node_t node) {
+	struct binary_search_tree* binary_search_tree = (struct binary_search_tree*)handle;
 	if (node == NULL) {
 		return NULL;
 	}
-	void* info = binary_tree_get_info(handle, node);
+	void* info = tree_get_info(binary_search_tree->binary_tree, node);
 	return info[KEY_INDEX];
 }
 
 void* get_value(binary_search_tree_t handle, node_t node) {
+	struct binary_search_tree* binary_search_tree = (struct binary_search_tree*)handle;
 	if (node == NULL) {
 		return NULL;
 	}
@@ -36,6 +53,7 @@ void* get_value(binary_search_tree_t handle, node_t node) {
 }
 
 bool_t is_left_son(binary_search_tree_t handle, node_t node) {
+	struct binary_search_tree* binary_search_tree = (struct binary_search_tree*)handle;
 	if (node == binary_tree_get_left_son(handle, tree_get_father(handle, node))) {
 		return true;
 	}
@@ -43,6 +61,7 @@ bool_t is_left_son(binary_search_tree_t handle, node_t node) {
 }
 
 node_t binary_search_tree_search_node(binary_search_tree_t handle, void* key) {
+	struct binary_search_tree* binary_search_tree = (struct binary_search_tree*)handle;
 	node_t current = tree_get_root(handle);
 	while (current != NULL) {
 		void* current_key = get_key(handle, current);
@@ -60,6 +79,7 @@ node_t binary_search_tree_search_node(binary_search_tree_t handle, void* key) {
 }
 
 void cut_one_son_node(binary_search_tree_t handle, node_t node) {
+	struct binary_search_tree* binary_search_tree = (struct binary_search_tree*)handle;
 	node_t son = NULL;
 	if ((son = binary_tree_get_left_son(handle, node)) == NULL) {
 		son = binary_tree_get_right_son(handle, node);
@@ -76,6 +96,7 @@ void cut_one_son_node(binary_search_tree_t handle, node_t node) {
 }
 
 node_t max(binary_search_tree_t handle, node_t node) {
+	struct binary_search_tree* binary_search_tree = (struct binary_search_tree*)handle;
 	node_t current = node;
 	while (binary_tree_get_right_son(handle, current)) {
 		current = binary_tree_get_right_son(handle, current);
@@ -84,6 +105,7 @@ node_t max(binary_search_tree_t handle, node_t node) {
 }
 
 node_t pred(binary_search_tree_t handle, node_t node) {
+	struct binary_search_tree* binary_search_tree = (struct binary_search_tree*)handle;
 	if (node == NULL) {
 		return NULL;
 	}
@@ -98,16 +120,19 @@ node_t pred(binary_search_tree_t handle, node_t node) {
 }
 
 long size(binary_search_tree_t handle) {
+	struct binary_search_tree* binary_search_tree = (struct binary_search_tree*)handle;
 	return tree_nodes_number(handle);
 }
 
 void* search(binary_search_tree_t handle, void* key) {
+	struct binary_search_tree* binary_search_tree = (struct binary_search_tree*)handle;
 	node_t node;
 	node = binary_search_tree_search_node(handle, key);
 	return get_value(handle, node);
 }
 
 void insert_single_node_tree(binary_search_tree_t handle, void* key, binary_search_tree_t new_tree) {
+	struct binary_search_tree* binary_search_tree = (struct binary_search_tree*)handle;
 	if (tree_get_root(handle) == NULL) {
 		tree_set_root(handle, tree_get_root(new_tree));
 		tree_set_nodes_number(handle, 1);
@@ -134,11 +159,13 @@ void insert_single_node_tree(binary_search_tree_t handle, void* key, binary_sear
 }
 
 void insert(binary_search_tree_t handle, void* key, void* value) {
+	struct binary_search_tree* binary_search_tree = (struct binary_search_tree*)handle;
 	binary_tree_t tree = binary_tree_init(binary_node_init[key, value]);
 	insert_single_node_tree(handle, key, tree);
 }
 
 void delete(binary_search_tree_t handle, void* key) {
+	struct binary_search_tree* binary_search_tree = (struct binary_search_tree*)handle;
 	node_t node;
 	if (node = binary_search_tree_search_node(handle, key)) {
 		if (list_lenght(tree_get_sons(handle, node)) < 2) {
@@ -151,3 +178,6 @@ void delete(binary_search_tree_t handle, void* key) {
 		}
 	}
 }
+
+#undef KEY_INDEX
+#undef VALUE_INDEX

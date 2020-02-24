@@ -3,14 +3,13 @@
 #include "tree.h"
 #include "bool.h"
 
-typedef void* binary_node_t;
 typedef void* binary_tree_t;
 
 /*
 	:param root: radice dell'albero. Se non  specificata,
 	albero vuoto
 */
-binary_tree_t binary_tree_init(binary_node_t root);
+binary_tree_t binary_tree_init(node_t root);
 
 int binary_tree_destroy(binary_tree_t handle);
 
@@ -18,7 +17,7 @@ int binary_tree_destroy(binary_tree_t handle);
 	:param node:
 	:return: true se node è una foglia, false altrimenti
 */
-bool_t binary_tree_is_leaf(binary_tree_t handle, binary_node_t node);
+bool_t binary_tree_is_leaf(binary_tree_t handle, node_t node);
 
 /*
 	Permette di inserire la radice di un sottoalbero come figlio sinistro

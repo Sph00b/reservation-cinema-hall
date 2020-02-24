@@ -12,9 +12,9 @@
 
 struct binary_node {
 	void* data;
-	binary_node_t father;
-	binary_node_t left_son;
-	binary_node_t right_son;
+	node_t father;
+	node_t left_son;
+	node_t right_son;
 };
 
 /*
@@ -22,7 +22,7 @@ struct binary_node {
 	o una semplice variabile. Permette di aggiungere informazioni
 	aggiuntive
 */
-binary_node_t binary_node_init(void* data) {
+node_t binary_node_init(void* data) {
 	struct binary_node* binary_node;
 	if ((binary_node = malloc(sizeof(struct binary_node))) == NULL) {
 		return NULL;
@@ -34,7 +34,7 @@ binary_node_t binary_node_init(void* data) {
 	return binary_node;
 }
 
-int binary_node_destroy(binary_node_t handle) {
+int binary_node_destroy(node_t handle) {
 	struct binary_node* binary_node;
 	binary_node_destroy(binary_node->left_son);
 	binary_node_destroy(binary_node->right_son);
@@ -46,7 +46,7 @@ int binary_node_destroy(binary_node_t handle) {
 /*	Binary Tree	*/
 
 struct binary_tree {
-	binary_node_t root;
+	node_t root;
 	long n;
 };
 
@@ -54,23 +54,23 @@ struct binary_tree {
 	:param node: radice del sottoalbero
 	:return: numero di nodi del sottoalbero radicato in node
 */
-int subtree_nodes_number(binary_node_t node);
+int subtree_nodes_number(node_t node);
 /*
 	incrementa il numero di nodi nell'albero con il
 	numero dei nodi del sottoalbero radicato in node
 	:param node:
 */
-void increase_nodes_number_by_subtree(binary_tree_t handle, binary_node_t node);
+void increase_nodes_number_by_subtree(binary_tree_t handle, node_t node);
 /*
 	decrementa il numero di nodi nell'albero con il
 	numero dei nodi del sottoalbero radicato in node
 	:param node:
 */
-void decrease_nodes_number_by_subtree(binary_tree_t handle, binary_node_t node);
+void decrease_nodes_number_by_subtree(binary_tree_t handle, node_t node);
 
 /**/
 
-binary_tree_t binary_tree_init(binary_node_t root) {
+binary_tree_t binary_tree_init(node_t root) {
 	struct binary_tree* binary_tree;
 	struct binary_node* binary_node = (struct binary_node*)root;
 	if ((binary_tree = malloc(sizeof(struct binary_tree))) == NULL) {
@@ -90,7 +90,7 @@ int binary_tree_destroy(binary_tree_t handle) {
 	free(binary_tree);
 }
 
-bool_t binary_tree_is_leaf(binary_tree_t handle, binary_node_t node) {
+bool_t binary_tree_is_leaf(binary_tree_t handle, node_t node) {
 	struct binary_tree* binary_tree = (struct binary_tree*)handle;
 	struct binary_node* binary_node = (struct binary_node*)node;
 	if (list_lenght(tree_get_sons(binary_node))) {
@@ -139,7 +139,7 @@ binary_tree_t binary_tree_cut_right(binary_tree_t handle, node_t node) {
 	return new_tree;
 }
 
-int subtree_nodes_number(binary_node_t node) {
+int subtree_nodes_number(node_t node) {
 	struct binary_node* binary_node = (struct binary_node*)node;
 	list_t res = list_init();
 	_stack_t stack = stack_init();
@@ -160,13 +160,13 @@ int subtree_nodes_number(binary_node_t node) {
 	return list_lenght(res);
 }
 
-void increase_nodes_number_by_subtree(binary_tree_t handle, binary_node_t node) {
+void increase_nodes_number_by_subtree(binary_tree_t handle, node_t node) {
 	struct binary_tree* binary_tree = (struct binary_tree*)handle;
 	struct binary_node* binary_node = (struct binary_node*)node;
 	binary_tree->n += subtree_nodes_number(binary_node);
 }
 
-void decrease_nodes_number_by_subtree(binary_tree_t handle, binary_node_t node) {
+void decrease_nodes_number_by_subtree(binary_tree_t handle, node_t node) {
 	struct binary_tree* binary_tree = (struct binary_tree*)handle;
 	struct binary_node* binary_node = (struct binary_node*)node;
 	binary_tree->n -= subtree_nodes_number(binary_node);
@@ -214,6 +214,11 @@ list_t tree_get_sons(tree_t handle, node_t node) {
 		}
 	}
 	return sons;
+}
+
+void* tree_get_info(tree_t handle, node_t node) {
+	struct binary_node* binary_node = (struct binary_node*)handle;
+	return binary_node->data;
 }
 
 tree_t tree_cut(tree_t handle, node_t node) {
