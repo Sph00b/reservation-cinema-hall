@@ -16,6 +16,6 @@
 
 typedef void* bst_t;
 
-bst_t bst_init(void* (*order_function)(void*, void*));
+bst_t bst_init(int (*order_function)(void*, void*));
 
 int bst_destroy(bst_t handle);

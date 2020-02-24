@@ -30,7 +30,9 @@ struct storage {
 FILE* storage_get_stream(const storage_t handle);
 FILE* storage_get_stream(const storage_t handle);
 
-int lexicographical_order(char* str1, char* str2) {
+int lexicographical_order(void* key1, void* key2) {
+	char* str1 = (char*)key1;
+	char* str2 = (char*)key2;
 	for (int i = 0; ; i++) { 
 		if (!str1[i] && !str2[i]) {
 			return 0;

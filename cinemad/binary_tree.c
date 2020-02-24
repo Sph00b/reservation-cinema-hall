@@ -86,6 +86,12 @@ node_t tree_get_root(tree_t handle) {
 	return binary_tree->root;
 }
 
+void tree_set_root(tree_t handle, node_t node) {
+	struct binary_tree* binary_tree = (struct binary_tree*)handle;
+	binary_tree->root = node;
+	binary_tree->n = subtree_nodes_number(NULL, node);
+}
+
 long tree_nodes_number(tree_t handle) {
 	struct binary_tree* binary_tree = (struct binary_tree*)handle;
 	return binary_tree->n;

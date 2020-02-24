@@ -7,7 +7,7 @@
 
 struct bst {
 	binary_tree_t tree;
-	void* (*get_order)(void* key1, void* key2);
+	int (*get_order)(void* key1, void* key2);
 };
 
 /*	Private implementation	*/
@@ -43,7 +43,7 @@ int default_order(void* key1, void* key2) {
 
 /*	*/
 
-bst_t bst_init(void* (*order_function)(void*, void*)) {
+bst_t bst_init(int (*order_function)(void*, void*)) {
 	struct bst* bst;
 	if ((bst = malloc(sizeof(struct bst))) == NULL) {
 		return NULL;
@@ -136,55 +136,62 @@ long size(bst_t handle) {
 
 void* search(bst_t handle, void* key) {
 	struct bst* bst = (struct bst*)handle;
-	node_t node;
-	node = search_node(bst, key);
-	return get_value(node);
+	return get_value(search_node(bst, key));
 }
 
-void insert_single_node_tree(bst_t handle, void* key, bst_t new_tree) {
+void insert_single_node_tree(bst_t handle, void* key, tree_t new_tree) {
 	struct bst* bst = (struct bst*)handle;
+	int order;
+
 	if (tree_get_root(bst->tree) == NULL) {
 		tree_set_root(bst->tree, tree_get_root(new_tree));
-		tree_set_nodes_number(handle, 1);
 	}
 	else {
-		node_t current = tree_get_root(handle);
-		node_t pred = NULL;
+		node_t current = tree_get_root(bst->tree);
+		node_t prev = NULL;
 		while (current) {
-			pred = current;
-			if (key <= get_key(handle, current)) {
-				current = binary_tree_get_left_son(handle, current);
+			prev = current;
+			order = bst->get_order(key, get_key(current));
+			if (order < 1) {
+				current = binary_node_get_left_son(current);
 			}
 			else {
-				current = binary_tree_get_right_son(handle, current);
+				current = binary_node_get_right_son(current);
 			}
 		}
-		if (key <= get_key(handle, pred)) {
-			binary_tree_insert_as_left_subtree(handle, pred, new_tree);
+		order = bst->get_order(key, get_key(current));
+		if (order < 1) {
+			binary_tree_insert_as_left_subtree(bst->tree, prev, new_tree);
 		}
 		else {
-			binary_tree_insert_as_right_subtree(handle, pred, new_tree);
+			binary_tree_insert_as_right_subtree(bst->tree, prev, new_tree);
 		}
 	}
 }
 
-void insert(bst_t handle, void* key, void* value) {
+int insert(bst_t handle, void* key, void* value) {
 	struct bst* bst = (struct bst*)handle;
-	binary_tree_t tree = binary_tree_init(binary_node_init[key, value]);
-	insert_single_node_tree(handle, key, tree);
+	struct dictionary* info;
+	if ((info = malloc(sizeof(struct dictionary))) == NULL) {
+		return 1;
+	}
+	info->key = key;
+	info->value = value;
+	binary_tree_t tree = binary_tree_init(binary_node_init(info));
+	insert_single_node_tree(bst, key, tree);
+	return 0;
 }
 
 void delete(bst_t handle, void* key) {
 	struct bst* bst = (struct bst*)handle;
 	node_t node;
-	if (node = bst_search_node(handle, key)) {
-		if (list_lenght(tree_get_sons(handle, node)) < 2) {
+	if (node = search_node(bst, key)) {
+		if (node_degree(node) < 2) {
 			cut_one_son_node(handle, node);
 		}
 		else {
-			node_t p = pred(handle, node);
-			tree_swap_info(node, p);
-			cut_one_son_node(handle, p);
+			node_swap(node, pred(node));
+			cut_one_son_node(handle, pred(node));
 		}
 	}
 }
