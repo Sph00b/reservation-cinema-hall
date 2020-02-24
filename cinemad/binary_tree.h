@@ -1,7 +1,6 @@
 #pragma once
 
 #include "tree.h"
-#include "bool.h"
 
 typedef void* binary_tree_t;
 

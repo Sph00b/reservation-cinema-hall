@@ -14,8 +14,8 @@
 
 */
 
-typedef void* binary_search_tree_t;
+typedef void* bst_t;
 
-binary_search_tree_t binary_search_tree_init(void* (*order_function)(void*, void*));
+bst_t bst_init(void* (*order_function)(void*, void*));
 
-int binary_search_tree_destroy(binary_search_tree_t handle);
+int bst_destroy(bst_t handle);
