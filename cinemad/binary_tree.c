@@ -68,6 +68,8 @@ void increase_nodes_number_by_subtree(binary_tree_t handle, binary_node_t node);
 */
 void decrease_nodes_number_by_subtree(binary_tree_t handle, binary_node_t node);
 
+/**/
+
 binary_tree_t binary_tree_init(binary_node_t root) {
 	struct binary_tree* binary_tree;
 	struct binary_node* binary_node = (struct binary_node*)root;
@@ -91,7 +93,7 @@ int binary_tree_destroy(binary_tree_t handle) {
 bool_t binary_tree_is_leaf(binary_tree_t handle, binary_node_t node) {
 	struct binary_tree* binary_tree = (struct binary_tree*)handle;
 	struct binary_node* binary_node = (struct binary_node*)node;
-	if (list_lenght(node_sons_of(binary_node))) {
+	if (list_lenght(tree_get_sons(binary_node))) {
 		return false;
 	}
 	return true;
@@ -181,10 +183,15 @@ long tree_nodes_number(tree_t handle) {
 
 long tree_degree(tree_t handle, node_t node) {
 	struct binary_node* binary_node = (struct binary_node*)handle;
-	return list_lenght(node_sons_of(binary_node));
+	return list_lenght(tree_get_sons(binary_node));
 }
 
-node_t tree_father_of(tree_t handle, node_t node) {
+node_t tree_get_root(tree_t handle) {
+	struct binary_tree* binary_tree = (struct binary_tree*)handle;
+	return binary_tree->root;
+}
+
+node_t tree_get_father(tree_t handle, node_t node) {
 	struct binary_node* binary_node = (struct binary_node*)handle;
 	if (binary_node == NULL) {
 		return NULL;
@@ -192,7 +199,7 @@ node_t tree_father_of(tree_t handle, node_t node) {
 	return binary_node->father;
 }
 
-list_t tree_sons_of(tree_t handle, node_t node) {
+list_t tree_get_sons(tree_t handle, node_t node) {
 	struct binary_node* binary_node = (struct binary_node*)handle;
 	list_t sons;
 	if ((sons = list_init()) == NULL) {

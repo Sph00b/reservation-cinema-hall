@@ -23,17 +23,19 @@ long tree_nodes_number(tree_t handle);
 */
 long tree_degree(tree_t handle, node_t node);
 
+node_t tree_get_root(tree_t handle);
+
 /*
     :param node :
     : return : padre di node
 */
-node_t tree_father_of(tree_t handle, node_t node);
+node_t tree_get_father(tree_t handle, node_t node);
 
 /*
     :param node:
     :return: lista dei figli di node
 */
-list_t tree_sons_of(tree_t handle, node_t node);
+list_t tree_get_sons(tree_t handle, node_t node);
 
 /*
     Sradica l'albero da node (compreso)
