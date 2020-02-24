@@ -13,3 +13,5 @@ void node_set_father(node_t handle, node_t father);
 list_t node_get_sons(node_t handle);
 
 void* node_get_info(node_t handle);
+
+void node_swap(node_t node1, node_t node2);

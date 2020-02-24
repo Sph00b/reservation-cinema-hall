@@ -4,6 +4,8 @@
 
 typedef void* tree_t;
 
+node_t tree_get_root(tree_t handle);
+
 long tree_nodes_number(tree_t handle);
 
 tree_t tree_cut(tree_t handle, node_t node);
