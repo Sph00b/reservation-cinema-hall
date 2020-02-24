@@ -14,12 +14,6 @@ binary_tree_t binary_tree_init(node_t root);
 int binary_tree_destroy(binary_tree_t handle);
 
 /*
-	:param node:
-	:return: true se node è una foglia, false altrimenti
-*/
-bool_t binary_tree_is_leaf(binary_tree_t handle, node_t node);
-
-/*
 	Permette di inserire la radice di un sottoalbero come figlio sinistro
 	del nodo father
 	: param father : nodo su cui attaccare subtree
