@@ -2,68 +2,8 @@
 
 #include <stdlib.h>
 
-#include "binary_tree.h"
-#include "binary_node.h"
+#include "avl_tree_node.h"
 #include "bst.h"
-
-struct avl_tree {
-	bst_t search_tree;
-};
-
-
-struct avl_dictionary {
-	void* key;
-	void* value;
-	long height;
-};
-
-void* max(void* a, void* b) {
-	return a > b ? a : b;
-}
-
-void* get_key(node_t node) {
-	if (node) {
-		return ((struct avl_dictionary*)node_get_info(node))->key;
-	}
-	return NULL;
-}
-
-void* get_value(node_t node) {
-	if (node) {
-		return ((struct avl_dictionary*)node_get_info(node))->value;
-	}
-	return NULL;
-}
-
-long get_height(node_t node) {
-	if (node) {
-		return ((struct avl_dictionary*)node_get_info(node))->height;
-	}
-	return -1;
-}
-
-void set_height(node_t node, long h) {
-	if (node) {
-		((struct avl_dictionary*)node_get_info(node))->height = h;
-	}
-}
-
-void update_height(node_t node) {
-	long left_son_height = get_height(binary_node_get_left_son(node));
-	long right_son_height = get_height(binary_node_get_right_son(node));
-	if (node) {
-		set_height(node, max(left_son_height, right_son_height) + 1);
-	}
-}
-
-long get_balance_factor(node_t node) {
-	if (node) {
-		long left_son_height = get_height(binary_node_get_left_son(node));
-		long right_son_height = get_height(binary_node_get_right_son(node));
-		return  left_son_height - right_son_height;
-	}
-	return 0;
-}
 
 //Node's info now is a triple [ key, value, height]
 
