@@ -1,9 +1,5 @@
 #pragma once
 
-#define DBMSG_SUCC "OPERATION SUCCEDED"
-#define DBMSG_FAIL "OPERATION FAILED"
-#define DBMSG_ERR "DATABASE FAILURE"
-
 typedef void* database_t;
 
 extern database_t database_init(const char *filename);

@@ -36,9 +36,9 @@ int queue_is_empty(const queue_t handle) {
 	return (stack_is_empty(queue->stack_in) && stack_is_empty(queue->stack_out));
 }
 
-int queue_enqueue(const queue_t handle, void* data) {
+int queue_enqueue(const queue_t handle, void* item) {
 	struct queue* queue = (struct queue*)handle;
-	return stack_push(queue->stack_in, data);
+	return stack_push(queue->stack_in, item);
 }
 
 void* queue_dequeue(const queue_t handle) {

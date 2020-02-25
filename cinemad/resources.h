@@ -1,3 +1,5 @@
 #pragma once
 
 #define WORDLEN 16
+#define MSG_SUCC "OPERATION SUCCEDED"
+#define MSG_FAIL "OPERATION FAILED"
