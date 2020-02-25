@@ -101,46 +101,48 @@ static inline void avl_tree_delete(avl_tree_t handle, void* key) { return bst_de
 
 /*  METODI DI ROTAZIONE E BILANCIAMENTO */
 
-void right_rotation(avl_tree_t handle, node_t u) {
+//	un sacco di memory leack
+
+void right_rotation(avl_tree_t handle, avl_tree_node_t node) {
 	struct avl_tree* avl_tree = (struct avl_tree*)handle;
-	node_t v = binary_node_get_left_son(u);
-	node_swap(u, v);
+	avl_tree_node_t left_son = avl_tree_node_get_left_son(node);
+	avl_tree_node_swap(node, left_son);
 
-	tree_t v_tree = bst_cut_left(avl_tree->search_tree, u);
-	tree_t t1 = bst_cut_left(v_tree, v);
-	tree_t t2 = bst_cut_right(v_tree, v);
-	tree_t t3 = bst_cut_right(avl_tree->search_tree, u);
+	avl_tree_t l_tree = avl_tree_cut_left(avl_tree, node);
+	avl_tree_t r_tree = avl_tree_cut_right(avl_tree, node);
+	avl_tree_t l_tree_l = avl_tree_cut_left(l_tree, left_son);
+	avl_tree_t l_tree_r = avl_tree_cut_right(l_tree, left_son);
 
-	bst_insert_as_right_subtree(v_tree, tree_get_root(v_tree), t3);
-	bst_insert_as_left_subtree(v_tree, tree_get_root(v_tree), t2);
-	bst_insert_as_right_subtree(avl_tree->search_tree, u, v_tree);
-	bst_insert_as_right_subtree(avl_tree->search_tree, u, t1);
+	avl_tree_insert_as_right_subtree(l_tree, avl_tree_get_root(l_tree), r_tree);
+	avl_tree_insert_as_left_subtree(l_tree, avl_tree_get_root(l_tree), l_tree_r);
+	avl_tree_insert_as_right_subtree(avl_tree, node, l_tree);
+	avl_tree_insert_as_left_subtree(avl_tree, node, l_tree_l);
 
-	update_height(binary_node_get_right_son(u));
-	update_height(u);
+	avl_tree_node_update_height(avl_tree_node_get_right_son(node));
+	avl_tree_node_update_height(node);
 }
 
-void left_rotation(avl_tree_t handle, node_t node) {
+void left_rotation(avl_tree_t handle, avl_tree_node_t node) {
 	struct avl_tree* avl_tree = (struct avl_tree*)handle;
 
-	node_t right_son = binary_node_get_right_son(node);
-	node_swap(node, right_son);
+	avl_tree_node_t right_son = avl_tree_node_get_right_son(node);
+	avl_tree_node_swap(node, right_son);
 
-	tree_t r_tree = bst_cut_right(avl_tree->search_tree, node);
-	tree_t l_tree = bst_cut_left(avl_tree->search_tree, node);
-	tree_t r_tree_l = bst_cut_left(r_tree, right_son);
-	tree_t r_tree_r = bst_cut_right(r_tree, right_son);
+	avl_tree_t r_tree = avl_tree_cut_right(avl_tree, node);
+	avl_tree_t l_tree = avl_tree_cut_left(avl_tree, node);
+	avl_tree_t r_tree_l = avl_tree_cut_left(r_tree, right_son);
+	avl_tree_t r_tree_r = avl_tree_cut_right(r_tree, right_son);
 
-	bst_insert_as_left_subtree(r_tree, tree_get_root(r_tree), l_tree);
-	bst_insert_as_right_subtree(r_tree, tree_get_root(r_tree), r_tree_l);
-	bst_insert_as_right_subtree(avl_tree->search_tree, node, r_tree);
-	bst_insert_as_right_subtree(avl_tree->search_tree, node, r_tree_r);
+	avl_tree_insert_as_left_subtree(r_tree, avl_tree_get_root(r_tree), l_tree);
+	avl_tree_insert_as_right_subtree(r_tree, avl_tree_get_root(r_tree), r_tree_l);
+	avl_tree_insert_as_left_subtree(avl_tree, node, r_tree);
+	avl_tree_insert_as_right_subtree(avl_tree, node, r_tree_r);
 
-	update_height(binary_node_get_left_son(node));
-	update_height(node);
+	avl_tree_node_update_height(avl_tree_node_get_left_son(node));
+	avl_tree_node_update_height(node);
 }
 
-void rotate(avl_tree_t handle, node_t node) {
+void rotate(avl_tree_t handle, avl_tree_node_t node) {
 	struct avl_tree* avl_tree = (struct avl_tree*)handle;
 
 	long balanced_factor = get_balance_factor(node);
@@ -164,10 +166,10 @@ void rotate(avl_tree_t handle, node_t node) {
 	}
 }
 
-void balance_insert(avl_tree_t handle, node_t node) {
+void balance_insert(avl_tree_t handle, avl_tree_node_t node) {
 	struct avl_tree* avl_tree = (struct avl_tree*)handle;
 
-	node_t current = node_get_father(node);
+	avl_tree_node_t current = node_get_father(node);
 	while (current) {
 		if (abs(get_balance_factor(current)) >= 2) {
 			break;
@@ -182,10 +184,10 @@ void balance_insert(avl_tree_t handle, node_t node) {
 	}
 }
 
-void balance_delete(avl_tree_t handle, node_t node) {
+void balance_delete(avl_tree_t handle, avl_tree_node_t node) {
 	struct avl_tree* avl_tree = (struct avl_tree*)handle;
 
-	node_t current = node_get_father(node);
+	avl_tree_node_t current = node_get_father(node);
 	while (current) {
 		if (abs(get_balance_factor(current)) == 2) {
 			rotate(avl_tree, current);
@@ -197,9 +199,9 @@ void balance_delete(avl_tree_t handle, node_t node) {
 	}
 }
 
-void cut_single_son(avl_tree_t handle, node_t node) {
+void cut_single_son(avl_tree_t handle, avl_tree_node_t node) {
 	struct avl_tree* avl_tree = (struct avl_tree*)handle;
 
-	bst_cut_one_son_node(avl_tree->search_tree, node);
-	balance_delete(avl_tree->search_tree, node);
+	bst_cut_one_son_node(avl_tree, node);
+	balance_delete(avl_tree, node);
 }
