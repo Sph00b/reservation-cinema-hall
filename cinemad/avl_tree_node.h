@@ -16,6 +16,8 @@ void* avl_tree_node_get_key(avl_tree_node_t handle);
 
 void* avl_tree_node_get_value(avl_tree_node_t handle);
 
+int avl_tree_node_get_height(avl_tree_node_t handle);
+
 avl_tree_node_t avl_tree_node_get_father(avl_tree_node_t handle);
 
 int avl_tree_node_set_father(avl_tree_node_t handle, avl_tree_node_t father);

@@ -32,6 +32,6 @@ int bst_node_is_left_son(bst_node_t handle);
 
 int bst_node_is_right_son(bst_node_t handle);
 
-bst_node_t bst_node_get_max(bst_node_t node);
+bst_node_t bst_node_get_max(bst_node_t handle);
 
-bst_node_t bst_node_get_pred(bst_node_t node);
+bst_node_t bst_node_get_pred(bst_node_t handle);

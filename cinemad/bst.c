@@ -3,10 +3,9 @@
 #include <stdlib.h>
 
 #include "bst_node.h"
-#include "binary_tree.h"
 
 struct bst {
-	binary_tree_t tree;
+	bst_t tree;
 	bst_comparison_function* compare;
 };
 
@@ -40,20 +39,20 @@ bst_t bst_init(bst_node_t root, bst_comparison_function* comparison_function) {
 
 int bst_destroy(bst_t handle) {
 	struct bst* bst = (struct bst*)handle;
-	if (binary_tree_destroy(bst->tree)) {
+	if (bst_destroy(bst)) {
 		return 1;
 	}
 	free(bst);
 	return 0;
-	binary_tree_t binary_left_subtree = binary_tree_cut_left(bst->tree, binary_tree_get_root(bst->tree));
-	binary_tree_t binary_right_subtree = binary_tree_cut_right(bst->tree, binary_tree_get_root(bst->tree));
+	bst_t binary_left_subtree = bst_cut_left(bst, bst_get_root(bst));
+	bst_t binary_right_subtree = bst_cut_right(bst, bst_get_root(bst));
 	if (bst_destroy(binary_left_subtree)) {
 		return 1;
 	}
 	if (bst_destroy(binary_right_subtree)) {
 		return 1;
 	}
-	if (bst_node_destroy(binary_tree_get_root(bst->tree))) {
+	if (bst_node_destroy(bst_get_root(bst))) {
 		return 1;
 	}
 	free(bst->tree);

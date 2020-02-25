@@ -10,13 +10,18 @@ struct dictionary {
 };
 
 bst_node_t bst_node_init(void* key, void* value) {
+	bst_node_t bst_node;
 	struct dictionary* info;
 	if ((info = malloc(sizeof(struct dictionary))) == NULL) {
 		return NULL;
 	}
 	info->key = key;
 	info->value = value;
-	return binary_tree_node_init(info);
+	if ((bst_node = binary_tree_node_init(info)) == NULL) {
+		free(info);
+		return NULL;
+	}
+	return bst_node;
 }
 
 int bst_node_destroy(bst_node_t handle) {
@@ -58,22 +63,22 @@ static inline int bst_node_is_left_son(bst_node_t handle) { return binary_tree_n
 
 static inline int bst_node_is_right_son(bst_node_t handle) { return binary_tree_node_is_right_son(handle); }
 
-bst_node_t bst_node_get_max(bst_node_t node) {
-	bst_node_t current = node;
+bst_node_t bst_node_get_max(bst_node_t handle) {
+	bst_node_t current = handle;
 	while (binary_tree_node_get_right_son(current)) {
 		current = binary_tree_node_get_right_son(current);
 	}
 	return current;
 }
 
-bst_node_t bst_node_get_pred(bst_node_t node) {
-	if (node == NULL) {
+bst_node_t bst_node_get_pred(bst_node_t handle) {
+	if (handle == NULL) {
 		return NULL;
 	}
-	if (binary_tree_node_get_left_son(node)) {
-		return bst_node_max(binary_tree_node_get_left_son(node));
+	if (binary_tree_node_get_left_son(handle)) {
+		return bst_node_get_max(binary_tree_node_get_left_son(handle));
 	}
-	bst_node_t current = node;
+	bst_node_t current = handle;
 	while (binary_tree_node_is_left_son(current)) {
 		current = binary_tree_node_get_father(current);
 	}
