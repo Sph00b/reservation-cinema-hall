@@ -57,3 +57,25 @@ static inline int bst_node_set_right_son(bst_node_t handle, bst_node_t right_son
 static inline int bst_node_is_left_son(bst_node_t handle) { return binary_tree_node_is_left_son(handle); }
 
 static inline int bst_node_is_right_son(bst_node_t handle) { return binary_tree_node_is_right_son(handle); }
+
+bst_node_t bst_node_get_max(bst_node_t node) {
+	bst_node_t current = node;
+	while (binary_tree_node_get_right_son(current)) {
+		current = binary_tree_node_get_right_son(current);
+	}
+	return current;
+}
+
+bst_node_t bst_node_get_pred(bst_node_t node) {
+	if (node == NULL) {
+		return NULL;
+	}
+	if (binary_tree_node_get_left_son(node)) {
+		return bst_node_max(binary_tree_node_get_left_son(node));
+	}
+	bst_node_t current = node;
+	while (binary_tree_node_is_left_son(current)) {
+		current = binary_tree_node_get_father(current);
+	}
+	return current;
+}

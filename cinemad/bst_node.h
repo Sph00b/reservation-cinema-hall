@@ -2,7 +2,7 @@
 
 typedef void* bst_node_t;
 
-bst_node_t bst_node_init(void* info);
+bst_node_t bst_node_init(void* key, void* value);
 
 int bst_node_destroy(bst_node_t handle);
 
@@ -31,3 +31,7 @@ int bst_node_set_right_son(bst_node_t handle, bst_node_t right_son);
 int bst_node_is_left_son(bst_node_t handle);
 
 int bst_node_is_right_son(bst_node_t handle);
+
+bst_node_t bst_node_get_max(bst_node_t node);
+
+bst_node_t bst_node_get_pred(bst_node_t node);
