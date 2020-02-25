@@ -73,6 +73,7 @@ int binary_node_is_right_son(binary_node_t handle) {
 	}
 	return 0;
 }
+
 /*	funzioni ereditate da node	*/
 
 long node_degree(node_t handle) {
