@@ -1,45 +1,25 @@
 #pragma once
 
-#include "tree.h"
+#include "binary_tree_node.h"
 
 typedef void* binary_tree_t;
 
-/*
-	:param root: radice dell'albero. Se non  specificata,
-	albero vuoto
-*/
-binary_tree_t binary_tree_init(node_t root);
+binary_tree_t binary_tree_init(binary_tree_node_t root);
 
 int binary_tree_destroy(binary_tree_t handle);
 
-/*
-	Permette di inserire la radice di un sottoalbero come figlio sinistro
-	del nodo father
-	: param father : nodo su cui attaccare subtree
-	: param subtree : da inserire
-*/
-void binary_tree_insert_as_left_subtree(binary_tree_t handle, node_t node, binary_tree_t subtree);
+long binary_tree_nodes_number(binary_tree_t handle);
 
-/*
-	Permette di inserire la radice di un sottoalbero come figlio destro
-	del nodo father
-	:param father: nodo su cui attaccare subtree
-	:param subtree: da inserire
-*/
-void binary_tree_insert_as_right_subtree(binary_tree_t handle, node_t node, binary_tree_t subtree);
+binary_tree_node_t binary_tree_get_root(binary_tree_t handle);
 
-/*
-	Permette di rimuovere l'intero sottoalbero che parte dal figlio
-	sinistro del nodo father
-	:param father:
-	:return: sottoalbero radicato nel figlio sinistro di father
-*/
-binary_tree_t binary_tree_cut_left(binary_tree_t handle, node_t node);
+int binary_tree_set_root(binary_tree_t handle, binary_tree_node_t node);
 
-/*
-	Permette di rimuovere l'intero sottoalbero che parte dal figlio
-	destro del nodo father
-	:param father:
-	:return: sottoalbero radicato nel figlio destro di father
-*/
-binary_tree_t binary_tree_cut_right(binary_tree_t handle, node_t node);
+int binary_tree_insert_as_left_subtree(binary_tree_t handle, binary_tree_node_t node, binary_tree_t subtree);
+
+int binary_tree_insert_as_right_subtree(binary_tree_t handle, binary_tree_node_t node, binary_tree_t subtree);
+
+binary_tree_t binary_tree_cut(binary_tree_t handle, binary_tree_node_t node);
+
+binary_tree_t binary_tree_cut_left(binary_tree_t handle, binary_tree_node_t node);
+
+binary_tree_t binary_tree_cut_right(binary_tree_t handle, binary_tree_node_t node);

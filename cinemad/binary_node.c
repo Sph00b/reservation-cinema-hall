@@ -1,125 +1,145 @@
-#include "binary_node.h"
+#include "binary_tree_node.h"
 
 #include <stdlib.h>
 
-struct binary_node {
+struct binary_tree_node {
 	void* data;
-	struct binary_node* father;
-	struct binary_node* left_son;
-	struct binary_node* right_son;
+	struct binary_tree_node* father;
+	struct binary_tree_node* left_son;
+	struct binary_tree_node* right_son;
 };
 
-binary_node_t binary_node_init(void* item) {
-	struct binary_node* binary_node;
-	if ((binary_node = malloc(sizeof(struct binary_node))) == NULL) {
+binary_tree_node_t binary_tree_node_init(void* info) {
+	struct binary_tree_node* binary_tree_node;
+	if ((binary_tree_node = malloc(sizeof(struct binary_tree_node))) == NULL) {
 		return NULL;
 	}
-	binary_node->data = item;
-	binary_node->father = NULL;
-	binary_node->left_son = NULL;
-	binary_node->right_son = NULL;
-	return binary_node;
+	binary_tree_node->data = info;
+	binary_tree_node->father = NULL;
+	binary_tree_node->left_son = NULL;
+	binary_tree_node->right_son = NULL;
+	return binary_tree_node;
 }
 
-int binary_node_destroy(binary_node_t handle) {
-	struct binary_node* binary_node = (struct binary_node*)handle;
-	if (binary_node) {
-		binary_node_destroy(binary_node->left_son);
-		binary_node_destroy(binary_node->right_son);
-		//free(binary_node->data);
-		free(binary_node);
+int binary_tree_node_destroy(binary_tree_node_t handle) {
+	struct binary_tree_node* binary_tree_node = (struct binary_tree_node*)handle;
+	free(binary_tree_node);
+	return 0;
+}
+
+long binary_tree_node_degree(binary_tree_node_t handle) {
+	struct binary_tree_node* binary_tree_node = (struct binary_tree_node*)handle;
+	long degree = 0;
+
+	if (binary_tree_node) {
+		if (binary_tree_node->left_son) {
+			degree++;
+		}
+		if (binary_tree_node->right_son) {
+			degree++;
+		}
+	}
+	return degree;
+}
+
+int binary_tree_node_swap(binary_tree_node_t handle1, binary_tree_node_t handle2) {
+	struct binary_tree_node* binary_tree_node1 = (struct binary_tree_node*)handle1;
+	struct binary_tree_node* binary_tree_node2 = (struct binary_tree_node*)handle2;
+	if (binary_tree_node1 && binary_tree_node2) {
+		void* tmp = binary_tree_node1->data;
+		binary_tree_node1->data = binary_tree_node2->data;
+		binary_tree_node2->data = tmp;
+		return 0;
+	}
+	return 1;
+}
+
+void* binary_tree_node_get_info(binary_tree_node_t handle) {
+	struct binary_tree_node* binary_tree_node = (struct binary_tree_node*)handle;
+	if (binary_tree_node) {
+		return binary_tree_node->data;
+	}
+}
+
+binary_tree_node_t binary_tree_node_get_father(binary_tree_node_t handle) {
+	struct binary_tree_node* binary_tree_node = (struct binary_tree_node*)handle;
+	if (binary_tree_node) {
+		return binary_tree_node->father;
+	}
+	return NULL;
+}
+
+int binary_tree_node_set_father(binary_tree_node_t handle, binary_tree_node_t father) {
+	struct binary_tree_node* binary_tree_node = (struct binary_tree_node*)handle;
+	if (binary_tree_node) {
+		binary_tree_node->father = father;
+		return 0;
+	}
+	return 1;
+}
+
+binary_tree_node_t binary_tree_node_get_left_son(binary_tree_node_t handle) {
+	struct binary_tree_node* binary_tree_node = (struct binary_tree_node*)handle;
+
+	if (binary_tree_node) {
+		return binary_tree_node->left_son;
+	}
+	return NULL;
+}
+
+int binary_tree_node_set_left_son(binary_tree_node_t handle, binary_tree_node_t left_son) {
+	struct binary_tree_node* binary_tree_node = (struct binary_tree_node*)handle;
+
+	if (binary_tree_node) {
+		binary_tree_node->left_son = left_son;
+		return 0;
+	}
+	return 1;
+}
+
+binary_tree_node_t binary_tree_node_get_right_son(binary_tree_node_t handle) {
+	struct binary_tree_node* binary_tree_node = (struct binary_tree_node*)handle;
+
+	if (binary_tree_node) {
+		return binary_tree_node->right_son;
+	}
+	return NULL;
+}
+
+int binary_tree_node_set_right_son(binary_tree_node_t handle, binary_tree_node_t right_son) {
+	struct binary_tree_node* binary_tree_node = (struct binary_tree_node*)handle;
+
+	if (binary_tree_node) {
+		binary_tree_node->right_son = right_son;
+		return 0;
+	}
+	return 1;
+}
+
+int binary_tree_node_is_left_son(binary_tree_node_t handle) {
+	struct binary_tree_node* binary_tree_node = (struct binary_tree_node*)handle;
+
+	if (binary_tree_node) {
+		struct binary_tree_node* father = binary_tree_node->father;
+		if (father) {
+			if (father->left_son == binary_tree_node) {
+				return 1;
+			}
+		}
 	}
 	return 0;
 }
 
-binary_node_t binary_node_get_left_son(binary_node_t handle) {
-	struct binary_node* binary_node = (struct binary_node*)handle;
-	return binary_node->left_son;
-}
+int binary_tree_node_is_right_son(binary_tree_node_t handle) {
+	struct binary_tree_node* binary_tree_node = (struct binary_tree_node*)handle;
 
-binary_node_t binary_node_get_right_son(binary_node_t handle) {
-	struct binary_node* binary_node = (struct binary_node*)handle;
-	return binary_node->right_son;
-}
-
-void binary_node_set_left_son(binary_node_t handle, binary_node_t left_son) {
-	struct binary_node* binary_node = (struct binary_node*)handle;
-	binary_node->left_son = left_son;
-}
-
-void binary_node_set_right_son(binary_node_t handle, binary_node_t right_son) {
-	struct binary_node* binary_node = (struct binary_node*)handle;
-	binary_node->right_son = right_son;
-}
-
-int binary_node_is_left_son(binary_node_t handle) {
-	struct binary_node* binary_node = (struct binary_node*)handle;
-	struct binary_node* father = binary_node->father;
-	if (father){
-		if (father->left_son == binary_node) {
-			return 1;
+	if (binary_tree_node) {
+		struct binary_tree_node* father = binary_tree_node->father;
+		if (father) {
+			if (father->right_son == binary_tree_node) {
+				return 1;
+			}
 		}
 	}
 	return 0;
-}
-
-int binary_node_is_right_son(binary_node_t handle) {
-	struct binary_node* binary_node = (struct binary_node*)handle;
-	struct binary_node* father = binary_node->father;
-	if (father) {
-		if (father->right_son == binary_node) {
-			return 1;
-		}
-	}
-	return 0;
-}
-
-/*	funzioni ereditate da node	*/
-
-long node_degree(node_t handle) {
-	struct binary_node* binary_node = (struct binary_node*)handle;
-	return list_lenght(node_get_sons(binary_node));
-}
-
-void* node_get_info(node_t handle) {
-	struct binary_node* binary_node = (struct binary_node*)handle;
-	return binary_node->data;
-}
-
-node_t node_get_father(node_t handle) {
-	struct binary_node* binary_node = (struct binary_node*)handle;
-	if (binary_node == NULL) {
-		return NULL;
-	}
-	return binary_node->father;
-}
-
-void node_set_father(node_t handle, node_t father) {
-	struct binary_node* binary_node = (struct binary_node*)handle;
-	binary_node->father = father;
-}
-
-list_t node_get_sons(node_t handle) {
-	struct binary_node* binary_node = (struct binary_node*)handle;
-	list_t sons;
-	if ((sons = list_init()) == NULL) {
-		return NULL;
-	}
-	if (binary_node != NULL) {
-		if (binary_node->left_son != NULL) {
-			list_append(sons, binary_node->left_son);
-		}
-		if (binary_node->right_son != NULL) {
-			list_append(sons, binary_node->right_son);
-		}
-	}
-	return sons;
-}
-
-void node_swap(node_t node1, node_t node2) {
-	struct binary_node* binary_node1 = (struct binary_node*)node1;
-	struct binary_node* binary_node2 = (struct binary_node*)node2;
-	void* tmp = binary_node1->data;
-	binary_node1->data = binary_node2->data;
-	binary_node2->data = tmp;
 }
