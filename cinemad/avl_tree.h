@@ -1,5 +1,7 @@
 #pragma once
 
+#include "avl_tree_node.h"
+
 typedef void* avl_tree_t;
 
 typedef int* avl_tree_comparison_function(const void* key1, const void* key2);

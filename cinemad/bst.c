@@ -2,10 +2,10 @@
 
 #include <stdlib.h>
 
-#include "bst_node.h"
+#include "binary_tree.h"
 
 struct bst {
-	bst_t tree;
+	binary_tree_t tree;
 	bst_comparison_function* compare;
 };
 
@@ -39,11 +39,6 @@ bst_t bst_init(bst_node_t root, bst_comparison_function* comparison_function) {
 
 int bst_destroy(bst_t handle) {
 	struct bst* bst = (struct bst*)handle;
-	if (bst_destroy(bst)) {
-		return 1;
-	}
-	free(bst);
-	return 0;
 	bst_t binary_left_subtree = bst_cut_left(bst, bst_get_root(bst));
 	bst_t binary_right_subtree = bst_cut_right(bst, bst_get_root(bst));
 	if (bst_destroy(binary_left_subtree)) {
