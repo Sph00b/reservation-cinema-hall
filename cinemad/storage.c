@@ -1,4 +1,4 @@
-#include "index_table.h"
+#include "storage.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,9 +7,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/file.h>
+#include <string.h>
 
-#include "storage.h"
-#include "index_record.h"
+#include "avl_tree.h"
 
 #define MAXLEN 16
 
@@ -17,20 +17,36 @@
 #define MSG_FAIL "OPERATION FAILED"
 
 struct index_record {
-	char key[MAXLEN + 1];
 	long offset;
 	pthread_rwlock_t lock;
 };
 
 struct storage {
 	int fd;
-	index_table_t index_table;
+	avl_tree_t index_table;
 };
 
-FILE* storage_get_stream(const storage_t handle);
-FILE* storage_get_stream(const storage_t handle);
+FILE* get_stream(const storage_t handle) {
+	struct storage* storage = (struct storage*)handle;
+	int newfd;
+	FILE* stream;
+	while ((newfd = dup(storage->fd)) == -1) {
+		if (errno != EMFILE) {
+			return NULL;
+		}
+		sleep(1);
+	}
+	if ((stream = fdopen(newfd, "r+")) == NULL) {
+		return NULL;
+	}
+	if (fseek(stream, 0, SEEK_SET) == -1) {
+		fclose(stream);
+		return NULL;
+	}
+	return stream;
+}
 
-int lexicographical_order(void* key1, void* key2) {
+static int lexicographical_comparison(void* key1, void* key2) {
 	char* str1 = (char*)key1;
 	char* str2 = (char*)key2;
 	for (int i = 0; ; i++) { 
@@ -52,9 +68,108 @@ int lexicographical_order(void* key1, void* key2) {
 	}
 }
 
+static int load_table(const storage_t handle) {
+	struct storage* storage = (struct storage*)handle;
+	FILE* stream;
+	int c;
+	if ((stream = get_stream(storage)) == NULL) {
+		return 1;
+	}
+	while ((c = fgetc(stream)) != EOF) {
+		if (fseek(stream, -1, SEEK_CUR) == -1) {
+			return 1;
+		}
+		char* current_key;
+		struct index_record* current_record;
+		if ((current_key = malloc(sizeof(char) * (MAXLEN + 1))) == NULL) {
+			return 1;
+		}
+		for (int i = 0; i < MAXLEN; i++) {
+			if ((int)(current_key[i] = (char)fgetc(stream)) == EOF) {
+				fclose(stream);
+				return 1;
+			}
+		}
+		current_key[MAXLEN] = 0;
+		if ((current_record = malloc(sizeof(struct index_record))) == NULL) {
+			return 1;
+		}
+		if ((current_record->offset = ftell(stream)) == -1) {
+			free(current_record);
+			fclose(stream);
+			return 1;
+		}
+		int ret;
+		while ((ret = pthread_rwlock_init(&current_record->lock, NULL)) && errno == EINTR);
+		if (ret) {
+			free(current_record);
+			return 1;
+		}
+		if (avl_tree_insert(storage->index_table, current_key, current_record)) {
+			free(current_key);
+			pthread_rwlock_destroy(&current_record->lock);
+			free(current_record);
+			return 1;
+		}
+		if (fseek(stream, MAXLEN, SEEK_CUR) == -1) {
+			return 1;
+		}
+	}
+	if (fclose(stream) == EOF) {
+		return 1;
+	}
+	return 0;
+}
+
+static int get_record(const storage_t handle, struct index_record** result, const char* key) {
+	struct storage* storage = (struct storage*)handle;
+	struct index_record* record = avl_tree_search(storage->index_table, key);
+	if (record == NULL) {
+		char* record_key;
+		struct index_record* record;
+		if ((record_key = malloc(sizeof(char) * (MAXLEN + 1))) == NULL) {
+			*result = NULL;
+			return 1;
+		}
+		strncpy(record_key, key, MAXLEN);
+		record_key[MAXLEN] = 0;
+		if ((record = malloc(sizeof(struct index_record))) == NULL) {
+			free(record_key);
+			*result = NULL;
+			return 1;
+		}
+		record->offset = -1;
+		int ret;
+		while ((ret = pthread_rwlock_init(&record->lock, NULL)) && errno == EINTR);
+		if (ret) {
+			free(record_key);
+			free(record);
+			*result = NULL;
+			return 1;
+		}
+		if (avl_tree_insert(storage->index_table, record_key, record)) {
+			free(record_key);
+			pthread_rwlock_destroy(&record->lock);
+			free(record);
+			*result = NULL;
+			return 1;
+		}
+	}
+	*result = record;
+	return 0;
+}
+
+static int update_record(const storage_t handle, const char* key, const int offset) {
+	struct storage* storage = (struct storage*)handle;
+	struct index_record* record = avl_tree_search(storage->index_table, key);
+	if (record) {
+		record->offset = offset;
+	}
+	return 0;
+}
+
 storage_t storage_init(const char* filename) {
 	struct storage* storage;
-	FILE* stream;
 	if ((storage = malloc(sizeof(struct storage))) == NULL) {
 		return NULL;
 	}
@@ -67,26 +182,13 @@ storage_t storage_init(const char* filename) {
 		free(storage);
 		return NULL;
 	}
-	if ((storage->index_table = index_table_init()) == NULL) {
+	if ((storage->index_table = avl_tree_init(&lexicographical_comparison)) == NULL) {
 		close(storage->fd);
 		free(storage);
 		return NULL;
 	}
-	if ((stream = storage_get_stream(storage)) == NULL){
-		index_table_destroy(storage->index_table);
-		close(storage->fd);
-		free(storage);
-		return NULL;
-	}
-	if (index_table_load(storage->index_table, (void**)&stream)) {
-		fclose(stream);
-		index_table_destroy(storage->index_table);
-		close(storage->fd);
-		free(storage);
-		return NULL;
-	}
-	if (fclose(stream) == EOF) {
-		index_table_destroy(storage->index_table);
+	if (load_table(storage)) {
+		avl_tree_destroy(storage->index_table);
 		close(storage->fd);
 		free(storage);
 		return NULL;
@@ -96,7 +198,7 @@ storage_t storage_init(const char* filename) {
 
 int storage_close(const storage_t handle) {
 	struct storage* storage = (struct storage*)handle;
-	index_table_destroy(storage->index_table);
+	//index_table_destroy(storage->index_table);
 	close(storage->fd);
 	free(storage);
 	return 0;
@@ -104,35 +206,33 @@ int storage_close(const storage_t handle) {
 
 int storage_store(const storage_t handle, char* key, char* value, char** result) {
 	struct storage* storage = (struct storage*)handle;
+	struct index_record* record;
 	FILE* stream;
-	if ((stream = storage_get_stream(storage)) == NULL) {
+	if ((stream = get_stream(storage)) == NULL) {
 		return 1;
 	}
-	if (index_table_record_locate(storage->index_table, key, (void**)&stream)) {
-
-		/*	Create the key	*/
-		if (index_table_record_locate(storage->index_table, key, (void**)&stream)) {
-			if (fseek(stream, 0, SEEK_END) == -1) {
+	if (get_record(storage, &record, key)) {
+		return 1;
+	}
+	if (record->offset == -1) {
+		//use a supplementary mutex here
+		int offset;
+		if (fseek(stream, 0, SEEK_END) == -1) {
+			return 1;
+		}
+		if ((offset = ftell(stream)) == -1) {
+			return 1;
+		}
+		update_record(storage, key, offset);
+		for (int i = 0; i < MAXLEN; i++) {
+			if (fputc(key[i], stream) == EOF) {
 				return 1;
 			}
-			for (int i = 0; i < MAXLEN; i++) {
-				if (fputc(key[i], stream) == EOF) {
-					return 1;
-				}
-			}
-			for (int i = 0; i < MAXLEN; i++) {
-				if (fputc(0, stream) == EOF) {
-					return 1;
-				}
-			}
-			fflush(stream);
-			if (fseek(stream, -2 * MAXLEN, SEEK_END) == -1) {
-				return 1;
-			}
-			if (index_table_update(storage->index_table, (void**)&stream)) {
-				return 1;
-			}
-			/*		*/
+		}
+	}
+	else {
+		if (fseek(stream, record->offset, SEEK_SET) == -1) {
+			return 1;
 		}
 	}
 	for (int i = 0; i < MAXLEN; i++) {
@@ -140,16 +240,38 @@ int storage_store(const storage_t handle, char* key, char* value, char** result)
 			return 1;
 		}
 	}
+	fflush(stream);
+	if (record->offset == -1) {
+		*result = strdup(MSG_SUCC);
+		return 0;
+	}
 	return 0;
 }
 
 int storage_load(const storage_t handle, char* key, char** result) {
-	struct storage* storage = (struct storage*)handle;
-	FILE* stream;
-	if ((stream = storage_get_stream(storage)) == NULL) {
+	/*
+	if (strlen(key) > MAXLEN) {
+		*result = NULL;
 		return 1;
 	}
-	if (index_table_record_locate(storage->index_table, key, (void**)&stream)) {
+	*/
+	struct storage* storage = (struct storage*)handle;
+	struct index_record* record;
+	FILE* stream;
+	if ((stream = get_stream(storage)) == NULL) {
+		return 1;
+	}
+	if (get_record(storage, &record, key)) {
+		return 1;
+	}
+	if (record->offset == -1) {
+		*result = strdup(MSG_FAIL);
+		return 0;
+	}
+	if (fseek(stream, record->offset, SEEK_SET) == -1) {
+		return 1;
+	}
+	if ((*result = malloc(sizeof(char) * MAXLEN + 1)) == NULL) {
 		return 1;
 	}
 	for (int i = 0; i < MAXLEN; i++) {
@@ -163,35 +285,51 @@ int storage_load(const storage_t handle, char* key, char** result) {
 
 int storage_lock_shared(const storage_t handle, char* key) {
 	struct storage* storage = (struct storage*)handle;
-	return index_table_record_rdlock(storage->index_table, key);
+	struct index_record* record;
+	int ret;
+	if (get_record(storage, &record, key)) {
+		return 1;
+	}
+	if (record == NULL) {
+		return 0;
+	}
+	while ((ret = pthread_rwlock_rdlock(&record->lock)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	return 0;
 }
 
 int storage_lock_exclusive(const storage_t handle, char* key) {
 	struct storage* storage = (struct storage*)handle;
-	return index_table_record_wrlock(storage->index_table, key);
+	struct index_record* record;
+	int ret;
+	if (get_record(storage, &record, key)) {
+		return 1;
+	}
+	if (record == NULL) {
+		return 0;
+	}
+	while ((ret = pthread_rwlock_wrlock(&record->lock)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	return 0;
 }
 
 int storage_unlock(const storage_t handle, char* key) {
 	struct storage* storage = (struct storage*)handle;
-	return index_table_record_unlock(storage->index_table, key);
-}
-
-FILE* storage_get_stream(const storage_t handle) {
-	struct storage* storage = (struct storage*)handle;
-	int newfd;
-	FILE* stream;
-	while ((newfd = dup(storage->fd)) == -1) {
-		if (errno != EMFILE) {
-			return NULL;
-		}
-		sleep(1);
+	struct index_record* record;
+	int ret;
+	if (get_record(storage, &record, key)) {
+		return 1;
 	}
-	if ((stream = fdopen(newfd, "r+")) == NULL) {
-		return NULL;
+	if (record == NULL) {
+		return 0;
 	}
-	if (fseek(stream, 0, SEEK_SET) == -1) {
-		fclose(stream);
-		return NULL;
+	while ((ret = pthread_rwlock_unlock(&record->lock)) && errno == EINTR);
+	if (ret) {
+		return 1;
 	}
-	return stream;
+	return 0;
 }
