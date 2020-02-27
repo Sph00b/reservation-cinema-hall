@@ -11,7 +11,6 @@
 #include <errno.h>
 
 #include "asprintf.h"
-#include "resources.h"
 #include "storage.h"
 
 struct cinema_info {
@@ -25,8 +24,8 @@ struct database {
 };
 
 struct query {
-	char key[WORDLEN + 1];
-	char value[WORDLEN + 1];
+	char key[MAXLEN + 1];
+	char value[MAXLEN + 1];
 };
 
 int parse_query(struct query* parsed_query, const char* query);
@@ -105,8 +104,8 @@ int parse_query(struct query* parsed_query, const char* query) {
 	char* buff;
 	char* saveptr;
 	char** token;
-	memset(parsed_query->key, 0, WORDLEN + 1);
-	memset(parsed_query->value, 0, WORDLEN + 1);
+	memset(parsed_query->key, 0, MAXLEN + 1);
+	memset(parsed_query->value, 0, MAXLEN + 1);
 	if ((buff = strdup(query)) == NULL) {
 		return 1;
 	}
@@ -127,19 +126,19 @@ int parse_query(struct query* parsed_query, const char* query) {
 	ntoken--;
 	switch (ntoken) {
 	case 1:
-		if (strlen(token[0]) > WORDLEN) {
+		if (strlen(token[0]) > MAXLEN) {
 			ret = 1;
 			break;
 		}
-		strncpy(parsed_query->key, token[0], WORDLEN + 1);
+		strncpy(parsed_query->key, token[0], MAXLEN + 1);
 		break;
 	case 3:
-		if (strlen(token[0]) > WORDLEN || strlen(token[2]) > WORDLEN || strcmp(token[1], "AS")) {
+		if (strlen(token[0]) > MAXLEN || strlen(token[2]) > MAXLEN || strcmp(token[1], "AS")) {
 			ret = 1;
 			break;
 		}
-		strncpy(parsed_query->key, token[0], WORDLEN + 1);
-		strncpy(parsed_query->value, token[2], WORDLEN + 1);
+		strncpy(parsed_query->key, token[0], MAXLEN + 1);
+		strncpy(parsed_query->value, token[2], MAXLEN + 1);
 		break;
 	default:
 		ret = 1;
@@ -173,12 +172,14 @@ int procedure_populate(const database_t handle, const char* query, char** result
 		}
 		free(*result);
 	}
+	*result = strdup(MSG_SUCC);
 	return 0;
 }
 
 int procedure_setup(const database_t handle, const char* query, char** result) {
 	struct database* database = (struct database*)handle;
 	int clean = 0;
+
 	database_execute(database, "GET ROWS", result);
 	database->cinema_info.rows = atoi(*result);
 	free(*result);
@@ -212,7 +213,9 @@ int procedure_setup(const database_t handle, const char* query, char** result) {
 		if (procedure_clean(database, query, result)) {
 			return 1;
 		}
+		free(*result);
 	}
+	*result = strdup(MSG_SUCC);
 	return 0;
 }
 

@@ -223,7 +223,7 @@ int storage_store(const storage_t handle, char* key, char* value, char** result)
 		if ((offset = ftell(stream)) == -1) {
 			return 1;
 		}
-		update_record(storage, key, offset);
+		update_record(storage, key, offset + MAXLEN);
 		for (int i = 0; i < MAXLEN; i++) {
 			if (fputc(key[i], stream) == EOF) {
 				return 1;
@@ -241,10 +241,7 @@ int storage_store(const storage_t handle, char* key, char* value, char** result)
 		}
 	}
 	fflush(stream);
-	if (record->offset == -1) {
-		*result = strdup(MSG_SUCC);
-		return 0;
-	}
+	*result = strdup(MSG_SUCC);
 	return 0;
 }
 

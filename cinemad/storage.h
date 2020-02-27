@@ -1,5 +1,10 @@
 #pragma once
 
+#define MAXLEN 16
+
+#define MSG_SUCC "OPERATION SUCCEDED"
+#define MSG_FAIL "OPERATION FAILED"
+
 typedef void* storage_t;
 
 extern storage_t storage_init(const char* filename);
