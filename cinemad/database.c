@@ -98,6 +98,7 @@ int database_execute(const database_t handle, const char* query, char** result) 
 
 /* return 0 on success, 1 on failure */
 
+/*	this should be andled very differently	*/
 int parse_query(struct query* parsed_query, const char* query) {
 	int ret = 0;
 	int ntoken = 0;
@@ -132,13 +133,13 @@ int parse_query(struct query* parsed_query, const char* query) {
 		}
 		strncpy(parsed_query->key, token[0], MAXLEN + 1);
 		break;
-	case 3:
-		if (strlen(token[0]) > MAXLEN || strlen(token[2]) > MAXLEN || strcmp(token[1], "AS")) {
+	case 2:
+		if (strlen(token[0]) > MAXLEN || strlen(token[2]) > MAXLEN) {
 			ret = 1;
 			break;
 		}
 		strncpy(parsed_query->key, token[0], MAXLEN + 1);
-		strncpy(parsed_query->value, token[2], MAXLEN + 1);
+		strncpy(parsed_query->value, token[1], MAXLEN + 1);
 		break;
 	default:
 		ret = 1;
@@ -154,16 +155,16 @@ int parse_query(struct query* parsed_query, const char* query) {
 int procedure_populate(const database_t handle, const char* query, char** result) {
 	struct database* database = (struct database*)handle;
 	char* msg_init[] = {
-	"SET IP AS 127.0.0.1",
-	"SET PORT AS 55555",
-	"SET PID AS 0",
-	"SET TIMESTAMP AS 0",
-	"SET ROWS AS 1",
-	"SET COLUMNS AS 1",
-	"SET FILM AS Titolo",
-	"SET SHOWTIME AS 00:00",
-	"SET ID_COUNTER AS 0",
-	"SET 0 AS 0",
+	"SET IP 127.0.0.1",
+	"SET PORT 55555",
+	"SET PID 0",
+	"SET TIMESTAMP 0",
+	"SET ROWS 1",
+	"SET COLUMNS 1",
+	"SET FILM Titolo",
+	"SET SHOWTIME 00:00",
+	"SET ID_COUNTER 0",
+	"SET 0 0",
 	NULL
 	};
 	for (int i = 0; msg_init[i]; i++) {
@@ -198,7 +199,7 @@ int procedure_setup(const database_t handle, const char* query, char** result) {
 			clean = 1;
 			free(query);
 			free(*result);
-			if (asprintf(&query, "SET %d AS 0", i) == -1) {
+			if (asprintf(&query, "SET %d 0", i) == -1) {
 				return 1;
 			}
 			if (database_execute(database, query, result) == 1) {
@@ -259,7 +260,7 @@ int procedure_clean(const database_t handle, const char* query, char** result) {
 	struct database* database = (struct database*)handle;
 	for (int i = 0; i < database->cinema_info.rows * database->cinema_info.columns; i++) {
 		char* query;
-		if (asprintf(&query, "SET %d AS 0", i) == -1) {
+		if (asprintf(&query, "SET %d 0", i) == -1) {
 			return 1;
 		}
 		if (database_execute(database, query, result) == 1) {
@@ -268,7 +269,7 @@ int procedure_clean(const database_t handle, const char* query, char** result) {
 		free(query);
 		free(*result);
 	}
-	if (database_execute(database, "SET ID_COUNTER AS 0", result) == 1) {
+	if (database_execute(database, "SET ID_COUNTER 0", result) == 1) {
 		return 1;
 	}
 	return 0;
@@ -365,7 +366,7 @@ int procedure_book(const database_t handle, const char* query, char** result) {
 		id = atoi(result);
 		id++;
 		free(result);
-		if (asprintf(&id_query, "SET ID_COUNTER AS %d", id) == -1) {
+		if (asprintf(&id_query, "SET ID_COUNTER %d", id) == -1) {
 			return -1;
 		}
 		if (database_execute(database, id_query, &result) == 1) {
@@ -393,7 +394,7 @@ int procedure_book(const database_t handle, const char* query, char** result) {
 		if (asprintf(&(rquery[i]), "GET %s", token[i + 1]) == -1) {
 			return 1;
 		}
-		if (asprintf(&(wquery[i]), "SET %s AS %d", token[i + 1], id) == -1) {
+		if (asprintf(&(wquery[i]), "SET %s %d", token[i + 1], id) == -1) {
 			return 1;
 		}
 	}
@@ -548,7 +549,7 @@ int procedure_unbook(const database_t handle, const char* query, char** result) 
 		if (asprintf(&(rquery[i]), "GET %s", token[i + 1]) == -1) {
 			return 1;
 		}
-		if (asprintf(&(wquery[i]), "SET %s AS 0", token[i + 1]) == -1) {
+		if (asprintf(&(wquery[i]), "SET %s 0", token[i + 1]) == -1) {
 			return 1;
 		}
 	}

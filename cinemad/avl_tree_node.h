@@ -20,7 +20,7 @@ int avl_tree_node_set_height(avl_tree_node_t handle, int height);
 
 void avl_tree_node_update_height(avl_tree_node_t handle);
 
-long avl_tree_node_get_balance_factor(avl_tree_node_t handle);
+int avl_tree_node_get_balance_factor(avl_tree_node_t handle);
 
 avl_tree_node_t avl_tree_node_get_father(avl_tree_node_t handle);
 

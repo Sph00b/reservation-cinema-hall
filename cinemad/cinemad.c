@@ -118,10 +118,10 @@ try(
 	char* qpid;
 	char* qtsp;
 try(
-	asprintf(&qpid, "%s %d", "SET PID AS", getpid()), (-1)
+	asprintf(&qpid, "%s %d", "SET PID", getpid()), (-1)
 )
 try(
-	asprintf(&qtsp, "%s %llu", "SET TIMESTAMP AS", (long long)time(NULL)), (-1)
+	asprintf(&qtsp, "%s %llu", "SET TIMESTAMP", (long long)time(NULL)), (-1)
 )
 try(
 	database_execute(database, qpid, &result), (1)

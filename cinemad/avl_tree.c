@@ -228,7 +228,7 @@ extern inline void avl_tree_set_root(avl_tree_t handle, avl_tree_node_t node) {
 
 extern void avl_tree_insert_as_left_subtree(avl_tree_t handle, avl_tree_node_t node, avl_tree_t subtree) {
 	struct avl_tree* tree = (struct avl_tree*)handle;
-	struct avl_tree* avl_tree_subtree = (struct bavl_treest*)subtree;
+	struct avl_tree* avl_tree_subtree = (struct avl_tree*)subtree;
 	if (avl_tree_subtree->root) {
 		avl_tree_node_set_father(avl_tree_subtree->root, node);
 	}
@@ -238,7 +238,7 @@ extern void avl_tree_insert_as_left_subtree(avl_tree_t handle, avl_tree_node_t n
 
 extern void avl_tree_insert_as_right_subtree(avl_tree_t handle, avl_tree_node_t node, avl_tree_t subtree) {
 	struct avl_tree* tree = (struct avl_tree*)handle;
-	struct avl_tree* avl_tree_subtree = (struct bavl_treest*)subtree;
+	struct avl_tree* avl_tree_subtree = (struct avl_tree*)subtree;
 	if (avl_tree_subtree->root) {
 		avl_tree_node_set_father(avl_tree_subtree->root, node);
 	}

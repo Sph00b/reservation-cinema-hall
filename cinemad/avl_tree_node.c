@@ -90,17 +90,17 @@ extern int avl_tree_node_set_height(avl_tree_node_t handle, int height) {
 extern void avl_tree_node_update_height(avl_tree_node_t handle) {
 	struct avl_tree_node* node = (struct avl_tree_node*)handle;
 	if (node) {
-		long left_son_height = avl_tree_node_get_height(avl_tree_node_get_left_son(node));
-		long right_son_height = avl_tree_node_get_height(avl_tree_node_get_right_son(node));
+		int left_son_height = avl_tree_node_get_height(avl_tree_node_get_left_son(node));
+		int right_son_height = avl_tree_node_get_height(avl_tree_node_get_right_son(node));
 		avl_tree_node_set_height(node, max(left_son_height, right_son_height) + 1);
 	}
 }
 
-extern long avl_tree_node_get_balance_factor(avl_tree_node_t handle) {
+extern int avl_tree_node_get_balance_factor(avl_tree_node_t handle) {
 	struct avl_tree_node* node = (struct avl_tree_node*)handle;
 	if (node) {
-		long left_son_height = avl_tree_node_get_height(avl_tree_node_get_left_son(node));
-		long right_son_height = avl_tree_node_get_height(avl_tree_node_get_right_son(node));
+		int left_son_height = avl_tree_node_get_height(avl_tree_node_get_left_son(node));
+		int right_son_height = avl_tree_node_get_height(avl_tree_node_get_right_son(node));
 		return  left_son_height - right_son_height;
 	}
 	return 0;
