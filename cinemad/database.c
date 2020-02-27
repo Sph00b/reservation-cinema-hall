@@ -134,7 +134,7 @@ int parse_query(struct query* parsed_query, const char* query) {
 		strncpy(parsed_query->key, token[0], MAXLEN + 1);
 		break;
 	case 2:
-		if (strlen(token[0]) > MAXLEN || strlen(token[2]) > MAXLEN) {
+		if (strlen(token[0]) > MAXLEN || strlen(token[1]) > MAXLEN) {
 			ret = 1;
 			break;
 		}

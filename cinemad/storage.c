@@ -22,12 +22,12 @@ struct index_record {
 };
 
 struct storage {
-	int fd;
+	FILE* stream;
 	avl_tree_t index_table;
+	pthread_mutex_t mutex_seek_stream;
 	pthread_mutex_t mutex_new_record;
 };
 
-static FILE* get_stream(const storage_t handle);
 static int lexicographical_comparison(void* key1, void* key2);
 static int load_table(const storage_t handle);
 static int get_record(const storage_t handle, struct index_record** result, const char* key);
@@ -38,23 +38,12 @@ storage_t storage_init(const char* filename) {
 	if ((storage = malloc(sizeof(struct storage))) == NULL) {
 		return NULL;
 	}
-	if ((storage->fd = open(filename, O_RDWR, 0666)) == -1) {
+	if ((storage->stream = fopen(filename, "r+")) == NULL) {
 		free(storage);
 		return NULL;
 	}
-	if (flock(storage->fd, LOCK_EX | LOCK_NB) == -1) {	//replace with fcntl?
-		close(storage->fd);
-		free(storage);
-		return NULL;
-	}
-	if ((storage->index_table = avl_tree_init(&lexicographical_comparison)) == NULL) {
-		close(storage->fd);
-		free(storage);
-		return NULL;
-	}
-	if (load_table(storage)) {
-		avl_tree_destroy(storage->index_table);
-		close(storage->fd);
+	if (flock(fileno(storage->stream), LOCK_EX | LOCK_NB) == -1) {	//instead of semget & ftok to avoid mix SysV and POSIX, replace with fcntl
+		fclose(storage->stream);
 		free(storage);
 		return NULL;
 	}
@@ -62,7 +51,25 @@ storage_t storage_init(const char* filename) {
 	while ((ret = pthread_mutex_init(&storage->mutex_new_record, NULL)) && errno == EINTR);
 	if (ret) {
 		avl_tree_destroy(storage->index_table);
-		close(storage->fd);
+		fclose(storage->stream);
+		free(storage);
+		return NULL;
+	}
+	while ((ret = pthread_mutex_init(&storage->mutex_seek_stream, NULL)) && errno == EINTR);
+	if (ret) {
+		avl_tree_destroy(storage->index_table);
+		fclose(storage->stream);
+		free(storage);
+		return NULL;
+	}
+	if ((storage->index_table = avl_tree_init(&lexicographical_comparison)) == NULL) {
+		fclose(storage->stream);
+		free(storage);
+		return NULL;
+	}
+	if (load_table(storage)) {
+		avl_tree_destroy(storage->index_table);
+		fclose(storage->stream);
 		free(storage);
 		return NULL;
 	}
@@ -72,7 +79,7 @@ storage_t storage_init(const char* filename) {
 int storage_close(const storage_t handle) {
 	struct storage* storage = (struct storage*)handle;
 	//index_table_destroy(storage->index_table);
-	close(storage->fd);
+	fclose(storage->stream);
 	free(storage);
 	return 0;
 }
@@ -80,63 +87,65 @@ int storage_close(const storage_t handle) {
 int storage_store(const storage_t handle, char* key, char* value, char** result) {
 	struct storage* storage = (struct storage*)handle;
 	struct index_record* record;
-	FILE* stream;
-	if ((stream = get_stream(storage)) == NULL) {
-		return 1;
-	}
+	int ret;
 	if (get_record(storage, &record, key)) {
 		return 1;
 	}
+	/*	add record if it doesn't exist	*/
 	if (record->offset == -1) {
-		int ret;
 		while ((ret = pthread_mutex_lock(&storage->mutex_new_record)) && errno == EINTR);
 		if (ret) {
 			return 1;
 		}
-		/*	check if in the meantime other threads created the record	*/
-		if (get_record(storage, &record, key)) {
+		while ((ret = pthread_mutex_lock(&storage->mutex_seek_stream)) && errno == EINTR);
+		if (ret) {
 			return 1;
 		}
-		if (record->offset == -1) {
-			int offset;
-			if (fseek(stream, 0, SEEK_END) == -1) {
+		int offset;
+		if (fseek(storage->stream, 0, SEEK_END) == -1) {
+			return 1;
+		}
+		if ((offset = ftell(storage->stream)) == -1) {
+			return 1;
+		}
+		update_record(storage, key, offset + MAXLEN);
+		for (int i = 0; i < MAXLEN; i++) {
+			if (fputc(key[i], storage->stream) == EOF) {
 				return 1;
 			}
-			if ((offset = ftell(stream)) == -1) {
+		}
+		for (int i = 0; i < MAXLEN; i++) {
+			if (fputc(0, storage->stream) == EOF) {
 				return 1;
 			}
-			update_record(storage, key, offset + MAXLEN);
-			for (int i = 0; i < MAXLEN; i++) {
-				if (fputc(key[i], stream) == EOF) {
-					return 1;
-				}
-			}
-			for (int i = 0; i < MAXLEN; i++) {
-				if (fputc(0, stream) == EOF) {
-					return 1;
-				}
-			}
-			fflush(stream);
-			if (fseek(stream, MAXLEN * -1, SEEK_END) == -1) {
-				return 1;
-			}
+		}
+		fflush(storage->stream);
+		while ((ret = pthread_mutex_unlock(&storage->mutex_seek_stream)) && errno == EINTR);
+		if (ret) {
+			return 1;
 		}
 		while ((ret = pthread_mutex_unlock(&storage->mutex_new_record)) && errno == EINTR);
 		if (ret) {
 			return 1;
 		}
 	}
-	else {
-		if (fseek(stream, record->offset, SEEK_SET) == -1) {
-			return 1;
-		}
+	while ((ret = pthread_mutex_lock(&storage->mutex_seek_stream)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	if (fseek(storage->stream, record->offset, SEEK_SET) == -1) {
+		return 1;
 	}
 	for (int i = 0; i < MAXLEN; i++) {
-		if (fputc(value[i], stream) == EOF) {
+		if (fputc(value[i], storage->stream) == EOF) {
 			return 1;
 		}
 	}
-	fflush(stream);
+	fflush(storage->stream);
+	while ((ret = pthread_mutex_unlock(&storage->mutex_seek_stream)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
 	*result = strdup(MSG_SUCC);
 	return 0;
 }
@@ -150,10 +159,7 @@ int storage_load(const storage_t handle, char* key, char** result) {
 	*/
 	struct storage* storage = (struct storage*)handle;
 	struct index_record* record;
-	FILE* stream;
-	if ((stream = get_stream(storage)) == NULL) {
-		return 1;
-	}
+	int ret;
 	if (get_record(storage, &record, key)) {
 		return 1;
 	}
@@ -161,18 +167,26 @@ int storage_load(const storage_t handle, char* key, char** result) {
 		*result = strdup(MSG_FAIL);
 		return 0;
 	}
-	if (fseek(stream, record->offset, SEEK_SET) == -1) {
+	while ((ret = pthread_mutex_lock(&storage->mutex_seek_stream)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	if (fseek(storage->stream, record->offset, SEEK_SET) == -1) {
 		return 1;
 	}
 	if ((*result = malloc(sizeof(char) * MAXLEN + 1)) == NULL) {
 		return 1;
 	}
 	for (int i = 0; i < MAXLEN; i++) {
-		if ((int)((*result)[i] = (char)fgetc(stream)) == EOF) {
+		if ((int)((*result)[i] = (char)fgetc(storage->stream)) == EOF) {
 			return 1;
 		}
 	}
 	(result)[MAXLEN] = 0;
+	while ((ret = pthread_mutex_unlock(&storage->mutex_seek_stream)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
 	return 0;
 }
 
@@ -227,26 +241,6 @@ int storage_unlock(const storage_t handle, char* key) {
 	return 0;
 }
 
-static FILE* get_stream(const storage_t handle) {
-	struct storage* storage = (struct storage*)handle;
-	int newfd;
-	FILE* stream;
-	while ((newfd = dup(storage->fd)) == -1) {
-		if (errno != EMFILE) {
-			return NULL;
-		}
-		sleep(1);
-	}
-	if ((stream = fdopen(newfd, "r+")) == NULL) {
-		return NULL;
-	}
-	if (fseek(stream, 0, SEEK_SET) == -1) {
-		fclose(stream);
-		return NULL;
-	}
-	return stream;
-}
-
 static int lexicographical_comparison(void* key1, void* key2) {
 	char* str1 = (char*)key1;
 	char* str2 = (char*)key2;
@@ -271,13 +265,11 @@ static int lexicographical_comparison(void* key1, void* key2) {
 
 static int load_table(const storage_t handle) {
 	struct storage* storage = (struct storage*)handle;
-	FILE* stream;
-	int c;
-	if ((stream = get_stream(storage)) == NULL) {
+	if (fseek(storage->stream, 0, SEEK_SET) == -1) {
 		return 1;
 	}
-	while ((c = fgetc(stream)) != EOF) {
-		if (fseek(stream, -1, SEEK_CUR) == -1) {
+	while ((fgetc(storage->stream)) != EOF) {
+		if (fseek(storage->stream, -1, SEEK_CUR) == -1) {
 			return 1;
 		}
 		char* current_key;
@@ -286,37 +278,40 @@ static int load_table(const storage_t handle) {
 			return 1;
 		}
 		for (int i = 0; i < MAXLEN; i++) {
-			if ((int)(current_key[i] = (char)fgetc(stream)) == EOF) {
-				fclose(stream);
+			if ((int)(current_key[i] = (char)fgetc(storage->stream)) == EOF) {
+				free(current_key);
 				return 1;
 			}
 		}
 		current_key[MAXLEN] = 0;
 		if ((current_record = malloc(sizeof(struct index_record))) == NULL) {
+			free(current_key);
 			return 1;
 		}
-		if ((current_record->offset = ftell(stream)) == -1) {
+		if ((current_record->offset = ftell(storage->stream)) == -1) {
+			free(current_key);
 			free(current_record);
-			fclose(stream);
 			return 1;
 		}
 		int ret;
 		while ((ret = pthread_rwlock_init(&current_record->lock, NULL)) && errno == EINTR);
 		if (ret) {
+			free(current_key);
 			free(current_record);
 			return 1;
 		}
 		if (avl_tree_insert(storage->index_table, current_key, current_record)) {
 			free(current_key);
-			pthread_rwlock_destroy(&current_record->lock);
 			free(current_record);
 			return 1;
 		}
-		if (fseek(stream, MAXLEN, SEEK_CUR) == -1) {
+		if (fseek(storage->stream, MAXLEN, SEEK_CUR) == -1) {
+			free(current_key);
+			free(current_record);
 			return 1;
 		}
 	}
-	if (fclose(stream) == EOF) {
+	if (!feof(storage->stream)) {
 		return 1;
 	}
 	return 0;
