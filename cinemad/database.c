@@ -48,8 +48,8 @@ database_t database_init(const char* filename) {
 		free(database);
 		return NULL;
 	}
-	database->info.columns = 0;
-	database->info.rows = 0;
+	database->cinema_info.columns = 0;
+	database->cinema_info.rows = 0;
 	return database;
 }
 
@@ -74,10 +74,10 @@ int database_execute(const database_t handle, const char* query, char** result) 
 		return procedure_get(database, query + 4, result);
 	}
 	else if (!strncmp(query, "PLT ", 4)) {
-		return procedure_clean(database, query + 4, result);
+		return procedure_populate(database, query + 4, result);
 	}
 	else if (!strncmp(query, "STP ", 4)) {
-		return procedure_clean(database, query + 4, result);
+		return procedure_setup(database, query + 4, result);
 	}
 	else if (!strncmp(query, "CLN ", 4)) {
 		return procedure_clean(database, query + 4, result);
@@ -178,16 +178,14 @@ int procedure_populate(const database_t handle, const char* query, char** result
 
 int procedure_setup(const database_t handle, const char* query, char** result) {
 	struct database* database = (struct database*)handle;
-	int rows;
-	int columns;
 	int clean = 0;
 	database_execute(database, "GET ROWS", result);
-	rows = atoi(*result);
+	database->cinema_info.rows = atoi(*result);
 	free(*result);
 	database_execute(database, "GET COLUMNS", result);
-	columns = atoi(*result);
+	database->cinema_info.columns = atoi(*result);
 	free(*result);
-	for (int i = 0; i < rows * columns; i++) {
+	for (int i = 0; i < database->cinema_info.rows * database->cinema_info.columns; i++) {
 		char* query;
 		if (asprintf(&query, "GET %d", i) == -1) {
 			return 1;
@@ -256,15 +254,7 @@ int procedure_set(const database_t handle, const char* query, char** result) {
 
 int procedure_clean(const database_t handle, const char* query, char** result) {
 	struct database* database = (struct database*)handle;
-	int rows;
-	int columns;
-	database_execute(database, "GET ROWS", result);
-	rows = atoi(*result);
-	free(*result);
-	database_execute(database, "GET COLUMNS", result);
-	columns = atoi(*result);
-	free(*result);
-	for (int i = 0; i < rows * columns; i++) {
+	for (int i = 0; i < database->cinema_info.rows * database->cinema_info.columns; i++) {
 		char* query;
 		if (asprintf(&query, "SET %d AS 0", i) == -1) {
 			return 1;
@@ -443,6 +433,75 @@ int procedure_book(const database_t handle, const char* query, char** result) {
 		return 1;
 	}
 	return 0;
+	/*
+	//	2PL implementation
+	char* id;
+	int ntoken;
+	char** token;
+	char** ordered_request;
+	int* tmp;	//tmp variable to order request
+	int abort = 0;
+	//	get token
+	if ((ordered_request = malloc(sizeof(char*) * ntoken)) == NULL) {
+		return 1;
+	}
+	if ((tmp = malloc(sizeof(int) * database->cinema_info.rows * database->cinema_info.columns)) == NULL) {
+		return 1;
+	}
+	memset(tmp, 0, database->cinema_info.rows * database->cinema_info.columns * sizeof(int));
+	for (int i = 0; i < ntoken; i++) {
+		tmp[atoi(token[i])] = 1;
+	}
+	for (int i = 0, j = 0; i < database->cinema_info.rows * database->cinema_info.columns; i++) {
+		if (tmp[i]) {
+			tmp[j] = i;
+			j++;
+		}
+	}
+	for (int i = 0; i < ntoken; i++) {
+		asprintf(&(ordered_request[i]), "%d", tmp[i]);
+	}
+	for (int i = 0; i < ntoken; i++) {
+		if (storage_lock_exclusive(database->storage, ordered_request[i])) {
+			return 1;
+		}
+	}
+	char* seat_id;
+	for (int i = 0; i < ntoken; i++) {
+		if (storage_load(database->storage, ordered_request[i], &seat_id)) {
+			return 1;
+		}
+		if (atoi(seat_id)) {
+			free(seat_id);
+			abort = 1;
+			break;
+		}
+		free(seat_id);
+	}
+	//get valid id
+	if (!abort) {
+		char* buffer;
+		for (int i = 0; i < ntoken; i++) {
+			if (storage_store(database->storage, ordered_request[i], id, &buffer)) {
+				return 1;
+			}
+			free(buffer);
+		}
+		//set result as id
+	}
+	else {
+		//set result as failed
+	}
+	for (int i = 0; i < ntoken; i++) {
+		if (storage_unlock(database->storage, ordered_request[i])) {
+			return 1;
+		}
+	}
+	for (int i = 0; i < ntoken; i++) {
+		free(ordered_request[i]);
+	}
+	free(ordered_request);
+	*/
 }
 
 int procedure_unbook(const database_t handle, const char* query, char** result) {

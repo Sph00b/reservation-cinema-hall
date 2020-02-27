@@ -10,8 +10,6 @@ long avl_tree_node_degree(avl_tree_node_t handle);
 
 int avl_tree_node_swap(avl_tree_node_t handle1, avl_tree_node_t handle2);
 
-void* avl_tree_node_get_info(avl_tree_node_t handle);
-
 void* avl_tree_node_get_key(avl_tree_node_t handle);
 
 void* avl_tree_node_get_value(avl_tree_node_t handle);
