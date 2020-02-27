@@ -18,7 +18,6 @@
 int server_start();
 int server_stop();
 int server_status();
-int server_restart();
 int server_query(char*, char**);
 
 int main(int argc, char *argv[]){
@@ -35,11 +34,6 @@ try(
 	else if (argc == 2 && !strncasecmp(argv[1], "status", 6)) {
 try(
 		server_status(), (1)
-)
-}
-	else if (argc == 2 && !strncasecmp(argv[1], "restart", 7)) {
-try(
-		server_restart(), (1)
 )
 	}
 	else if (argc == 3 && !strncasecmp(argv[1], "query", 5)) {
@@ -94,19 +88,6 @@ try(
 	kill(atoi(pid), SIGTERM), (-1)
 )
 	free(pid);
-	return 0;
-}
-
-int server_restart() {
-	if (server_stop()) {
-		return 1;
-	}
-	sleep(10);	//should I change it?
-	printf("Server shutting down please wait...\n");
-	if (server_start()) {
-		return 1;
-	}
-	printf("Server restarted\n");
 	return 0;
 }
 
