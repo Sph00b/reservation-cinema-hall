@@ -13,9 +13,6 @@
 
 #define MAXLEN 16
 
-#define MSG_SUCC "OPERATION SUCCEDED"
-#define MSG_FAIL "OPERATION FAILED"
-
 struct index_record {
 	long offset;
 	pthread_rwlock_t lock;
@@ -33,6 +30,7 @@ static int lexicographical_comparison(const void* key1, const void* key2);
 static int update_buffer_cache(const storage_t handle);
 static int load_table(const storage_t handle);
 static int get_record(const storage_t handle, struct index_record** result, const char* key);
+static int format(const char* str, char** result);
 
 storage_t storage_init(const char* filename) {
 	struct storage* storage;
@@ -86,6 +84,22 @@ int storage_store(const storage_t handle, char* key, char* value, char** result)
 	struct storage* storage = (struct storage*)handle;
 	struct index_record* record;
 	int ret;
+	char* formatted_key;
+	char* formatted_value;
+	if (format(key, &formatted_key)) {
+		return 1;
+	}
+	if (format(value, &formatted_value)) {
+		return 1;
+	}
+	if (formatted_key == NULL) {
+		*result = strdup(MSG_FAIL);
+		return 0;
+	}
+	if (formatted_value == NULL) {
+		*result = strdup(MSG_FAIL);
+		return 0;
+	}
 	if (get_record(storage, &record, key)) {
 		return 1;
 	}
@@ -107,7 +121,7 @@ int storage_store(const storage_t handle, char* key, char* value, char** result)
 			return 1;
 		}
 		for (int i = 0; i < MAXLEN; i++) {
-			if (fputc(key[i], storage->stream) == EOF) {
+			if (fputc(formatted_key[i], storage->stream) == EOF) {
 				return 1;
 			}
 		}
@@ -128,6 +142,7 @@ int storage_store(const storage_t handle, char* key, char* value, char** result)
 			return 1;
 		}
 	}
+	free(formatted_key);
 	while ((ret = pthread_mutex_lock(&storage->mutex_seek_stream)) && errno == EINTR);
 	if (ret) {
 		return 1;
@@ -136,7 +151,7 @@ int storage_store(const storage_t handle, char* key, char* value, char** result)
 		return 1;
 	}
 	for (int i = 0; i < MAXLEN; i++) {
-		if (fputc(value[i], storage->stream) == EOF) {
+		if (fputc(formatted_value[i], storage->stream) == EOF) {
 			return 1;
 		}
 	}
@@ -146,25 +161,29 @@ int storage_store(const storage_t handle, char* key, char* value, char** result)
 		return 1;
 	}
 	for (int i = 0; i < MAXLEN; i++) {
-		storage->buffer_cache[record->offset + i] = value[i];
+		storage->buffer_cache[record->offset + i] = formatted_value[i];
 	}
+	free(formatted_value);
 	*result = strdup(MSG_SUCC);
 	return 0;
 }
 
 int storage_load(const storage_t handle, char* key, char** result) {
-	/*
-	if (strlen(key) > MAXLEN) {
-		*result = NULL;
-		return 1;
-	}
-	*/
 	struct storage* storage = (struct storage*)handle;
 	struct index_record* record;
 	int ret;
-	if (get_record(storage, &record, key)) {
+	char* formatted_key;
+	if (format(key, &formatted_key)) {
 		return 1;
 	}
+	if (formatted_key == NULL) {
+		*result = strdup(MSG_FAIL);
+		return 0;
+	}
+	if (get_record(storage, &record, formatted_key)) {
+		return 1;
+	}
+	free(formatted_key);
 	if (record->offset == -1) {
 		*result = strdup(MSG_FAIL);
 		return 0;
@@ -191,12 +210,17 @@ int storage_lock_shared(const storage_t handle, char* key) {
 	struct storage* storage = (struct storage*)handle;
 	struct index_record* record;
 	int ret;
-	if (get_record(storage, &record, key)) {
+	char* formatted_key;
+	if (format(key, &formatted_key)) {
 		return 1;
 	}
-	if (record == NULL) {
+	if (formatted_key == NULL) {
 		return 0;
 	}
+	if (get_record(storage, &record, formatted_key)) {
+		return 1;
+	}
+	free(formatted_key);
 	while ((ret = pthread_rwlock_rdlock(&record->lock)) && errno == EINTR);
 	if (ret) {
 		return 1;
@@ -208,12 +232,17 @@ int storage_lock_exclusive(const storage_t handle, char* key) {
 	struct storage* storage = (struct storage*)handle;
 	struct index_record* record;
 	int ret;
-	if (get_record(storage, &record, key)) {
+	char* formatted_key;
+	if (format(key, &formatted_key)) {
 		return 1;
 	}
-	if (record == NULL) {
+	if (formatted_key == NULL) {
 		return 0;
 	}
+	if (get_record(storage, &record, formatted_key)) {
+		return 1;
+	}
+	free(formatted_key);
 	while ((ret = pthread_rwlock_wrlock(&record->lock)) && errno == EINTR);
 	if (ret) {
 		return 1;
@@ -225,12 +254,17 @@ int storage_unlock(const storage_t handle, char* key) {
 	struct storage* storage = (struct storage*)handle;
 	struct index_record* record;
 	int ret;
-	if (get_record(storage, &record, key)) {
+	char* formatted_key;
+	if (format(key, &formatted_key)) {
 		return 1;
 	}
-	if (record == NULL) {
+	if (formatted_key == NULL) {
 		return 0;
 	}
+	if (get_record(storage, &record, formatted_key)) {
+		return 1;
+	}
+	free(formatted_key);
 	while ((ret = pthread_rwlock_unlock(&record->lock)) && errno == EINTR);
 	if (ret) {
 		return 1;
@@ -380,5 +414,18 @@ static int update_buffer_cache(const storage_t handle) {
 	if (ret) {
 		return 1;
 	}
+	return 0;
+}
+
+static int format(const char* str, char** result) {
+	if (strlen(str) > MAXLEN) {
+		*result = NULL;
+		return 0;
+	}
+	if ((*result = malloc(sizeof(char) * MAXLEN + 1)) == NULL) {
+		return 1;
+	}
+	memset(*result, 0, MAXLEN + 1);
+	strncpy(*result, str, MAXLEN);
 	return 0;
 }

@@ -103,12 +103,12 @@ try(
 		database = database_init("etc/data.dat"), (NULL)
 )
 try(
-		database_execute(database, "PLT ", &result), (1)
+		database_execute(database, "POPULATE", &result), (1)
 )
 		free(result);
 	}
 try(
-	database_execute(database, "STP ", &result), (1)
+	database_execute(database, "SETUP", &result), (1)
 )
 	free(result);
 #ifdef _DEBUG
