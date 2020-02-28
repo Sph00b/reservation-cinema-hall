@@ -345,15 +345,22 @@ static int procedure_book(const database_t handle, char** query, char** result) 
 	}
 	memset(tmp, 0, sizeof(int) * (size_t)(database->cinema_info.rows * database->cinema_info.columns));
 	for (int i = 0; i < n_seats; i++) {
-		tmp[atoi(query[i])] = 1;
+		tmp[atoi(query[i + 1])] = 1;
 	}
-	for (int i = 0, j = 0; (i < database->cinema_info.rows * database->cinema_info.columns) || (j < n_seats); i++) {
+	int n_tmp = 0;
+	for (int i = 0; i < database->cinema_info.rows * database->cinema_info.columns; i++) {
 		if (tmp[i]) {
-			asprintf(&(ordered_request[j]), "%d", i);
-			j++;
+			asprintf(&(ordered_request[n_tmp++]), "%d", i);
+			if (n_tmp == n_seats) {
+				break;
+			}
 		}
 	}
 	free(tmp);
+	if (n_tmp != n_seats) {
+		*result = strdup(MSG_FAIL);
+		return 0;
+	}
 	/*	2PL locking	*/
 	for (int i = 0; i < n_seats; i++) {
 		if (storage_lock_exclusive(database->storage, ordered_request[i])) {
