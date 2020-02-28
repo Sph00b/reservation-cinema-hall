@@ -208,7 +208,7 @@ int storage_load(const storage_t handle, const char* key, char** result) {
 	for (int i = 0; i < MAXLEN; i++) {
 		(*result)[i] = storage->buffer_cache[record->offset + i];
 	}
-	(result)[MAXLEN] = 0;
+	(*result)[MAXLEN] = 0;
 	while ((ret = pthread_rwlock_unlock(&storage->lock_buffer_cahce)) && errno == EINTR);
 	if (ret) {
 		return 1;

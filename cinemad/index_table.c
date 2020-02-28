@@ -71,12 +71,12 @@ void* index_table_search(index_table_t handle, const void* key) {
 	int ret;
 	while ((ret = pthread_rwlock_rdlock(&index_table->lock)) && errno == EINTR);
 	if (ret) {
-		return 1;
+		return NULL;
 	}
 	result = avl_tree_search(index_table->avl_tree, key);
 	while ((ret = pthread_rwlock_unlock(&index_table->lock)) && errno == EINTR);
 	if (ret) {
-		return 1;
+		return NULL;
 	}
 	return result;
 }
@@ -99,4 +99,5 @@ static int free_records(avl_tree_node_t node) {
 		}
 	}
 	stack_destroy(stack);
+	return 0;
 }
