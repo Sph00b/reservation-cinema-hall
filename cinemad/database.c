@@ -105,71 +105,6 @@ int database_execute(const database_t handle, const char* query, char** result) 
 	return ret;
 }
 
-/* return 0 on success, 1 on failure */
-
-/*	this should be in storage probably	*/
-/*
-
-struct query {
-	char key[MAXLEN + 1];
-	char value[MAXLEN + 1];
-};
-
-int parse_query(struct query* parsed_query, const char* query) {
-	int ret = 0;
-	int ntoken = 0;
-	char* buff;
-	char* saveptr;
-	char** token;
-	memset(parsed_query->key, 0, MAXLEN + 1);
-	memset(parsed_query->value, 0, MAXLEN + 1);
-	if ((buff = strdup(query)) == NULL) {
-		return 1;
-	}
-	if ((token = malloc(sizeof(char*))) == NULL) {
-		return 1;
-	}
-	if ((token[0] = strtok_r(buff, " ", &saveptr)) == NULL) {
-		return 1;
-	}
-	ntoken++;
-	do {
-		ntoken++;
-		if ((token = realloc(token, sizeof(char*) * (size_t)ntoken)) == NULL) {
-			return 1;
-		}
-		token[ntoken - 1] = strtok_r(NULL, " ", &saveptr);
-	} while (token[ntoken - 1] != NULL);
-	ntoken--;
-	switch (ntoken) {
-	case 1:
-		if (strlen(token[0]) > MAXLEN) {
-			ret = 1;
-			break;
-		}
-		strncpy(parsed_query->key, token[0], MAXLEN + 1);
-		break;
-	case 2:
-		if (strlen(token[0]) > MAXLEN || strlen(token[1]) > MAXLEN) {
-			ret = 1;
-			break;
-		}
-		strncpy(parsed_query->key, token[0], MAXLEN + 1);
-		strncpy(parsed_query->value, token[1], MAXLEN + 1);
-		break;
-	default:
-		ret = 1;
-	}
-	free(buff);
-	free(token);
-	if (ret) {
-		return 1;
-	}
-	return 0;
-}
-*/
-/*	return in parsed parameter a NULL terminated vector of parsed string */
-
 static int parse_query(const char* query, char*** parsed) {
 	int ntoken;
 	char* buffer = NULL;
@@ -401,22 +336,24 @@ static int procedure_book(const database_t handle, char** query, char** result) 
 	int abort = 0;
 
 	/*	order request to avoid deadlock	*/
-	for (n_seats = 1; query[n_seats]; n_seats++);	//get n_seats
+	for (n_seats = 0; query[n_seats + 1]; n_seats++);	//get n_seats
 	if ((ordered_request = malloc(sizeof(char*) * (size_t)n_seats)) == NULL) {
 		return 1;
 	}
 	if ((tmp = malloc(sizeof(int) * (size_t)(database->cinema_info.rows * database->cinema_info.columns))) == NULL) {
 		return 1;
 	}
-	memset(tmp, 0, (size_t)(database->cinema_info.rows * database->cinema_info.columns) * sizeof(int));
-	for (int i = 1; i < n_seats; i++) {
+	memset(tmp, 0, sizeof(int) * (size_t)(database->cinema_info.rows * database->cinema_info.columns));
+	for (int i = 0; i < n_seats; i++) {
 		tmp[atoi(query[i])] = 1;
 	}
-	for (int i = 0; i < database->cinema_info.rows * database->cinema_info.columns; i++) {
+	for (int i = 0, j = 0; (i < database->cinema_info.rows * database->cinema_info.columns) || (j < n_seats); i++) {
 		if (tmp[i]) {
-			asprintf(&(ordered_request[i]), "%d", tmp[i]);
+			asprintf(&(ordered_request[j]), "%d", i);
+			j++;
 		}
 	}
+	free(tmp);
 	/*	2PL locking	*/
 	for (int i = 0; i < n_seats; i++) {
 		if (storage_lock_exclusive(database->storage, ordered_request[i])) {
@@ -435,14 +372,14 @@ static int procedure_book(const database_t handle, char** query, char** result) 
 		}
 		free(seat_id);
 	}
-	if (!strcmp(id, "-1")) {
-		if (database_execute(database, "ID", &id)) {
-			return 1;
-		}
-	}
 	if (!abort) {
-		char* buffer;
+		if (!strcmp(id, "-1")) {
+			if (database_execute(database, "ID", &id)) {
+				return 1;
+			}
+		}
 		for (int i = 0; i < n_seats; i++) {
+			char* buffer;
 			if (storage_store(database->storage, ordered_request[i], id, &buffer)) {
 				return 1;
 			}
@@ -499,5 +436,6 @@ static int procedure_unbook(const database_t handle, char** query, char** result
 		free(tmp_query);
 		free(buffer);
 	}
+	*result = strdup(MSG_SUCC);
 	return 0;
 }

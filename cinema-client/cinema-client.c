@@ -514,7 +514,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 				if ((queries = malloc(sizeof(LPTSTR) * 2)) == NULL) {
 					ErrorHandler(GetLastError());
 				}
-				if (asprintf(&queries[0], TEXT("BOK 0")) == -1) {
+				if (asprintf(&queries[0], TEXT("BOOK -1")) == -1) {
 					ErrorHandler(GetLastError());
 				}
 				if (!GetSeatsQuery(&queries[0], hBitmapSelected)) {
@@ -536,7 +536,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 				if ((queries = malloc(sizeof(LPTSTR) * 3)) == NULL) {
 					ErrorHandler(GetLastError());
 				}
-				if (asprintf(&queries[0], TEXT("BOK %s"), bookingCode) == -1) {
+				if (asprintf(&queries[0], TEXT("BOOK %s"), bookingCode) == -1) {
 					ErrorHandler(GetLastError());
 				}
 				if (!GetSeatsQuery(&queries[0], hBitmapSelected)) {
@@ -545,7 +545,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 					queries[1] = NULL;
 					i = 0;
 				}
-				if (asprintf(&queries[i], TEXT("DLT %s"), bookingCode) == -1) {
+				if (asprintf(&queries[i], TEXT("DELETE %s"), bookingCode) == -1) {
 					ErrorHandler(GetLastError());
 				}
 				if (!GetSeatsQuery(&queries[i], hBitmapRemove)) {
@@ -576,7 +576,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 					if ((queries = malloc(sizeof(LPTSTR) * 2)) == NULL) {
 						ErrorHandler(GetLastError());
 					}
-					if (asprintf(&queries[0], TEXT("DLT %s"), bookingCode) == -1) {
+					if (asprintf(&queries[0], TEXT("DELETE %s"), bookingCode) == -1) {
 						ErrorHandler(GetLastError());
 					}
 					booking = GetSeatsQuery(&queries[0], hBitmapBooked);
