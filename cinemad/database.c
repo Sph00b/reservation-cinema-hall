@@ -28,6 +28,7 @@ static int parse_query(const char* query, char*** parsed);
 static int procedure_populate(const database_t handle, char** result);
 static int procedure_setup(const database_t handle, char** result);
 static int procedure_clean(const database_t handle, char** result);
+static int procedure_get_id(const database_t handle, char** result);
 static int procedure_get(const database_t handle, char** query, char** result);
 static int procedure_set(const database_t handle, char** query, char** result);
 static int procedure_map(const database_t handle, char** query, char** result);
@@ -76,6 +77,9 @@ int database_execute(const database_t handle, const char* query, char** result) 
 	}
 	else if (n_param == 1 && !strcmp(parsed_query[0], "CLEAN")) {
 		ret = procedure_clean(database, result);
+	}
+	else if (n_param == 1 && !strcmp(parsed_query[0], "ID")) {
+		ret = procedure_get_id(database, result);
 	}
 	else if (n_param == 2 && !strcmp(parsed_query[0], "GET")) {
 		ret = procedure_get(database, &(parsed_query[1]), result);
@@ -291,6 +295,30 @@ static int procedure_clean(const database_t handle, char** result) {
 	return 0;
 }
 
+static int procedure_get_id(const database_t handle, char** result) {
+	struct database* database = (struct database*)handle;
+	if (storage_lock_exclusive(database->storage, "ID_COUNTER")) {
+		return 1;
+	}
+	if (storage_load(database->storage, "ID_COUNTER", result)) {
+		return 1;
+	}
+	char* new_id;
+	char* buffer;
+	if (asprintf(&new_id, "%d", atoi(*result) + 1) == -1) {
+		return 1;
+	}
+	if (storage_store(database->storage, "ID_COUNTER", new_id, &buffer)) {
+		return 1;
+	}
+	free(new_id);
+	free(buffer);
+	if (storage_unlock(database->storage, "ID_COUNTER")) {
+		return 1;
+	}
+	return 0;
+}
+
 static int procedure_get(const database_t handle, char** query, char** result) {
 	struct database* database = (struct database*)handle;
 	if (storage_lock_shared(database->storage, query[0])) {
@@ -374,13 +402,13 @@ static int procedure_book(const database_t handle, char** query, char** result) 
 
 	/*	order request to avoid deadlock	*/
 	for (n_seats = 1; query[n_seats]; n_seats++);	//get n_seats
-	if ((ordered_request = malloc(sizeof(char*) * n_seats)) == NULL) {
+	if ((ordered_request = malloc(sizeof(char*) * (size_t)n_seats)) == NULL) {
 		return 1;
 	}
-	if ((tmp = malloc(sizeof(int) * database->cinema_info.rows * database->cinema_info.columns)) == NULL) {
+	if ((tmp = malloc(sizeof(int) * (size_t)(database->cinema_info.rows * database->cinema_info.columns))) == NULL) {
 		return 1;
 	}
-	memset(tmp, 0, database->cinema_info.rows * database->cinema_info.columns * sizeof(int));
+	memset(tmp, 0, (size_t)(database->cinema_info.rows * database->cinema_info.columns) * sizeof(int));
 	for (int i = 1; i < n_seats; i++) {
 		tmp[atoi(query[i])] = 1;
 	}
@@ -407,7 +435,11 @@ static int procedure_book(const database_t handle, char** query, char** result) 
 		}
 		free(seat_id);
 	}
-	//get valid id
+	if (!strcmp(id, "-1")) {
+		if (database_execute(database, "ID", &id)) {
+			return 1;
+		}
+	}
 	if (!abort) {
 		char* buffer;
 		for (int i = 0; i < n_seats; i++) {
@@ -416,7 +448,7 @@ static int procedure_book(const database_t handle, char** query, char** result) 
 			}
 			free(buffer);
 		}
-		//set result as id
+		*result = strdup(id);
 	}
 	else {
 		*result = strdup(MSG_FAIL);
@@ -430,11 +462,11 @@ static int procedure_book(const database_t handle, char** query, char** result) 
 		free(ordered_request[i]);
 	}
 	free(ordered_request);
+	return 0;
 }
 
 static int procedure_unbook(const database_t handle, char** query, char** result) {
 	struct database* database = (struct database*)handle;
-	int ret;
 	char* id = query[0];
 	
 	for (int i = 1; query[i]; i++) {
