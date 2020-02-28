@@ -9,7 +9,7 @@
 #include <sys/file.h>
 #include <string.h>
 
-#include "avl_tree.h"
+#include "index_table.h"
 
 #define MAXLEN 16
 
@@ -21,9 +21,9 @@ struct index_record {
 struct storage {
 	FILE* stream;
 	char* buffer_cache;
-	avl_tree_t index_table;
+	index_table_t index_table;
 	pthread_mutex_t mutex_seek_stream;
-	pthread_rwlock_t mutex_buffer_cahce;
+	pthread_rwlock_t lock_buffer_cahce;
 };
 
 static int lexicographical_comparison(const void* key1, const void* key2);
@@ -52,12 +52,12 @@ storage_t storage_init(const char* filename) {
 		free(storage);
 		return NULL;
 	}
-	while ((ret = pthread_rwlock_init(&storage->mutex_buffer_cahce, NULL)) && errno == EINTR);
+	while ((ret = pthread_rwlock_init(&storage->lock_buffer_cahce, NULL)) && errno == EINTR);
 	if (ret) {
 		free(storage);
 		return NULL;
 	}
-	if ((storage->index_table = avl_tree_init(&lexicographical_comparison)) == NULL) {
+	if ((storage->index_table = index_table_init(&lexicographical_comparison)) == NULL) {
 		free(storage);
 		return NULL;
 	}
@@ -74,13 +74,13 @@ storage_t storage_init(const char* filename) {
 
 int storage_close(const storage_t handle) {
 	struct storage* storage = (struct storage*)handle;
-	//index_table_destroy(storage->index_table);
+	index_table_destroy(storage->index_table);
 	fclose(storage->stream);
 	free(storage);
 	return 0;
 }
 
-int storage_store(const storage_t handle, char* key, char* value, char** result) {
+int storage_store(const storage_t handle, const char* key, const char* value, char** result) {
 	struct storage* storage = (struct storage*)handle;
 	struct index_record* record;
 	int ret;
@@ -105,7 +105,7 @@ int storage_store(const storage_t handle, char* key, char* value, char** result)
 	}
 	/*	add record if it doesn't exist	*/
 	if (record->offset == -1) {
-		while ((ret = pthread_rwlock_wrlock(&storage->mutex_buffer_cahce)) && errno == EINTR);
+		while ((ret = pthread_rwlock_wrlock(&storage->lock_buffer_cahce)) && errno == EINTR);
 		if (ret) {
 			return 1;
 		}
@@ -137,7 +137,7 @@ int storage_store(const storage_t handle, char* key, char* value, char** result)
 		}
 		record->offset = offset + MAXLEN;
 		update_buffer_cache(storage);
-		while ((ret = pthread_rwlock_unlock(&storage->mutex_buffer_cahce)) && errno == EINTR);
+		while ((ret = pthread_rwlock_unlock(&storage->lock_buffer_cahce)) && errno == EINTR);
 		if (ret) {
 			return 1;
 		}
@@ -168,7 +168,7 @@ int storage_store(const storage_t handle, char* key, char* value, char** result)
 	return 0;
 }
 
-int storage_load(const storage_t handle, char* key, char** result) {
+int storage_load(const storage_t handle, const char* key, char** result) {
 	struct storage* storage = (struct storage*)handle;
 	struct index_record* record;
 	int ret;
@@ -191,7 +191,7 @@ int storage_load(const storage_t handle, char* key, char** result) {
 	if ((*result = malloc(sizeof(char) * MAXLEN + 1)) == NULL) {
 		return 1;
 	}
-	while ((ret = pthread_rwlock_rdlock(&storage->mutex_buffer_cahce)) && errno == EINTR);
+	while ((ret = pthread_rwlock_rdlock(&storage->lock_buffer_cahce)) && errno == EINTR);
 	if (ret) {
 		return 1;
 	}
@@ -199,14 +199,14 @@ int storage_load(const storage_t handle, char* key, char** result) {
 		(*result)[i] = storage->buffer_cache[record->offset + i];
 	}
 	(result)[MAXLEN] = 0;
-	while ((ret = pthread_rwlock_unlock(&storage->mutex_buffer_cahce)) && errno == EINTR);
+	while ((ret = pthread_rwlock_unlock(&storage->lock_buffer_cahce)) && errno == EINTR);
 	if (ret) {
 		return 1;
 	}
 	return 0;
 }
 
-int storage_lock_shared(const storage_t handle, char* key) {
+int storage_lock_shared(const storage_t handle, const char* key) {
 	struct storage* storage = (struct storage*)handle;
 	struct index_record* record;
 	int ret;
@@ -228,7 +228,7 @@ int storage_lock_shared(const storage_t handle, char* key) {
 	return 0;
 }
 
-int storage_lock_exclusive(const storage_t handle, char* key) {
+int storage_lock_exclusive(const storage_t handle, const char* key) {
 	struct storage* storage = (struct storage*)handle;
 	struct index_record* record;
 	int ret;
@@ -250,7 +250,7 @@ int storage_lock_exclusive(const storage_t handle, char* key) {
 	return 0;
 }
 
-int storage_unlock(const storage_t handle, char* key) {
+int storage_unlock(const storage_t handle, const char* key) {
 	struct storage* storage = (struct storage*)handle;
 	struct index_record* record;
 	int ret;
@@ -331,7 +331,7 @@ static int load_table(const storage_t handle) {
 			free(current_record);
 			return 1;
 		}
-		if (avl_tree_insert(storage->index_table, current_key, current_record)) {
+		if (index_table_insert(storage->index_table, current_key, current_record)) {
 			free(current_key);
 			free(current_record);
 			return 1;
@@ -350,7 +350,7 @@ static int load_table(const storage_t handle) {
 
 static int get_record(const storage_t handle, struct index_record** result, const char* key) {
 	struct storage* storage = (struct storage*)handle;
-	if (avl_tree_search(storage->index_table, key) == NULL) {
+	if (index_table_search(storage->index_table, key) == NULL) {
 		struct index_record* record;
 		char* record_key;
 		if ((record_key = malloc(sizeof(char) * (MAXLEN + 1))) == NULL) {
@@ -373,7 +373,7 @@ static int get_record(const storage_t handle, struct index_record** result, cons
 			*result = NULL;
 			return 1;
 		}
-		if (avl_tree_insert(storage->index_table, record_key, record)) {
+		if (index_table_insert(storage->index_table, record_key, record)) {
 			free(record_key);
 			pthread_rwlock_destroy(&record->lock);
 			free(record);
@@ -381,7 +381,7 @@ static int get_record(const storage_t handle, struct index_record** result, cons
 			return 1;
 		}
 	}
-	*result = avl_tree_search(storage->index_table, key);
+	*result = index_table_search(storage->index_table, key);
 	return 0;
 }
 

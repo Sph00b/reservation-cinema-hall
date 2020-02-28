@@ -626,8 +626,15 @@ BOOL UpdateSeats(HWND hWnd, BOOL reset) {
 	if ((bookingCode = GetBooking(hBooking)) == NULL) {
 		return FALSE;
 	}
-	if (asprintf(&query, TEXT("MAP %s"), bookingCode) == -1) {
-		return FALSE;
+	if (!strcmp(bookingCode, TEXT(""))) {
+		if (asprintf(&query, TEXT("MAP -1")) == -1) {
+			return FALSE;
+		}
+	}
+	else {
+		if (asprintf(&query, TEXT("MAP %s"), bookingCode) == -1) {
+			return FALSE;
+		}
 	}
 	free(bookingCode);
 	if (!QueryServer(query, &result)) {

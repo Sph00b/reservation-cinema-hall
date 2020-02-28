@@ -28,11 +28,11 @@ static int parse_query(const char* query, char*** parsed);
 static int procedure_populate(const database_t handle, char** result);
 static int procedure_setup(const database_t handle, char** result);
 static int procedure_clean(const database_t handle, char** result);
-static int procedure_get(const database_t handle, const char** query, char** result);
-static int procedure_set(const database_t handle, const char** query, char** result);
-static int procedure_map(const database_t handle, const char** query, char** result);
-static int procedure_book(const database_t handle, const char** query, char** result);
-static int procedure_unbook(const database_t handle, const char** query, char** result);
+static int procedure_get(const database_t handle, char** query, char** result);
+static int procedure_set(const database_t handle, char** query, char** result);
+static int procedure_map(const database_t handle, char** query, char** result);
+static int procedure_book(const database_t handle, char** query, char** result);
+static int procedure_unbook(const database_t handle, char** query, char** result);
 
 database_t database_init(const char* filename) {
 	struct database* database;
@@ -262,25 +262,36 @@ static int procedure_setup(const database_t handle, char** result) {
 
 static int procedure_clean(const database_t handle, char** result) {
 	struct database* database = (struct database*)handle;
+	char** parsed_query;
 	for (int i = 0; i < database->cinema_info.rows * database->cinema_info.columns; i++) {
 		char* tmp_query;
 		char* buffer;
 		if (asprintf(&tmp_query, "%d 0", i) == -1) {
 			return 1;
 		}
-		if (procedure_set(database, tmp_query, &buffer)) {
+		if (parse_query(tmp_query, &parsed_query) == -1) {
 			return 1;
 		}
+		if (procedure_set(database, parsed_query, &buffer)) {
+			return 1;
+		}
+		free(*parsed_query);
+		free(parsed_query);
 		free(tmp_query);
 		free(buffer);
 	}
-	if (procedure_set(database, "ID_COUNTER 0", result)) {
+	if (parse_query("ID_COUNTER 0", &parsed_query) == -1) {
 		return 1;
 	}
+	if (procedure_set(database, parsed_query, result)) {
+		return 1;
+	}
+	free(*parsed_query);
+	free(parsed_query);
 	return 0;
 }
 
-static int procedure_get(const database_t handle, const char** query, char** result) {
+static int procedure_get(const database_t handle, char** query, char** result) {
 	struct database* database = (struct database*)handle;
 	if (storage_lock_shared(database->storage, query[0])) {
 		return 1;
@@ -294,7 +305,7 @@ static int procedure_get(const database_t handle, const char** query, char** res
 	return 0;
 }
 
-static int procedure_set(const database_t handle, const char** query, char** result) {
+static int procedure_set(const database_t handle, char** query, char** result) {
 	struct database* database = (struct database*)handle;
 	if (storage_lock_exclusive(database->storage, query[0])) {
 		return 1;
@@ -308,27 +319,34 @@ static int procedure_set(const database_t handle, const char** query, char** res
 	return 0;
 }
 
-static int procedure_map(const database_t handle, const char** query, char** result) {
+static int procedure_map(const database_t handle, char** query, char** result) {
 	struct database* database = (struct database*)handle;
-	int id = 0;
-	char* tmp_query = NULL;
-	char* buffer = NULL;
-	char* ptr = NULL;
+	int n_seats;
+	int id;
 	char* map = NULL;
-	id = !strlen(query) ? -1 : atoi(query);
-	if (!(database->cinema_info.rows && database->cinema_info.columns)) {
-		asprintf(result, "");
+
+	n_seats = database->cinema_info.rows * database->cinema_info.columns;
+	id = atoi(query[0]);
+	if (!n_seats) {
+		*result = strdup("");
 		return 0;
 	}
-	for (int i = 0; i < database->cinema_info.rows * database->cinema_info.columns; i++) {
+	if ((map = malloc(sizeof(char) * (size_t)(n_seats * 2))) == NULL) {
+		return 1;
+	}
+	memset(map, 0, (size_t)(n_seats * 2));
+	for (int i = 0; i < n_seats; i++) {
+		char* tmp_query;
+		char* buffer;
 		if (asprintf(&tmp_query, "%d", i) == -1) {
 			return 1;
 		}
-		if (procedure_get(database, tmp_query, &buffer)) {
+		if (procedure_get(database, &tmp_query, &buffer)) {
 			return 1;
 		}
 		free(tmp_query);
-		ptr = map;
+		free(buffer);
+		/*
 		if (atoi(buffer)) {
 			if (atoi(buffer) == id) {
 				free(buffer);
@@ -339,19 +357,17 @@ static int procedure_map(const database_t handle, const char** query, char** res
 				asprintf(&buffer, "2");
 			}
 		}
-		if (asprintf(&map, "%s %s", map, buffer) == -1) {
-			free(buffer);
-			free(ptr);
-			return 1;
-		}
-		free(buffer);
-		free(ptr);
+		*/
+		map[2 * i] = '0';// *buffer;
+		map[(2 * i) + 1] = ' ';
+		//free(buffer);
 	}
+	map[(n_seats * 2) - 1] = 0;
 	*result = map;
 	return 0;
 }
 
-static int procedure_book(const database_t handle, const char** query, char** result) {
+static int procedure_book(const database_t handle, char** query, char** result) {
 	struct database* database = (struct database*)handle;
 	int id;
 	int ret;
@@ -361,7 +377,7 @@ static int procedure_book(const database_t handle, const char** query, char** re
 	char** token = NULL;
 	char** rquery = NULL;
 	char** wquery = NULL;
-
+	/*
 	ntoken = 0;
 	if ((buffer = strdup(query)) == NULL) {
 		return 1;
@@ -405,7 +421,9 @@ static int procedure_book(const database_t handle, const char** query, char** re
 		id = atoi(token[0]);
 	}
 	ntoken--;
+	*/
 	/*	free memory on error	*/
+	/*
 	if ((rquery = malloc(sizeof(char*) * (size_t)(ntoken))) == NULL) {
 		return 1;
 	}
@@ -458,6 +476,7 @@ static int procedure_book(const database_t handle, const char** query, char** re
 	if (asprintf(result, "%d", id) == -1) {
 		return 1;
 	}
+	*/
 	return 0;
 	/*
 	//	2PL implementation
@@ -530,7 +549,7 @@ static int procedure_book(const database_t handle, const char** query, char** re
 	*/
 }
 
-static int procedure_unbook(const database_t handle, const char** query, char** result) {
+static int procedure_unbook(const database_t handle, char** query, char** result) {
 	struct database* database = (struct database*)handle;
 	int ret;
 	int ntoken;
@@ -540,7 +559,7 @@ static int procedure_unbook(const database_t handle, const char** query, char** 
 	char** token = NULL;
 	char** rquery = NULL;
 	char** wquery = NULL;
-
+	/*
 	ntoken = 0;
 	if ((buffer = strdup(query)) == NULL) {
 		return 1;
@@ -560,7 +579,9 @@ static int procedure_unbook(const database_t handle, const char** query, char** 
 	ntoken--;
 	id = strdup(*token);
 	ntoken--;
+	*/
 	/*	free memory on error	*/
+	/*
 	if ((rquery = malloc(sizeof(char*) * (size_t)(ntoken))) == NULL) {
 		return 1;
 	}
@@ -615,5 +636,6 @@ static int procedure_unbook(const database_t handle, const char** query, char** 
 	if (asprintf(result, MSG_SUCC) == -1) {
 		return 1;
 	}
+	*/
 	return 0;
 }
