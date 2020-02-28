@@ -345,8 +345,6 @@ static int procedure_map(const database_t handle, char** query, char** result) {
 			return 1;
 		}
 		free(tmp_query);
-		free(buffer);
-		/*
 		if (atoi(buffer)) {
 			if (atoi(buffer) == id) {
 				free(buffer);
@@ -357,10 +355,9 @@ static int procedure_map(const database_t handle, char** query, char** result) {
 				asprintf(&buffer, "2");
 			}
 		}
-		*/
-		map[2 * i] = '0';// *buffer;
+		map[2 * i] = buffer[0];
 		map[(2 * i) + 1] = ' ';
-		//free(buffer);
+		free(buffer);
 	}
 	map[(n_seats * 2) - 1] = 0;
 	*result = map;
