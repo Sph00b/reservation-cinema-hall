@@ -5,11 +5,14 @@
 #include <errno.h>
 
 #include "avl_tree.h"
+#include "stack.h"
 
 struct index_table {
 	avl_tree_t avl_tree;
 	pthread_rwlock_t lock;
 };
+
+static int free_records(index_table_t handle, avl_tree_node_t node);
 
 index_table_t index_table_init(avl_tree_comparison_function* comparison_function) {
 	struct index_table* index_table;
@@ -34,6 +37,9 @@ int index_table_destroy(index_table_t handle) {
 	int ret;
 	while ((ret = pthread_rwlock_destroy(&index_table->lock)) && errno == EINTR);
 	if (ret) {
+		return 1;
+	}
+	if (free_records(index_table, avl_tree_get_root(index_table->avl_tree))) {
 		return 1;
 	}
 	if (avl_tree_destroy(index_table->avl_tree)) {
@@ -73,4 +79,24 @@ void* index_table_search(index_table_t handle, const void* key) {
 		return 1;
 	}
 	return result;
+}
+
+static int free_records(index_table_t handle, avl_tree_node_t node) {
+	_stack_t stack = stack_init();
+	if (node) {
+		stack_push(stack, node);
+		while (!stack_is_empty(stack)) {
+			struct binary_tree_node* current_node;
+			current_node = stack_pop(stack);
+			if (avl_tree_node_get_left_son(current_node)) {
+				stack_push(stack, avl_tree_node_get_left_son(current_node));
+			}
+			if (avl_tree_node_get_right_son(current_node)) {
+				stack_push(stack, avl_tree_node_get_right_son(current_node));
+			}
+			free(avl_tree_node_get_key(current_node));
+			free(avl_tree_node_get_value(current_node));
+		}
+	}
+	stack_destroy(stack);
 }

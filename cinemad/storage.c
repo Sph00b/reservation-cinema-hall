@@ -74,8 +74,18 @@ storage_t storage_init(const char* filename) {
 
 int storage_close(const storage_t handle) {
 	struct storage* storage = (struct storage*)handle;
+	int ret;
+	while ((ret = pthread_mutex_destroy(&storage->mutex_seek_stream)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	while ((ret = pthread_rwlock_destroy(&storage->lock_buffer_cahce)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
 	index_table_destroy(storage->index_table);
 	fclose(storage->stream);
+	free(storage->buffer_cache);
 	free(storage);
 	return 0;
 }

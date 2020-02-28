@@ -207,7 +207,6 @@ extern int avl_tree_destroy(avl_tree_t handle) {
 	}
 	free(tree);
 	return 0;
-	return 0;
 }
 
 extern inline long avl_tree_nodes_number(avl_tree_t handle) {
