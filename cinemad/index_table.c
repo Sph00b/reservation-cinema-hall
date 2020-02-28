@@ -12,7 +12,7 @@ struct index_table {
 	pthread_rwlock_t lock;
 };
 
-static int free_records(index_table_t handle, avl_tree_node_t node);
+static int free_records(avl_tree_node_t node);
 
 index_table_t index_table_init(avl_tree_comparison_function* comparison_function) {
 	struct index_table* index_table;
@@ -39,7 +39,7 @@ int index_table_destroy(index_table_t handle) {
 	if (ret) {
 		return 1;
 	}
-	if (free_records(index_table, avl_tree_get_root(index_table->avl_tree))) {
+	if (free_records(avl_tree_get_root(index_table->avl_tree))) {
 		return 1;
 	}
 	if (avl_tree_destroy(index_table->avl_tree)) {
@@ -81,7 +81,7 @@ void* index_table_search(index_table_t handle, const void* key) {
 	return result;
 }
 
-static int free_records(index_table_t handle, avl_tree_node_t node) {
+static int free_records(avl_tree_node_t node) {
 	_stack_t stack = stack_init();
 	if (node) {
 		stack_push(stack, node);
