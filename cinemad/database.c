@@ -366,150 +366,37 @@ static int procedure_map(const database_t handle, char** query, char** result) {
 
 static int procedure_book(const database_t handle, char** query, char** result) {
 	struct database* database = (struct database*)handle;
-	int id;
-	int ret;
-	int ntoken;
-	char* buffer = NULL;
-	char* saveptr = NULL;
-	char** token = NULL;
-	char** rquery = NULL;
-	char** wquery = NULL;
-	/*
-	ntoken = 0;
-	if ((buffer = strdup(query)) == NULL) {
-		return 1;
-	}
-	if ((token = malloc(sizeof(char*))) == NULL) {
-		return 1;
-	}
-	token[0] = strtok_r(buffer, " ", &saveptr);
-	ntoken++;
-	do {
-		ntoken++;
-		if ((token = realloc(token, sizeof(char*) * (size_t)ntoken)) == NULL) {
-			return 1;
-		}
-		token[ntoken - 1] = strtok_r(NULL, " ", &saveptr);
-	} while (token[ntoken - 1] != NULL);
-	ntoken--;
-	if (!strcmp(token[0], "0")) {
-		char* id_query;
-		char* result;
-		if (database_execute(database, "GET ID_COUNTER", &result) == 1) {
-			return -1;
-		}
-		id = atoi(result);
-		id++;
-		free(result);
-		if (asprintf(&id_query, "SET ID_COUNTER %d", id) == -1) {
-			return -1;
-		}
-		if (database_execute(database, id_query, &result) == 1) {
-			free(id_query);
-			return -1;
-		}
-		free(id_query);
-		free(result);
-		if (id == -1) {
-			return 1;
-		}
-	}
-	else {
-		id = atoi(token[0]);
-	}
-	ntoken--;
-	*/
-	/*	free memory on error	*/
-	/*
-	if ((rquery = malloc(sizeof(char*) * (size_t)(ntoken))) == NULL) {
-		return 1;
-	}
-	if ((wquery = malloc(sizeof(char*) * (size_t)(ntoken))) == NULL) {
-		return 1;
-	}
-	for (int i = 0; i < ntoken; i++) {
-		if (asprintf(&(rquery[i]), "GET %s", token[i + 1]) == -1) {
-			return 1;
-		}
-		if (asprintf(&(wquery[i]), "SET %s %d", token[i + 1], id) == -1) {
-			return 1;
-		}
-	}
-	free(buffer);
-	free(token);
-	ret = 0;
-	for (int i = 0; i < ntoken; i++) {
-		if (database_execute(database, rquery[i], result) == 1) {
-			for (int j = i; j < ntoken; free(rquery[++j]));
-			for (int j = 0; j < ntoken; free(wquery[j++]));
-			free(rquery);
-			free(wquery);
-			return 1;
-		}
-		if (strcmp(*result, "0")) {
-			ret = 1;
-		}
-		free(rquery[i]);
-		free(*result);
-		if (ret) {
-			for (int j = i; j < ntoken; free(rquery[++j]));
-			for (int j = 0; j < ntoken; free(wquery[j++]));
-			free(rquery);
-			free(wquery);
-			return 1;
-		}
-	}
-	free(rquery);
-	for (int i = 0; i < ntoken; i++) {
-		if (database_execute(database, wquery[i], result) == 1) {
-			for (int j = i; j < ntoken; free(wquery[++j]));
-			free(wquery);
-			return 1;
-		}
-		free(wquery[i]);
-		free(*result);
-	}
-	free(wquery);
-	if (asprintf(result, "%d", id) == -1) {
-		return 1;
-	}
-	*/
-	return 0;
-	/*
-	//	2PL implementation
-	char* id;
-	int ntoken;
-	char** token;
+	int n_seats;
+	char* id = query[0];
 	char** ordered_request;
 	int* tmp;	//tmp variable to order request
 	int abort = 0;
-	//	get token
-	if ((ordered_request = malloc(sizeof(char*) * ntoken)) == NULL) {
+
+	/*	order request to avoid deadlock	*/
+	for (n_seats = 1; query[n_seats]; n_seats++);	//get n_seats
+	if ((ordered_request = malloc(sizeof(char*) * n_seats)) == NULL) {
 		return 1;
 	}
 	if ((tmp = malloc(sizeof(int) * database->cinema_info.rows * database->cinema_info.columns)) == NULL) {
 		return 1;
 	}
 	memset(tmp, 0, database->cinema_info.rows * database->cinema_info.columns * sizeof(int));
-	for (int i = 0; i < ntoken; i++) {
-		tmp[atoi(token[i])] = 1;
+	for (int i = 1; i < n_seats; i++) {
+		tmp[atoi(query[i])] = 1;
 	}
-	for (int i = 0, j = 0; i < database->cinema_info.rows * database->cinema_info.columns; i++) {
+	for (int i = 0; i < database->cinema_info.rows * database->cinema_info.columns; i++) {
 		if (tmp[i]) {
-			tmp[j] = i;
-			j++;
+			asprintf(&(ordered_request[i]), "%d", tmp[i]);
 		}
 	}
-	for (int i = 0; i < ntoken; i++) {
-		asprintf(&(ordered_request[i]), "%d", tmp[i]);
-	}
-	for (int i = 0; i < ntoken; i++) {
+	/*	2PL locking	*/
+	for (int i = 0; i < n_seats; i++) {
 		if (storage_lock_exclusive(database->storage, ordered_request[i])) {
 			return 1;
 		}
 	}
 	char* seat_id;
-	for (int i = 0; i < ntoken; i++) {
+	for (int i = 0; i < n_seats; i++) {
 		if (storage_load(database->storage, ordered_request[i], &seat_id)) {
 			return 1;
 		}
@@ -523,7 +410,7 @@ static int procedure_book(const database_t handle, char** query, char** result) 
 	//get valid id
 	if (!abort) {
 		char* buffer;
-		for (int i = 0; i < ntoken; i++) {
+		for (int i = 0; i < n_seats; i++) {
 			if (storage_store(database->storage, ordered_request[i], id, &buffer)) {
 				return 1;
 			}
@@ -532,107 +419,53 @@ static int procedure_book(const database_t handle, char** query, char** result) 
 		//set result as id
 	}
 	else {
-		//set result as failed
+		*result = strdup(MSG_FAIL);
 	}
-	for (int i = 0; i < ntoken; i++) {
+	for (int i = 0; i < n_seats; i++) {
 		if (storage_unlock(database->storage, ordered_request[i])) {
 			return 1;
 		}
 	}
-	for (int i = 0; i < ntoken; i++) {
+	for (int i = 0; i < n_seats; i++) {
 		free(ordered_request[i]);
 	}
 	free(ordered_request);
-	*/
 }
 
 static int procedure_unbook(const database_t handle, char** query, char** result) {
 	struct database* database = (struct database*)handle;
 	int ret;
-	int ntoken;
-	char* id;
-	char* buffer = NULL;
-	char* saveptr = NULL;
-	char** token = NULL;
-	char** rquery = NULL;
-	char** wquery = NULL;
-	/*
-	ntoken = 0;
-	if ((buffer = strdup(query)) == NULL) {
-		return 1;
-	}
-	if ((token = malloc(sizeof(char*))) == NULL) {
-		return 1;
-	}
-	token[0] = strtok_r(buffer, " ", &saveptr);
-	ntoken++;
-	do {
-		ntoken++;
-		if ((token = realloc(token, sizeof(char*) * (size_t)ntoken)) == NULL) {
+	char* id = query[0];
+	
+	for (int i = 1; query[i]; i++) {
+		char* buffer;
+		if (procedure_get(database, &(query[i]), &buffer)) {
 			return 1;
 		}
-		token[ntoken - 1] = strtok_r(NULL, " ", &saveptr);
-	} while (token[ntoken - 1] != NULL);
-	ntoken--;
-	id = strdup(*token);
-	ntoken--;
-	*/
-	/*	free memory on error	*/
-	/*
-	if ((rquery = malloc(sizeof(char*) * (size_t)(ntoken))) == NULL) {
-		return 1;
+		if (strcmp(id, buffer)) {
+			free(buffer);
+			*result = strdup(MSG_FAIL);
+			return 0;
+		}
+		free(buffer);
 	}
-	if ((wquery = malloc(sizeof(char*) * (size_t)(ntoken))) == NULL) {
-		return 1;
-	}
-	for (int i = 0; i < ntoken; i++) {
-		if (asprintf(&(rquery[i]), "GET %s", token[i + 1]) == -1) {
+	for (int i = 1; query[i]; i++) {
+		char** parsed_query;
+		char* tmp_query;
+		char* buffer;
+		if (asprintf(&tmp_query, "%s 0", query[i]) == -1) {
 			return 1;
 		}
-		if (asprintf(&(wquery[i]), "SET %s 0", token[i + 1]) == -1) {
+		if (parse_query(tmp_query, &parsed_query) == -1) {
 			return 1;
 		}
-	}
-	free(buffer);
-	free(token);
-	ret = 0;
-	for (int i = 0; i < ntoken; i++) {
-		if (database_execute(database, rquery[i], result) == 1) {
-			for (int j = i; j < ntoken; free(rquery[++j]));
-			for (int j = 0; j < ntoken; free(wquery[j++]));
-			free(rquery);
-			free(wquery);
+		if (procedure_set(database, parsed_query, &buffer)) {
 			return 1;
 		}
-		if (strcmp(*result, id)) {
-			ret = 1;
-		}
-		free(rquery[i]);
-		free(*result);
-		if (ret) {
-			for (int j = i; j < ntoken; free(rquery[++j]));
-			for (int j = 0; j < ntoken; free(wquery[j++]));
-			free(rquery);
-			free(wquery);
-			free(id);
-			return 1;
-		}
+		free(*parsed_query);
+		free(parsed_query);
+		free(tmp_query);
+		free(buffer);
 	}
-	free(rquery);
-	free(id);
-	for (int i = 0; i < ntoken; i++) {
-		if (database_execute(database, wquery[i], result) == 1) {
-			for (int j = i; j < ntoken; free(wquery[++j]));
-			free(wquery);
-			return 1;
-		}
-		free(wquery[i]);
-		free(*result);
-	}
-	free(wquery);
-	if (asprintf(result, MSG_SUCC) == -1) {
-		return 1;
-	}
-	*/
 	return 0;
 }
