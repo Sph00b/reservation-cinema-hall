@@ -43,7 +43,8 @@ extern int connetcion_connect(const connection_t handle);
 /* Get a malloc'd buffer wich contain a received message return number of byte read or -1 on error*/
 extern int connection_recv(const connection_t handle, char** buff);
 
-/**/
+/* return number of bytes sended */
+
 extern int connection_send(const connection_t handle, const char* buff);
 
 /* Initiazlize connection return 1 and set properly errno on error */

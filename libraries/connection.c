@@ -164,8 +164,6 @@ int connection_recv(const connection_t handle, LPTSTR* buff) {
 	return (int)len;
 }
 
-/* return number of bytes sended */
-
 int connection_send(const connection_t handle, LPCTSTR buff) {
 	struct connection* connection = (struct connection*)handle;
 	int len;

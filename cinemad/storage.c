@@ -31,6 +31,7 @@ static int update_buffer_cache(const storage_t handle);
 static int load_table(const storage_t handle);
 static int get_record(const storage_t handle, struct index_record** result, const char* key);
 static int format(const char* str, char** result);
+static int record_destroy(void* key, void* value);
 
 storage_t storage_init(const char* filename) {
 	struct storage* storage;
@@ -83,7 +84,7 @@ int storage_close(const storage_t handle) {
 	if (ret) {
 		return 1;
 	}
-	index_table_destroy(storage->index_table);
+	index_table_destroy(storage->index_table, &record_destroy);
 	fclose(storage->stream);
 	free(storage->buffer_cache);
 	free(storage);
@@ -437,5 +438,17 @@ static int format(const char* str, char** result) {
 	}
 	memset(*result, 0, MAXLEN + 1);
 	strncpy(*result, str, MAXLEN);
+	return 0;
+}
+
+static int record_destroy(void* key, void* value) {
+	int ret;
+	struct index_record* record = (struct index_record*)value;
+	while ((ret = pthread_rwlock_destroy(&record->lock)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	free(key);
+	free(record);
 	return 0;
 }

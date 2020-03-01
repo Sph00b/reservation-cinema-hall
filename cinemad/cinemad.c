@@ -470,7 +470,7 @@ try(
 	free(buff);
 	/*	Send the response	*/
 try(
-	connection_send(connection, msg), (-1)	//ECONNRESET?
+	connection_send(connection, msg), (-1 - ((errno == ECONNRESET) + (errno == EPIPE)))
 )
 	free(msg);
 #ifdef _DEBUG

@@ -143,7 +143,7 @@ static int procedure_populate(const database_t handle, char** result) {
 	"SET COLUMNS 1",
 	"SET FILM Titolo",
 	"SET SHOWTIME 00:00",
-	"SET ID_COUNTER 0",
+	"SET ID_COUNTER 1",
 	"SET 0 0",
 	NULL
 	};

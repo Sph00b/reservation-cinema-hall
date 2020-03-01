@@ -12,9 +12,9 @@ struct index_table {
 	pthread_rwlock_t lock;
 };
 
-static int free_records(avl_tree_node_t node);
+static int free_records(avl_tree_node_t node, int (*record_destroy)(void* key, void* value));
 
-index_table_t index_table_init(avl_tree_comparison_function* comparison_function) {
+index_table_t index_table_init(int (*comparison_function)(const void* key1, const void* key2)) {
 	struct index_table* index_table;
 	if ((index_table = malloc(sizeof(struct index_table))) == NULL) {
 		return NULL;
@@ -32,14 +32,14 @@ index_table_t index_table_init(avl_tree_comparison_function* comparison_function
 	return index_table;
 }
 
-int index_table_destroy(index_table_t handle) {
+int index_table_destroy(index_table_t handle, int (*record_destroy)(void* key, void* value)) {
 	struct index_table* index_table = (struct index_table*)handle;
 	int ret;
 	while ((ret = pthread_rwlock_destroy(&index_table->lock)) && errno == EINTR);
 	if (ret) {
 		return 1;
 	}
-	if (free_records(avl_tree_get_root(index_table->avl_tree))) {
+	if (free_records(avl_tree_get_root(index_table->avl_tree), record_destroy)) {
 		return 1;
 	}
 	if (avl_tree_destroy(index_table->avl_tree)) {
@@ -81,7 +81,7 @@ void* index_table_search(index_table_t handle, const void* key) {
 	return result;
 }
 
-static int free_records(avl_tree_node_t node) {
+static int free_records(avl_tree_node_t node, int (*record_destroy)(void* key, void* value)) {
 	_stack_t stack = stack_init();
 	if (node) {
 		stack_push(stack, node);
@@ -94,8 +94,11 @@ static int free_records(avl_tree_node_t node) {
 			if (avl_tree_node_get_right_son(current_node)) {
 				stack_push(stack, avl_tree_node_get_right_son(current_node));
 			}
-			free(avl_tree_node_get_key(current_node));
-			free(avl_tree_node_get_value(current_node));
+			if (record_destroy) {
+				if (record_destroy(avl_tree_node_get_key(current_node), avl_tree_node_get_value(current_node))) {
+					return 1;
+				}
+			}
 		}
 	}
 	stack_destroy(stack);
