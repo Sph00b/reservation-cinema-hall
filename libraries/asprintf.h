@@ -11,3 +11,5 @@ int asprintf(LPTSTR* str, LPCTSTR format, ...);
 #elif __unix__
 int asprintf(char** str, const char* format, ...);
 #endif
+
+int strtoi(char* str, int* result);

@@ -162,10 +162,16 @@ static int procedure_setup(const database_t handle, char** result) {
 	int clean = 0;
 
 	database_execute(database, "GET ROWS", result);
-	database->cinema_info.rows = atoi(*result);
+	if (strtoi(*result, &database->cinema_info.rows)) {
+		free(*result);
+		return 1;
+	}
 	free(*result);
 	database_execute(database, "GET COLUMNS", result);
-	database->cinema_info.columns = atoi(*result);
+	if (strtoi(*result, &database->cinema_info.columns)) {
+		free(*result);
+		return 1;
+	}
 	free(*result);
 	for (int i = 0; i < database->cinema_info.rows * database->cinema_info.columns; i++) {
 		char* query;
@@ -232,18 +238,26 @@ static int procedure_clean(const database_t handle, char** result) {
 
 static int procedure_get_id(const database_t handle, char** result) {
 	struct database* database = (struct database*)handle;
+	int current_id;
+	char* new_id;
+	char* buffer;
+
 	if (storage_lock_exclusive(database->storage, "ID_COUNTER")) {
 		return 1;
 	}
-	if (storage_load(database->storage, "ID_COUNTER", result)) {
+	if (storage_load(database->storage, "ID_COUNTER", &buffer)) {
 		return 1;
 	}
-	char* new_id;
-	char* buffer;
-	if (asprintf(&new_id, "%d", atoi(*result) + 1) == -1) {
+	if (strtoi(buffer, &current_id)) {
+		free(buffer);
+		return 1;
+	}
+	free(buffer);
+	if (asprintf(&new_id, "%d", current_id + 1) == -1) {
 		return 1;
 	}
 	if (storage_store(database->storage, "ID_COUNTER", new_id, &buffer)) {
+		free(new_id);
 		return 1;
 	}
 	free(new_id);
@@ -289,7 +303,9 @@ static int procedure_map(const database_t handle, char** query, char** result) {
 	char* map = NULL;
 
 	n_seats = database->cinema_info.rows * database->cinema_info.columns;
-	id = atoi(query[0]);
+	if (strtoi(query[0], &id)) {
+		return 1;
+	}
 	if (!n_seats) {
 		*result = strdup("");
 		return 0;
@@ -299,6 +315,7 @@ static int procedure_map(const database_t handle, char** query, char** result) {
 	}
 	memset(map, 0, (size_t)(n_seats * 2));
 	for (int i = 0; i < n_seats; i++) {
+		int book_id;
 		char* tmp_query;
 		char* buffer;
 		if (asprintf(&tmp_query, "%d", i) == -1) {
@@ -308,13 +325,16 @@ static int procedure_map(const database_t handle, char** query, char** result) {
 			return 1;
 		}
 		free(tmp_query);
-		if (atoi(buffer)) {
-			if (atoi(buffer) == id) {
-				free(buffer);
+		if (strtoi(buffer, &book_id)) {
+			free(buffer);
+			return 1;
+		}
+		if (book_id) {
+			free(buffer);
+			if (book_id == id) {
 				asprintf(&buffer, "1");
 			}
 			else {
-				free(buffer);
 				asprintf(&buffer, "2");
 			}
 		}
@@ -337,15 +357,20 @@ static int procedure_book(const database_t handle, char** query, char** result) 
 
 	/*	order request to avoid deadlock	*/
 	for (n_seats = 0; query[n_seats + 1]; n_seats++);	//get n_seats
-	if ((ordered_request = malloc(sizeof(char*) * (size_t)n_seats)) == NULL) {
-		return 1;
-	}
 	if ((tmp = malloc(sizeof(int) * (size_t)(database->cinema_info.rows * database->cinema_info.columns))) == NULL) {
 		return 1;
 	}
 	memset(tmp, 0, sizeof(int) * (size_t)(database->cinema_info.rows * database->cinema_info.columns));
 	for (int i = 0; i < n_seats; i++) {
-		tmp[atoi(query[i + 1])] = 1;
+		int seat;
+		if (strtoi(query[i + 1], &seat)) {
+			free(tmp);
+			return 1;
+		}
+		tmp[seat] = 1;
+	}
+	if ((ordered_request = malloc(sizeof(char*) * (size_t)n_seats)) == NULL) {
+		return 1;
 	}
 	int n_tmp = 0;
 	for (int i = 0; i < database->cinema_info.rows * database->cinema_info.columns; i++) {
@@ -369,15 +394,19 @@ static int procedure_book(const database_t handle, char** query, char** result) 
 	}
 	char* seat_id;
 	for (int i = 0; i < n_seats; i++) {
+		int seat_id_val;
 		if (storage_load(database->storage, ordered_request[i], &seat_id)) {
 			return 1;
 		}
-		if (atoi(seat_id)) {
+		if (strtoi(query[i + 1], &seat_id_val)) {
 			free(seat_id);
+			return 1;
+		}
+		free(seat_id);
+		if (seat_id_val) {
 			abort = 1;
 			break;
 		}
-		free(seat_id);
 	}
 	if (!abort) {
 		if (!strcmp(id, "-1")) {

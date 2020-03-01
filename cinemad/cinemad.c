@@ -37,12 +37,13 @@ concurrent_queue_t request_queue;
 
 /*	Prototype declarations of functions included in this code module	*/
 
-void	thread_exit(int sig) { pthread_exit(NULL); }	//SIAGALRM handler
-void*	thread_joiner(void* arg);
-void*	thread_timer(void* arg);
-void*	connection_mngr(void* arg);
-void*	request_handler(void* arg);
-int		daemonize();
+
+void thread_exit(int sig) { pthread_exit(NULL); }	//SIAGALRM handler
+void* thread_joiner(void* arg);
+void* thread_timer(void* arg);
+void* connection_mngr(void* arg);
+void* request_handler(void* arg);
+static int daemonize();
 
 int main(int argc, char *argv[]){
 	pthread_t joiner_tid;
@@ -148,8 +149,12 @@ try(
 try(
 	database_execute(database, "GET PORT", &port), (1)
 )
+	int port_value;
 try(
-	internet_connection = connection_init(address, (uint16_t)atoi(port)), (NULL)
+	strtoi(port, &port_value), (1)
+)
+try(
+	internet_connection = connection_init(address, (uint16_t)port_value), (NULL)
 )
 	free(address);
 	free(port);
@@ -238,7 +243,7 @@ try(
 	return 0;
 }
 
-int daemonize() {
+static int daemonize() {
 	pid_t pid;	//process id
 	pid_t sid;	//session id
 	char* wdir;	//working directory

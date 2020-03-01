@@ -84,8 +84,12 @@ int server_stop(){
 try(
 	server_query("GET PID", &pid), (1)
 )
+	int pid_value;
 try(
-	kill(atoi(pid), SIGTERM), (-1)
+	strtoi(pid, &pid_value), (1)
+)
+try(
+	kill(pid_value, SIGTERM), (-1)
 )
 	free(pid);
 	return 0;
