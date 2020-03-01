@@ -1,7 +1,6 @@
 #include "index_table.h"
 
 #include <stdlib.h>
-#include <string.h>
 #include <pthread.h>
 #include <errno.h>
 
@@ -130,11 +129,14 @@ index_record_t index_table_search(index_table_t handle, const void* key) {
 			if ((record = index_table->record_init()) == NULL) {
 				return NULL;
 			}
-			if (avl_tree_insert(index_table->avl_tree, strdup(key), record)) {
+			if (avl_tree_insert(index_table->avl_tree, key, record)) {
 				return NULL;
 			}
 			result = record;
 		}
+	}
+	else {
+		free(key);
 	}
 	while ((ret = pthread_rwlock_unlock(&index_table->lock)) && errno == EINTR);
 	if (ret) {

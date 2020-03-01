@@ -113,7 +113,7 @@ int storage_store(const storage_t handle, const char* key, const char* value, ch
 		*result = strdup(MSG_FAIL);
 		return 0;
 	}
-	if ((record = index_table_search(storage->index_table, formatted_key)) == NULL) {
+	if ((record = index_table_search(storage->index_table, strdup(formatted_key))) == NULL) {
 		return 1;
 	}
 	/*	add record if it doesn't exist	*/
@@ -193,7 +193,7 @@ int storage_load(const storage_t handle, const char* key, char** result) {
 		*result = strdup(MSG_FAIL);
 		return 0;
 	}
-	if ((record = index_table_search(storage->index_table, formatted_key)) == NULL) {
+	if ((record = index_table_search(storage->index_table, strdup(formatted_key))) == NULL) {
 		return 1;
 	}
 	free(formatted_key);
@@ -231,7 +231,7 @@ int storage_lock_shared(const storage_t handle, const char* key) {
 	if (formatted_key == NULL) {
 		return 0;
 	}
-	if ((record = index_table_search(storage->index_table, formatted_key)) == NULL) {
+	if ((record = index_table_search(storage->index_table, strdup(formatted_key))) == NULL) {
 		return 1;
 	}
 	free(formatted_key);
@@ -253,7 +253,7 @@ int storage_lock_exclusive(const storage_t handle, const char* key) {
 	if (formatted_key == NULL) {
 		return 0;
 	}
-	if ((record = index_table_search(storage->index_table, formatted_key)) == NULL) {
+	if ((record = index_table_search(storage->index_table, strdup(formatted_key))) == NULL) {
 		return 1;
 	}
 	free(formatted_key);
@@ -275,7 +275,7 @@ int storage_unlock(const storage_t handle, const char* key) {
 	if (formatted_key == NULL) {
 		return 0;
 	}
-	if ((record = index_table_search(storage->index_table, formatted_key)) == NULL) {
+	if ((record = index_table_search(storage->index_table, strdup(formatted_key))) == NULL) {
 		return 1;
 	}
 	free(formatted_key);
