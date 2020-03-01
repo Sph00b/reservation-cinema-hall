@@ -23,7 +23,6 @@ struct database {
 	struct cinema_info cinema_info;
 };
 
-//static int parse_query(struct query* parsed_query, const char* query);
 static int parse_query(const char* query, char*** parsed);
 static int procedure_populate(const database_t handle, char** result);
 static int procedure_setup(const database_t handle, char** result);
@@ -49,16 +48,14 @@ database_t database_init(const char* filename) {
 	return database;
 }
 
-/*	Close database return EOF and set properly errno on error */
-
 int database_close(const database_t handle) {
 	struct database* database = (struct database*)handle;
-	storage_close(database->storage);
+	if (storage_close(database->storage)) {
+		return 1;
+	}
 	free(database);
 	return 0;
 }
-
-/*	Execute a query return 1 and set properly errno on error */
 
 int database_execute(const database_t handle, const char* query, char** result) {
 	struct database* database = (struct database*)handle;
@@ -105,6 +102,9 @@ int database_execute(const database_t handle, const char* query, char** result) 
 	return ret;
 }
 
+/*	Tokenize the received query in a string vector saved in parsed parameter
+	return the number of token on success or return -1 and set properly errno on error */
+
 static int parse_query(const char* query, char*** parsed) {
 	int ntoken;
 	char* buffer = NULL;
@@ -132,6 +132,8 @@ static int parse_query(const char* query, char*** parsed) {
 	return ntoken;
 }
 
+/*	Populate the database executing a predefined set of query */
+
 static int procedure_populate(const database_t handle, char** result) {
 	struct database* database = (struct database*)handle;
 	char* msg_init[] = {
@@ -143,7 +145,7 @@ static int procedure_populate(const database_t handle, char** result) {
 	"SET COLUMNS 1",
 	"SET FILM Titolo",
 	"SET SHOWTIME 00:00",
-	"SET ID_COUNTER 1",
+	"SET ID_COUNTER 0",
 	"SET 0 0",
 	NULL
 	};
@@ -156,6 +158,8 @@ static int procedure_populate(const database_t handle, char** result) {
 	*result = strdup(MSG_SUCC);
 	return 0;
 }
+
+/*	Setup the database and the database info */
 
 static int procedure_setup(const database_t handle, char** result) {
 	struct database* database = (struct database*)handle;
@@ -205,6 +209,8 @@ static int procedure_setup(const database_t handle, char** result) {
 	return 0;
 }
 
+/*	Discard all the seats prenotation	*/
+
 static int procedure_clean(const database_t handle, char** result) {
 	struct database* database = (struct database*)handle;
 	char** parsed_query;
@@ -236,6 +242,8 @@ static int procedure_clean(const database_t handle, char** result) {
 	return 0;
 }
 
+/*	Get a valid ID for a booking	*/
+
 static int procedure_get_id(const database_t handle, char** result) {
 	struct database* database = (struct database*)handle;
 	int current_id;
@@ -260,6 +268,7 @@ static int procedure_get_id(const database_t handle, char** result) {
 		free(new_id);
 		return 1;
 	}
+	*result = strdup(new_id);
 	free(new_id);
 	free(buffer);
 	if (storage_unlock(database->storage, "ID_COUNTER")) {
@@ -267,6 +276,8 @@ static int procedure_get_id(const database_t handle, char** result) {
 	}
 	return 0;
 }
+
+/*	Standard get procedure	*/
 
 static int procedure_get(const database_t handle, char** query, char** result) {
 	struct database* database = (struct database*)handle;
@@ -282,6 +293,8 @@ static int procedure_get(const database_t handle, char** query, char** result) {
 	return 0;
 }
 
+/*	Standard set procedure	*/
+
 static int procedure_set(const database_t handle, char** query, char** result) {
 	struct database* database = (struct database*)handle;
 	if (storage_lock_exclusive(database->storage, query[0])) {
@@ -296,6 +309,8 @@ static int procedure_set(const database_t handle, char** query, char** result) {
 	return 0;
 }
 
+/*	Return the seats status map	*/
+
 static int procedure_map(const database_t handle, char** query, char** result) {
 	struct database* database = (struct database*)handle;
 	int n_seats;
@@ -304,10 +319,11 @@ static int procedure_map(const database_t handle, char** query, char** result) {
 
 	n_seats = database->cinema_info.rows * database->cinema_info.columns;
 	if (strtoi(query[0], &id)) {
-		return 1;
+		*result = strdup(MSG_FAIL);
+		return 0;
 	}
 	if (!n_seats) {
-		*result = strdup("");
+		*result = strdup(MSG_FAIL);
 		return 0;
 	}
 	if ((map = malloc(sizeof(char) * (size_t)(n_seats * 2))) == NULL) {
@@ -327,7 +343,8 @@ static int procedure_map(const database_t handle, char** query, char** result) {
 		free(tmp_query);
 		if (strtoi(buffer, &book_id)) {
 			free(buffer);
-			return 1;
+			*result = strdup(MSG_FAIL);
+			return 0;
 		}
 		if (book_id) {
 			free(buffer);
@@ -347,6 +364,8 @@ static int procedure_map(const database_t handle, char** query, char** result) {
 	return 0;
 }
 
+/*	Return the ID on a successfull operation	*/
+
 static int procedure_book(const database_t handle, char** query, char** result) {
 	struct database* database = (struct database*)handle;
 	int n_seats;
@@ -365,7 +384,8 @@ static int procedure_book(const database_t handle, char** query, char** result) 
 		int seat;
 		if (strtoi(query[i + 1], &seat)) {
 			free(tmp);
-			return 1;
+			*result = strdup(MSG_FAIL);
+			return 0;
 		}
 		tmp[seat] = 1;
 	}
@@ -398,15 +418,12 @@ static int procedure_book(const database_t handle, char** query, char** result) 
 		if (storage_load(database->storage, ordered_request[i], &seat_id)) {
 			return 1;
 		}
-		if (strtoi(query[i + 1], &seat_id_val)) {
-			free(seat_id);
-			return 1;
-		}
-		free(seat_id);
-		if (seat_id_val) {
+		if (strcmp(seat_id, "0")) {
 			abort = 1;
+			free(seat_id);
 			break;
 		}
+		free(seat_id);
 	}
 	if (!abort) {
 		if (!strcmp(id, "-1")) {
@@ -437,6 +454,8 @@ static int procedure_book(const database_t handle, char** query, char** result) 
 	free(ordered_request);
 	return 0;
 }
+
+/*	Remove a booking	*/
 
 static int procedure_unbook(const database_t handle, char** query, char** result) {
 	struct database* database = (struct database*)handle;
