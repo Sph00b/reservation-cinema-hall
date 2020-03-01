@@ -36,4 +36,6 @@ void* avl_tree_search(avl_tree_t handle, void* key);
 
 int avl_tree_insert(avl_tree_t handle, void* key, void* value);
 
-void avl_tree_delete(avl_tree_t handle, void* key);
+int avl_tree_delete(avl_tree_t handle, void* key);
+
+int avl_tree_delete_node(avl_tree_t handle, avl_tree_node_t node);

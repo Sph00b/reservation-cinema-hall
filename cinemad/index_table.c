@@ -89,7 +89,7 @@ int index_table_insert(index_table_t handle, const void* key, const void* record
 
 int index_table_delete(index_table_t handle, const void* key) {
 	struct index_table* index_table = (struct index_table*)handle;
-	int result = 0;	//stub
+	int result;
 	int ret;
 	while ((ret = pthread_rwlock_wrlock(&index_table->lock)) && errno == EINTR);
 	if (ret) {
@@ -99,7 +99,7 @@ int index_table_delete(index_table_t handle, const void* key) {
 	if (index_table->record_destroy(avl_tree_node_get_key(node), avl_tree_node_get_value(node))) {
 		return 1;
 	}
-	//result = avl_tree_delete(index_table->avl_tree, key);
+	result = avl_tree_delete_node(index_table->avl_tree, node);
 	while ((ret = pthread_rwlock_unlock(&index_table->lock)) && errno == EINTR);
 	if (ret) {
 		return 1;

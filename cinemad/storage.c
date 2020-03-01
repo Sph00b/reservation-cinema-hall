@@ -198,6 +198,7 @@ int storage_load(const storage_t handle, const char* key, char** result) {
 	}
 	free(formatted_key);
 	if (record->offset == -1) {
+		index_table_delete(storage->index_table, key);	//avl_delete is bugged and avl_search isn't atomic
 		*result = strdup(MSG_FAIL);
 		return 0;
 	}
