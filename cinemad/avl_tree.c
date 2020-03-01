@@ -126,9 +126,7 @@ static void balance_delete(avl_tree_t handle, avl_tree_node_t node) {
 
 static void cut_single_son(avl_tree_t handle, avl_tree_node_t node) {
 	struct avl_tree* tree = (struct avl_tree*)handle;
-	struct avl_tree* cutted = (struct avl_tree*)handle;
-	cutted = avl_tree_cut_one_son_node(tree, node);
-	//avl_tree_destroy(cutted);
+	avl_tree_cut_one_son_node(tree, node);
 	balance_delete(tree, node);
 }
 

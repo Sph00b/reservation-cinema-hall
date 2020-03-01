@@ -10,11 +10,15 @@
 struct index_table {
 	avl_tree_t avl_tree;
 	pthread_rwlock_t lock;
+	index_record_t (*record_init)(index_table_t index_table, void* key);
+	int (*record_destroy)(void* key, void* value);
 };
 
-static int free_records(avl_tree_node_t node, int (*record_destroy)(void* key, void* value));
+index_table_t index_table_init(
+	index_record_t(*record_init)(index_table_t index_table, void* key),
+	int (*record_destroy)(void* key, void* value),
+	int (*comparison_function)(const void* key1, const void* key2)) {
 
-index_table_t index_table_init(int (*comparison_function)(const void* key1, const void* key2)) {
 	struct index_table* index_table;
 	if ((index_table = malloc(sizeof(struct index_table))) == NULL) {
 		return NULL;
@@ -29,19 +33,37 @@ index_table_t index_table_init(int (*comparison_function)(const void* key1, cons
 		free(index_table);
 		return NULL;
 	}
+	index_table->record_init = record_init;
+	index_table->record_destroy = record_destroy;
 	return index_table;
 }
 
-int index_table_destroy(index_table_t handle, int (*record_destroy)(void* key, void* value)) {
+int index_table_destroy(index_table_t handle) {
 	struct index_table* index_table = (struct index_table*)handle;
 	int ret;
 	while ((ret = pthread_rwlock_destroy(&index_table->lock)) && errno == EINTR);
 	if (ret) {
 		return 1;
 	}
-	if (free_records(avl_tree_get_root(index_table->avl_tree), record_destroy)) {
-		return 1;
+	avl_tree_node_t node = avl_tree_get_root(index_table->avl_tree);
+	_stack_t stack = stack_init();
+	if (node) {
+		stack_push(stack, node);
+		while (!stack_is_empty(stack)) {
+			struct binary_tree_node* current_node;
+			current_node = stack_pop(stack);
+			if (avl_tree_node_get_left_son(current_node)) {
+				stack_push(stack, avl_tree_node_get_left_son(current_node));
+			}
+			if (avl_tree_node_get_right_son(current_node)) {
+				stack_push(stack, avl_tree_node_get_right_son(current_node));
+			}
+			if (index_table->record_destroy(avl_tree_node_get_key(current_node), avl_tree_node_get_value(current_node))) {
+				return 1;
+			}
+		}
 	}
+	stack_destroy(stack);
 	if (avl_tree_destroy(index_table->avl_tree)) {
 		return 1;
 	}
@@ -65,7 +87,27 @@ int index_table_insert(index_table_t handle, const void* key, const void* record
 	return result;
 }
 
-void* index_table_search(index_table_t handle, const void* key) {
+int index_table_delete(index_table_t handle, const void* key) {
+	struct index_table* index_table = (struct index_table*)handle;
+	int result = 0;	//stub
+	int ret;
+	while ((ret = pthread_rwlock_wrlock(&index_table->lock)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	avl_tree_node_t node = avl_tree_search_node(index_table->avl_tree, key);
+	if (index_table->record_destroy(avl_tree_node_get_key(node), avl_tree_node_get_value(node))) {
+		return 1;
+	}
+	//result = avl_tree_delete(index_table->avl_tree, key);
+	while ((ret = pthread_rwlock_unlock(&index_table->lock)) && errno == EINTR);
+	if (ret) {
+		return 1;
+	}
+	return result;
+}
+
+index_record_t index_table_search(index_table_t handle, const void* key) {
 	struct index_table* index_table = (struct index_table*)handle;
 	void* result;
 	int ret;
@@ -78,29 +120,10 @@ void* index_table_search(index_table_t handle, const void* key) {
 	if (ret) {
 		return NULL;
 	}
-	return result;
-}
-
-static int free_records(avl_tree_node_t node, int (*record_destroy)(void* key, void* value)) {
-	_stack_t stack = stack_init();
-	if (node) {
-		stack_push(stack, node);
-		while (!stack_is_empty(stack)) {
-			struct binary_tree_node* current_node;
-			current_node = stack_pop(stack);
-			if (avl_tree_node_get_left_son(current_node)) {
-				stack_push(stack, avl_tree_node_get_left_son(current_node));
-			}
-			if (avl_tree_node_get_right_son(current_node)) {
-				stack_push(stack, avl_tree_node_get_right_son(current_node));
-			}
-			if (record_destroy) {
-				if (record_destroy(avl_tree_node_get_key(current_node), avl_tree_node_get_value(current_node))) {
-					return 1;
-				}
-			}
+	if (result == NULL) {
+		if ((result = index_table->record_init(index_table, key)) == NULL) {
+			return NULL;
 		}
 	}
-	stack_destroy(stack);
-	return 0;
+	return result;
 }

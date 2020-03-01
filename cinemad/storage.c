@@ -31,8 +31,8 @@ struct storage {
 static int lexicographical_comparison(const void* key1, const void* key2);
 static int update_buffer_cache(const storage_t handle);
 static int load_table(const storage_t handle);
-static int get_record(const storage_t handle, struct index_record** result, const char* key);
 static int format(const char* str, char** result);
+static index_record_t record_init(index_table_t index_table, void* key);
 static int record_destroy(void* key, void* value);
 
 storage_t storage_init(const char* filename) {
@@ -60,7 +60,7 @@ storage_t storage_init(const char* filename) {
 		free(storage);
 		return NULL;
 	}
-	if ((storage->index_table = index_table_init(&lexicographical_comparison)) == NULL) {
+	if ((storage->index_table = index_table_init(&record_init, &record_destroy, &lexicographical_comparison)) == NULL) {
 		free(storage);
 		return NULL;
 	}
@@ -86,7 +86,7 @@ int storage_close(const storage_t handle) {
 	if (ret) {
 		return 1;
 	}
-	index_table_destroy(storage->index_table, &record_destroy);
+	index_table_destroy(storage->index_table);
 	fclose(storage->stream);
 	free(storage->buffer_cache);
 	free(storage);
@@ -113,7 +113,7 @@ int storage_store(const storage_t handle, const char* key, const char* value, ch
 		*result = strdup(MSG_FAIL);
 		return 0;
 	}
-	if (get_record(storage, &record, key)) {
+	if ((record = index_table_search(storage->index_table, key)) == NULL) {
 		return 1;
 	}
 	/*	add record if it doesn't exist	*/
@@ -193,7 +193,7 @@ int storage_load(const storage_t handle, const char* key, char** result) {
 		*result = strdup(MSG_FAIL);
 		return 0;
 	}
-	if (get_record(storage, &record, formatted_key)) {
+	if ((record = index_table_search(storage->index_table, key)) == NULL) {
 		return 1;
 	}
 	free(formatted_key);
@@ -230,7 +230,7 @@ int storage_lock_shared(const storage_t handle, const char* key) {
 	if (formatted_key == NULL) {
 		return 0;
 	}
-	if (get_record(storage, &record, formatted_key)) {
+	if ((record = index_table_search(storage->index_table, key)) == NULL) {
 		return 1;
 	}
 	free(formatted_key);
@@ -252,7 +252,7 @@ int storage_lock_exclusive(const storage_t handle, const char* key) {
 	if (formatted_key == NULL) {
 		return 0;
 	}
-	if (get_record(storage, &record, formatted_key)) {
+	if ((record = index_table_search(storage->index_table, key)) == NULL) {
 		return 1;
 	}
 	free(formatted_key);
@@ -274,7 +274,7 @@ int storage_unlock(const storage_t handle, const char* key) {
 	if (formatted_key == NULL) {
 		return 0;
 	}
-	if (get_record(storage, &record, formatted_key)) {
+	if ((record = index_table_search(storage->index_table, key)) == NULL) {
 		return 1;
 	}
 	free(formatted_key);
@@ -361,43 +361,6 @@ static int load_table(const storage_t handle) {
 	return 0;
 }
 
-static int get_record(const storage_t handle, struct index_record** result, const char* key) {
-	struct storage* storage = (struct storage*)handle;
-	if (index_table_search(storage->index_table, key) == NULL) {
-		struct index_record* record;
-		char* record_key;
-		if ((record_key = malloc(sizeof(char) * (MAXLEN + 1))) == NULL) {
-			*result = NULL;
-			return 1;
-		}
-		strncpy(record_key, key, MAXLEN);
-		record_key[MAXLEN] = 0;
-		if ((record = malloc(sizeof(struct index_record))) == NULL) {
-			free(record_key);
-			*result = NULL;
-			return 1;
-		}
-		record->offset = -1;
-		int ret;
-		while ((ret = pthread_rwlock_init(&record->lock, NULL)) && errno == EINTR);
-		if (ret) {
-			free(record_key);
-			free(record);
-			*result = NULL;
-			return 1;
-		}
-		if (index_table_insert(storage->index_table, record_key, record)) {
-			free(record_key);
-			pthread_rwlock_destroy(&record->lock);
-			free(record);
-			*result = NULL;
-			return 1;
-		}
-	}
-	*result = index_table_search(storage->index_table, key);
-	return 0;
-}
-
 static int update_buffer_cache(const storage_t handle) {
 	struct storage* storage = (struct storage*)handle;
 	long filesize;
@@ -441,6 +404,34 @@ static int format(const char* str, char** result) {
 	memset(*result, 0, MAXLEN + 1);
 	strncpy(*result, str, MAXLEN);
 	return 0;
+}
+
+static index_record_t record_init(index_table_t index_table, void* key) {
+	struct index_record* record;
+	char* record_key;
+	if ((record_key = malloc(sizeof(char) * (MAXLEN + 1))) == NULL) {
+		return NULL;
+	}
+	strncpy(record_key, key, MAXLEN);
+	record_key[MAXLEN] = 0;
+	if ((record = malloc(sizeof(struct index_record))) == NULL) {
+		free(record_key);
+		return NULL;
+	}
+	record->offset = -1;
+	int ret;
+	while ((ret = pthread_rwlock_init(&record->lock, NULL)) && errno == EINTR);
+	if (ret) {
+		free(record_key);
+		free(record);
+		return NULL;
+	}
+	if (index_table_insert(index_table, record_key, record)) {
+		free(record_key);
+		free(record);
+		return NULL;
+	}
+	return record;
 }
 
 static int record_destroy(void* key, void* value) {

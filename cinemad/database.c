@@ -416,7 +416,6 @@ static int procedure_book(const database_t handle, char** query, char** result) 
 	}
 	char* seat_id;
 	for (int i = 0; i < n_seats; i++) {
-		int seat_id_val;
 		if (storage_load(database->storage, ordered_request[i], &seat_id)) {
 			return 1;
 		}
