@@ -26,6 +26,8 @@ struct storage {
 	pthread_rwlock_t lock_buffer_cahce;
 };
 
+/*	Prototype declarations of functions included in this code module	*/
+
 static int lexicographical_comparison(const void* key1, const void* key2);
 static int update_buffer_cache(const storage_t handle);
 static int load_table(const storage_t handle);

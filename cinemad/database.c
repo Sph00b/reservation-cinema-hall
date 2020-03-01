@@ -23,6 +23,8 @@ struct database {
 	struct cinema_info cinema_info;
 };
 
+/*	Prototype declarations of functions included in this code module	*/
+
 static int parse_query(const char* query, char*** parsed);
 static int procedure_populate(const database_t handle, char** result);
 static int procedure_setup(const database_t handle, char** result);

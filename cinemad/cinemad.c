@@ -37,7 +37,6 @@ concurrent_queue_t request_queue;
 
 /*	Prototype declarations of functions included in this code module	*/
 
-
 void thread_exit(int sig) { pthread_exit(NULL); }	//SIAGALRM handler
 void* thread_joiner(void* arg);
 void* thread_timer(void* arg);
