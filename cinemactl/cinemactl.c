@@ -7,7 +7,7 @@
 #include <time.h>
 
 #include "connection.h"
-#include "asprintf.h"
+#include "resources.h"
 
 #define try(foo, err_value)\
 	if ((foo) == (err_value)){\

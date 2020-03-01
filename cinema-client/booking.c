@@ -3,47 +3,13 @@
 #include <tchar.h>
 #include <stdio.h>
 
-#include "asprintf.h"
+#include "resources.h"
 
 #define MAX_SIZE 32
 
-LPTSTR GetFilename(LPCTSTR lpParam) {
-	LPTSTR lpBuffer = NULL;
-	LPTSTR lpTmp = NULL;
-	DWORD len = 0;
+// Dichiarazioni con prototipo di funzioni incluse in questo modulo di codice:
 
-	if (lpParam == NULL) {
-		return NULL;
-	}
-	if (!(len = GetEnvironmentVariable(TEXT("APPDATA"), lpBuffer, 0))) {
-		return NULL;
-	}
-	len++;
-	if ((lpBuffer = malloc(sizeof(TCHAR) * len)) == NULL) {
-		return NULL;
-	}
-	if (!GetEnvironmentVariable(TEXT("APPDATA"), lpBuffer, len)) {
-		free(lpBuffer);
-		return NULL;
-	}
-	lpTmp = lpBuffer;
-	if (asprintf(&lpBuffer, TEXT("%s\\%s"), lpBuffer, lpParam) == -1) {
-		free(lpBuffer);
-		return NULL;
-	}
-	free(lpTmp);
-	if (!CreateDirectory(lpBuffer, NULL) && GetLastError() != ERROR_ALREADY_EXISTS) {
-		free(lpBuffer);
-		return NULL;
-	}
-	lpTmp = lpBuffer;
-	if (asprintf(&lpBuffer, TEXT("%s\\%s"), lpBuffer, TEXT("sav.dat")) == -1) {
-		free(lpBuffer);
-		return NULL;
-	}
-	free(lpTmp);
-	return lpBuffer;
-}
+static LPTSTR GetFilename(LPCTSTR lpParam);
 
 HBOOKING InitializeBooking(LPCTSTR lpParam) {
 	HBOOKING hBooking = NULL;
@@ -90,5 +56,43 @@ LPTSTR GetBooking(HBOOKING hBooking) {
 	if (!ReadFile(hBooking, lpBuffer, dwBytesReadable, &dwBytesRead, NULL)) {
 		return NULL;
 	}
+	return lpBuffer;
+}
+
+static LPTSTR GetFilename(LPCTSTR lpParam) {
+	LPTSTR lpBuffer = NULL;
+	LPTSTR lpTmp = NULL;
+	DWORD len = 0;
+
+	if (lpParam == NULL) {
+		return NULL;
+	}
+	if (!(len = GetEnvironmentVariable(TEXT("APPDATA"), lpBuffer, 0))) {
+		return NULL;
+	}
+	len++;
+	if ((lpBuffer = malloc(sizeof(TCHAR) * len)) == NULL) {
+		return NULL;
+	}
+	if (!GetEnvironmentVariable(TEXT("APPDATA"), lpBuffer, len)) {
+		free(lpBuffer);
+		return NULL;
+	}
+	lpTmp = lpBuffer;
+	if (asprintf(&lpBuffer, TEXT("%s\\%s"), lpBuffer, lpParam) == -1) {
+		free(lpBuffer);
+		return NULL;
+	}
+	free(lpTmp);
+	if (!CreateDirectory(lpBuffer, NULL) && GetLastError() != ERROR_ALREADY_EXISTS) {
+		free(lpBuffer);
+		return NULL;
+	}
+	lpTmp = lpBuffer;
+	if (asprintf(&lpBuffer, TEXT("%s\\%s"), lpBuffer, TEXT("sav.dat")) == -1) {
+		free(lpBuffer);
+		return NULL;
+	}
+	free(lpTmp);
 	return lpBuffer;
 }

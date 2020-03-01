@@ -2,7 +2,7 @@
 #include "cinema-client.h"
 #include "framework.h"
 #include "booking.h"
-#include "asprintf.h"
+#include "resources.h"
 #ifdef _DEBUG
 #include <io.h>
 #include <stdio.h>
@@ -32,6 +32,7 @@ HBITMAP hBitmapRemove;
 HBITMAP hBitmapDisabled;
 
 // Dichiarazioni con prototipo di funzioni incluse in questo modulo di codice:
+
 ATOM                MyRegisterClass(HINSTANCE);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);

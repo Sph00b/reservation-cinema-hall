@@ -11,7 +11,7 @@
 #include <signal.h>
 #include <errno.h>
 
-#include "asprintf.h"
+#include "resources.h"
 #include "database.h"
 #include "connection.h"
 #include "concurrent_queue.h"
