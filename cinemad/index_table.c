@@ -1,6 +1,7 @@
 #include "index_table.h"
 
 #include <stdlib.h>
+#include <string.h>
 #include <pthread.h>
 #include <errno.h>
 
@@ -10,12 +11,12 @@
 struct index_table {
 	avl_tree_t avl_tree;
 	pthread_rwlock_t lock;
-	index_record_t (*record_init)(index_table_t index_table, void* key);
+	index_record_t (*record_init)();
 	int (*record_destroy)(void* key, void* value);
 };
 
 index_table_t index_table_init(
-	index_record_t(*record_init)(index_table_t index_table, void* key),
+	index_record_t(*record_init)(),
 	int (*record_destroy)(void* key, void* value),
 	int (*comparison_function)(const void* key1, const void* key2)) {
 
@@ -115,15 +116,29 @@ index_record_t index_table_search(index_table_t handle, const void* key) {
 	if (ret) {
 		return NULL;
 	}
-	result = avl_tree_search(index_table->avl_tree, key);
+	if ((result = avl_tree_search(index_table->avl_tree, key)) == NULL) {
+		while ((ret = pthread_rwlock_unlock(&index_table->lock)) && errno == EINTR);
+		if (ret) {
+			return NULL;
+		}
+		while ((ret = pthread_rwlock_wrlock(&index_table->lock)) && errno == EINTR);
+		if (ret) {
+			return NULL;
+		}
+		if ((result = avl_tree_search(index_table->avl_tree, key)) == NULL) {
+			index_record_t record;
+			if ((record = index_table->record_init()) == NULL) {
+				return NULL;
+			}
+			if (avl_tree_insert(index_table->avl_tree, strdup(key), record)) {
+				return NULL;
+			}
+			result = record;
+		}
+	}
 	while ((ret = pthread_rwlock_unlock(&index_table->lock)) && errno == EINTR);
 	if (ret) {
 		return NULL;
-	}
-	if (result == NULL) {
-		if ((result = index_table->record_init(index_table, key)) == NULL) {
-			return NULL;
-		}
 	}
 	return result;
 }

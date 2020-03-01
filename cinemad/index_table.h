@@ -4,7 +4,7 @@ typedef void* index_record_t;
 typedef void* index_table_t;
 
 index_table_t index_table_init(
-    index_record_t (*record_init)(index_table_t index_table, void* key),
+    index_record_t (*record_init)(),
     int (*record_destroy)(void* key, void* value),
     int (*comparison_function)(const void* key1, const void* key2));
 

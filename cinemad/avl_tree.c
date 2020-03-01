@@ -411,6 +411,7 @@ int avl_tree_delete(avl_tree_t handle, void* key) {
 			return cut_single_son(tree, pred);
 		}
 	}
+	return 0;
 }
 
 int avl_tree_delete_node(avl_tree_t handle, avl_tree_node_t node) {
@@ -428,4 +429,5 @@ int avl_tree_delete_node(avl_tree_t handle, avl_tree_node_t node) {
 			return cut_single_son(tree, pred);
 		}
 	}
+	return 0;
 }
