@@ -14,4 +14,4 @@ int index_table_insert(index_table_t handle, const void* key, const void* record
 
 int index_table_delete(index_table_t handle, const void* key);
 
-index_record_t index_table_search(index_table_t handle, const void* key);
+index_record_t index_table_search(index_table_t handle, void* key);

@@ -279,6 +279,10 @@ int storage_unlock(const storage_t handle, const char* key) {
 		return 1;
 	}
 	free(formatted_key);
+	if (record->offset == -1) {
+		index_table_delete(storage->index_table, key);
+		return 0;
+	}
 	while ((ret = pthread_rwlock_unlock(&record->lock)) && errno == EINTR);
 	if (ret) {
 		return 1;

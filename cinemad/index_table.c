@@ -107,7 +107,7 @@ int index_table_delete(index_table_t handle, const void* key) {
 	return result;
 }
 
-index_record_t index_table_search(index_table_t handle, const void* key) {
+index_record_t index_table_search(index_table_t handle, void* key) {
 	struct index_table* index_table = (struct index_table*)handle;
 	void* result;
 	int ret;
