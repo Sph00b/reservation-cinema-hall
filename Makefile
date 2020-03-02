@@ -3,56 +3,48 @@
 # Sistema operativo Linux (RHEL 8.1) con compilatore gcc 8.3.1
 #
 
-TARGET ?= cinemad
-MGCLNT ?= cinemactl
+SERVER := cinemad
+MGCLNT := cinemactl
 CC ?= gcc
-LD ?= gcc
 
-DMN_DIR ?= $(shell printenv HOME)/.cinema
+
+SRV_DIR ?= $(shell printenv HOME)/.cinema
 BIN_DIR ?= ./bin
-SRC_DIR ?= ./src
-INC_DIR ?= ./include
-OBJ_DIR ?= ./build
-LIB_DIR ?= ../lib
+OBJ_DIR ?= ./obj
+LIB_DIR ?= ./libraries
 
-SRCS := $(shell find $(SRC_DIR) $(LIB_DIR)/$(SRC_DIR) ! -name cinemad.c -name *.c)
-OBJS := $(SRCS:%=$(OBJ_DIR)/$(MGCLNT)/%.o)
+MGC_SRCS := $(shell find ./$(MGCLNT) $(LIB_DIR) -name *.c)
+MGC_OBJS := $(MGC_SRCS:%=./$(MGCLNT)/$(OBJ_DIR)/%.o)
 
-DMN_SRCS := $(shell find $(SRC_DIR) $(LIB_DIR)/$(SRC_DIR) ! -name cinemactl.c -name *.c)
-DMN_OBJS := $(DMN_SRCS:%=$(OBJ_DIR)/$(TARGET)/%.o)
+SRV_SRCS := $(shell find ./$(SERVER) $(LIB_DIR) -name *.c)
+SRV_OBJS := $(SRV_SRCS:%=./$(SERVER)/$(OBJ_DIR)/%.o)
 
-CFLAGS ?= -Wall $(addprefix -I,$(INC_DIR)) $(addprefix -I,$(LIB_DIR)/$(INC_DIR))
+CFLAGS ?= -w $(addprefix -I,$(LIB_DIR))
 LFLAGS ?= -pthread
 
-$(BIN_DIR)/$(MGCLNT): $(OBJS) $(DMN_DIR)/$(BIN_DIR)/$(TARGET)
+$(MGCLNT)/$(BIN_DIR)/$(MGCLNT): $(MGC_OBJS) $(SRV_DIR)/$(BIN_DIR)/$(SERVER)
 	$(MKDIR_P) $(dir $@)
-	$(CC) $(LFLAGS) $(OBJS) -o $@
-$(OBJ_DIR)/$(MGCLNT)/%.c.o: %.c
-	$(MKDIR_P) $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(DMN_DIR)/$(BIN_DIR)/$(TARGET): $(DMN_OBJS)
-	$(MKDIR_P) $(dir $@)
-	$(CC) $(LFLAGS) $(DMN_OBJS) -o $@
-$(OBJ_DIR)/$(TARGET)/%.c.o: %.c
+	$(CC) $(LFLAGS) $(MGC_OBJS) -o $@
+$(MGCLNT)/$(OBJ_DIR)/%.c.o: %.c
 	$(MKDIR_P) $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-.PHONY: clean rebase clean-all debug
+$(SRV_DIR)/$(BIN_DIR)/$(SERVER): $(SRV_OBJS)
+	$(MKDIR_P) $(dir $@)
+	$(CC) $(LFLAGS) $(SRV_OBJS) -o $@
+$(SERVER)/$(OBJ_DIR)/%.c.o: %.c
+	$(MKDIR_P) $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+	
+.PHONY: clean remove debug
 
 clean:
-	$(RM) -r $(OBJ_DIR)
+	$(RM) -r $(SERVER)/$(OBJ_DIR)
+	$(RM) -r $(MGCLNT)/$(OBJ_DIR)
 
-rebase:
-	$(RM) -r $(DMN_DIR)
-	make
-
-clean-all:
-	$(RM) -r $(OBJ_DIR)
-	$(RM) -r $(DMN_DIR)
-
-debug:
-	$(CFLAGS) = $(CFLAGS) -D debug
-	$(TAGET)
+remove:
+	$(RM) -r $(SERVER)/$(OBJ_DIR)
+	$(RM) -r $(MGCLNT)/$(OBJ_DIR)
+	$(RM) -r $(SRV_DIR)
 
 MKDIR_P ?= mkdir -p

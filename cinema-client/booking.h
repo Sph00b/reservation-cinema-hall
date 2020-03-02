@@ -17,7 +17,7 @@ typedef HANDLE HBOOKING;
 //		In questa funzione viene aperta la sessione al file di salvataggio, se
 //		il file non esiste questo viene creato insieme alla sua directory d'appartenenza.
 //
-extern HBOOKING InitializeBooking(LPCTSTR);
+HBOOKING InitializeBooking(LPCTSTR);
 
 //
 //	FUNZIONE: SetBooking(HBOOKING, LPCTSTR)
@@ -26,7 +26,7 @@ extern HBOOKING InitializeBooking(LPCTSTR);
 //
 //	RETURN:	TRUE in caso di successo FALSE in caso di errore
 //
-extern BOOL SetBooking(HBOOKING, LPCTSTR);
+BOOL SetBooking(HBOOKING, LPCTSTR);
 //
 //	FUNZIONE: GetBooking(HBOOKING)
 //
@@ -34,4 +34,4 @@ extern BOOL SetBooking(HBOOKING, LPCTSTR);
 //
 //	RETURN:	la stringa in caso di successo NULL in caso di errore
 //
-extern LPTSTR GetBooking(HBOOKING);
+LPTSTR GetBooking(HBOOKING);
