@@ -15,27 +15,27 @@ struct avl_tree_node {
 	avl_tree_node_t right_son;
 };
 
-extern avl_tree_node_t avl_tree_node_init(void* key, void* value) {
+avl_tree_node_t avl_tree_node_init(const void* key, const void* value) {
 	struct avl_tree_node* node;
 	if ((node = malloc(sizeof(struct avl_tree_node))) == NULL) {
 		return NULL;
 	}
 	node->height = 0;
-	node->key = key;
-	node->value = value;
+	node->key = (void*)key;
+	node->value = (void*)value;
 	node->father = NULL;
 	node->left_son = NULL;
 	node->right_son = NULL;
 	return node;
 }
 
-extern int avl_tree_node_destroy(avl_tree_node_t handle) {
+int avl_tree_node_destroy(const avl_tree_node_t handle) {
 	struct avl_tree_node* node = (struct avl_tree_node*)handle;
 	free(node);
 	return 0;
 }
 
-extern inline long avl_tree_node_degree(avl_tree_node_t handle) {
+inline long avl_tree_node_degree(const avl_tree_node_t handle) {
 	struct avl_tree_node* node = (struct avl_tree_node*)handle;
 	long degree = 0;
 
@@ -50,7 +50,7 @@ extern inline long avl_tree_node_degree(avl_tree_node_t handle) {
 	return degree;
 }
 
-extern inline int avl_tree_node_swap(avl_tree_node_t handle1, avl_tree_node_t handle2) {
+inline int avl_tree_node_swap(const avl_tree_node_t handle1, const avl_tree_node_t handle2) {
 	struct avl_tree_node* node1 = (struct avl_tree_node*)handle1;
 	struct avl_tree_node* node2 = (struct avl_tree_node*)handle2;
 	void* tmp;
@@ -63,22 +63,22 @@ extern inline int avl_tree_node_swap(avl_tree_node_t handle1, avl_tree_node_t ha
 	return 0;
 }
 
-extern inline void* avl_tree_node_get_key(avl_tree_node_t handle) {
+inline void* avl_tree_node_get_key(const avl_tree_node_t handle) {
 	struct avl_tree_node* node = (struct avl_tree_node*)handle;
 	return node ? node->key : NULL;
 }
 
-extern inline void* avl_tree_node_get_value(avl_tree_node_t handle) {
+inline void* avl_tree_node_get_value(const avl_tree_node_t handle) {
 	struct avl_tree_node* node = (struct avl_tree_node*)handle;
 	return node ? node->value : NULL;
 }
 
-extern inline int avl_tree_node_get_height(avl_tree_node_t handle) {
+inline int avl_tree_node_get_height(const avl_tree_node_t handle) {
 	struct avl_tree_node* node = (struct avl_tree_node*)handle;
 	return node ? node->height : -1;
 }
 
-extern int avl_tree_node_set_height(avl_tree_node_t handle, int height) {
+int avl_tree_node_set_height(const avl_tree_node_t handle, int height) {
 	struct avl_tree_node* node = (struct avl_tree_node*)handle;
 	if (node) {
 		node->height = height;
@@ -87,7 +87,7 @@ extern int avl_tree_node_set_height(avl_tree_node_t handle, int height) {
 	return 1;
 }
 
-extern void avl_tree_node_update_height(avl_tree_node_t handle) {
+void avl_tree_node_update_height(const avl_tree_node_t handle) {
 	struct avl_tree_node* node = (struct avl_tree_node*)handle;
 	if (node) {
 		int left_son_height = avl_tree_node_get_height(avl_tree_node_get_left_son(node));
@@ -96,7 +96,7 @@ extern void avl_tree_node_update_height(avl_tree_node_t handle) {
 	}
 }
 
-extern int avl_tree_node_get_balance_factor(avl_tree_node_t handle) {
+int avl_tree_node_get_balance_factor(const avl_tree_node_t handle) {
 	struct avl_tree_node* node = (struct avl_tree_node*)handle;
 	if (node) {
 		int left_son_height = avl_tree_node_get_height(avl_tree_node_get_left_son(node));
@@ -106,12 +106,12 @@ extern int avl_tree_node_get_balance_factor(avl_tree_node_t handle) {
 	return 0;
 }
 
-extern inline avl_tree_node_t avl_tree_node_get_father(avl_tree_node_t handle) {
+inline avl_tree_node_t avl_tree_node_get_father(const avl_tree_node_t handle) {
 	struct avl_tree_node* node = (struct avl_tree_node*)handle;
 	return node ? node->father : NULL;
 }
 
-extern int avl_tree_node_set_father(avl_tree_node_t handle, avl_tree_node_t father) {
+int avl_tree_node_set_father(const avl_tree_node_t handle, const avl_tree_node_t father) {
 	struct avl_tree_node* node = (struct avl_tree_node*)handle;
 	if (node) {
 		node->father = father;
@@ -120,12 +120,12 @@ extern int avl_tree_node_set_father(avl_tree_node_t handle, avl_tree_node_t fath
 	return 1;
 }
 
-extern inline avl_tree_node_t avl_tree_node_get_left_son(avl_tree_node_t handle) {
+inline avl_tree_node_t avl_tree_node_get_left_son(const avl_tree_node_t handle) {
 	struct avl_tree_node* node = (struct avl_tree_node*)handle;
 	return node ? node->left_son : NULL;
 }
 
-extern int avl_tree_node_set_left_son(avl_tree_node_t handle, avl_tree_node_t left_son) {
+int avl_tree_node_set_left_son(const avl_tree_node_t handle, const avl_tree_node_t left_son) {
 	struct avl_tree_node* node = (struct avl_tree_node*)handle;
 	if (node) {
 		node->left_son = left_son;
@@ -134,12 +134,12 @@ extern int avl_tree_node_set_left_son(avl_tree_node_t handle, avl_tree_node_t le
 	return 1;
 }
 
-extern inline avl_tree_node_t avl_tree_node_get_right_son(avl_tree_node_t handle) {
+inline avl_tree_node_t avl_tree_node_get_right_son(const avl_tree_node_t handle) {
 	struct avl_tree_node* node = (struct avl_tree_node*)handle;
 	return node ? node->right_son : NULL;
 }
 
-extern int avl_tree_node_set_right_son(avl_tree_node_t handle, avl_tree_node_t right_son) {
+int avl_tree_node_set_right_son(const avl_tree_node_t handle, const avl_tree_node_t right_son) {
 	struct avl_tree_node* node = (struct avl_tree_node*)handle;
 	if (node) {
 		node->right_son = right_son;
@@ -148,7 +148,7 @@ extern int avl_tree_node_set_right_son(avl_tree_node_t handle, avl_tree_node_t r
 	return 1;
 }
 
-extern int avl_tree_node_is_left_son(avl_tree_node_t handle) {
+int avl_tree_node_is_left_son(const avl_tree_node_t handle) {
 	struct avl_tree_node* node = (struct avl_tree_node*)handle;
 	if (node) {
 		struct avl_tree_node* father = node->father;
@@ -161,7 +161,7 @@ extern int avl_tree_node_is_left_son(avl_tree_node_t handle) {
 	return 0;
 }
 
-extern int avl_tree_node_is_right_son(avl_tree_node_t handle) {
+int avl_tree_node_is_right_son(const avl_tree_node_t handle) {
 	struct avl_tree_node* node = (struct avl_tree_node*)handle;
 	if (node) {
 		struct avl_tree_node* father = node->father;
@@ -174,7 +174,7 @@ extern int avl_tree_node_is_right_son(avl_tree_node_t handle) {
 	return 0;
 }
 
-extern inline avl_tree_node_t avl_tree_node_get_max(avl_tree_node_t handle) {
+inline avl_tree_node_t avl_tree_node_get_max(const avl_tree_node_t handle) {
 	struct avl_tree_node* node = (struct avl_tree_node*)handle;
 	while (avl_tree_node_get_right_son(node)) {
 		node = avl_tree_node_get_right_son(node);
@@ -182,7 +182,7 @@ extern inline avl_tree_node_t avl_tree_node_get_max(avl_tree_node_t handle) {
 	return node;
 }
 
-extern inline avl_tree_node_t avl_tree_node_get_pred(avl_tree_node_t handle) {
+inline avl_tree_node_t avl_tree_node_get_pred(const avl_tree_node_t handle) {
 	struct avl_tree_node* node = (struct avl_tree_node*)handle;
 	if (node == NULL) {
 		return NULL;

@@ -15,9 +15,9 @@ struct index_table {
 };
 
 index_table_t index_table_init(
-	index_record_t(*record_init)(),
-	int (*record_destroy)(void* key, void* value),
-	int (*comparison_function)(const void* key1, const void* key2)) {
+	const index_record_t(*record_init)(),
+	const int (*record_destroy)(void* key, void* value),
+	const int (*comparison_function)(const void* key1, const void* key2)) {
 
 	struct index_table* index_table;
 	if ((index_table = malloc(sizeof(struct index_table))) == NULL) {
@@ -38,7 +38,7 @@ index_table_t index_table_init(
 	return index_table;
 }
 
-int index_table_destroy(index_table_t handle) {
+int index_table_destroy(const index_table_t handle) {
 	struct index_table* index_table = (struct index_table*)handle;
 	int ret;
 	while ((ret = pthread_rwlock_destroy(&index_table->lock)) && errno == EINTR);
@@ -71,7 +71,7 @@ int index_table_destroy(index_table_t handle) {
 	return 0;
 }
 
-int index_table_insert(index_table_t handle, const void* key, const void* record) {
+int index_table_insert(const index_table_t handle, const void* key, const void* record) {
 	struct index_table* index_table = (struct index_table*)handle;
 	int result;
 	int ret;
@@ -87,7 +87,7 @@ int index_table_insert(index_table_t handle, const void* key, const void* record
 	return result;
 }
 
-int index_table_delete(index_table_t handle, const void* key) {
+int index_table_delete(const index_table_t handle, const void* key) {
 	struct index_table* index_table = (struct index_table*)handle;
 	int result;
 	int ret;
@@ -107,7 +107,7 @@ int index_table_delete(index_table_t handle, const void* key) {
 	return result;
 }
 
-index_record_t index_table_search(index_table_t handle, void* key) {
+index_record_t index_table_search(const index_table_t handle, void* key) {
 	struct index_table* index_table = (struct index_table*)handle;
 	void* result;
 	int ret;
