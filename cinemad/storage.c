@@ -35,6 +35,8 @@ static int format(const char* str, char** result);
 static index_record_t record_init();
 static int record_destroy(void* key, void* value);
 
+/*	Initialize the storage,  */
+
 storage_t storage_init(const char* filename) {
 	struct storage* storage;
 	if ((storage = malloc(sizeof(struct storage))) == NULL) {
@@ -290,6 +292,8 @@ int storage_unlock(const storage_t handle, const char* key) {
 	return 0;
 }
 
+/*	Function to compare two strings	*/
+
 static int lexicographical_comparison(const void* key1, const void* key2) {
 	char* str1 = (char*)key1;
 	char* str2 = (char*)key2;
@@ -312,6 +316,8 @@ static int lexicographical_comparison(const void* key1, const void* key2) {
 	}
 }
 
+/*	Initialize the value in the index table depending on the content od the storage */
+
 static int load_table(const storage_t handle) {
 	struct storage* storage = (struct storage*)handle;
 	if (fseek(storage->stream, 0, SEEK_SET) == -1) {
@@ -333,18 +339,11 @@ static int load_table(const storage_t handle) {
 			}
 		}
 		current_key[MAXLEN] = 0;
-		if ((current_record = malloc(sizeof(struct index_record))) == NULL) {
+		if ((current_record = record_init()) == NULL) {
 			free(current_key);
 			return 1;
 		}
 		if ((current_record->offset = ftell(storage->stream)) == -1) {
-			free(current_key);
-			free(current_record);
-			return 1;
-		}
-		int ret;
-		while ((ret = pthread_rwlock_init(&current_record->lock, NULL)) && errno == EINTR);
-		if (ret) {
 			free(current_key);
 			free(current_record);
 			return 1;
@@ -365,6 +364,8 @@ static int load_table(const storage_t handle) {
 	}
 	return 0;
 }
+
+/*	Update the buffer cache */
 
 static int update_buffer_cache(const storage_t handle) {
 	struct storage* storage = (struct storage*)handle;
@@ -398,6 +399,9 @@ static int update_buffer_cache(const storage_t handle) {
 	return 0;
 }
 
+/*	Format the received string in a valid string saved in the result parameter,
+	return 0 on success or return 1 and set properly errno on error */
+
 static int format(const char* str, char** result) {
 	if (strlen(str) > MAXLEN) {
 		*result = NULL;
@@ -410,6 +414,8 @@ static int format(const char* str, char** result) {
 	strncpy(*result, str, MAXLEN);
 	return 0;
 }
+
+/*	Function to create a record data type return NULL on failure and set properly errno on error	*/
 
 static index_record_t record_init() {
 	struct index_record* record;
@@ -425,6 +431,8 @@ static index_record_t record_init() {
 	}
 	return record;
 }
+
+/*	Function to destroy a record data type return 1 on failure and set properly errno on error	*/
 
 static int record_destroy(void* key, void* value) {
 	int ret;
