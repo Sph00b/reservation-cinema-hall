@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="File di origine">
+      <UniqueIdentifier>{d0d05953-dc40-4497-bda3-7ae0f41993b4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="File di risorse">
+      <UniqueIdentifier>{5a157142-c190-4e37-a417-cbefa8cde22e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="File di intestazione">
+      <UniqueIdentifier>{63a2e5bf-3844-4ec2-983c-1432a40a5d58}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="cinemactl.c">
+      <Filter>File di origine</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

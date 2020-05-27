@@ -1,0 +1,114 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="File di origine">
+      <UniqueIdentifier>{47686645-f8cd-4a03-b149-d1c591e4cb04}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="File di intestazione">
+      <UniqueIdentifier>{4e49e188-d3ee-422a-a22a-63d4527faf16}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="File di intestazione\thread_safe">
+      <UniqueIdentifier>{24139bec-6420-4db0-bc66-c32d04e666f0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="File di intestazione\data_structure">
+      <UniqueIdentifier>{c0f114af-3261-48a2-9f2d-fb8d0047a5ea}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="File di intestazione\thread_safe\data_structure">
+      <UniqueIdentifier>{659affc0-158a-4b4a-92db-5077ad9af83a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="File di origine\data_structure">
+      <UniqueIdentifier>{6867d8fd-53bf-413d-9c4f-ca0784581444}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="File di origine\thread_safe">
+      <UniqueIdentifier>{40612579-93cd-4000-b150-deab8f2e87d2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="File di origine\thread_safe\data_structure">
+      <UniqueIdentifier>{84633434-7262-4f70-9abc-f5506641d991}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="File di origine\database">
+      <UniqueIdentifier>{fb42cbfd-4929-4616-adeb-081f57b3e658}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="File di intestazione\database">
+      <UniqueIdentifier>{f618d7a6-2e47-4f86-a9c3-bb4b752adce7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="File di origine\data_structure\tree">
+      <UniqueIdentifier>{8cdd257d-939b-42e1-a719-67999fd9afba}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="File di intestazione\data_structure\tree">
+      <UniqueIdentifier>{c844ba72-9181-4962-95c2-b69801b948e8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="File di origine\data_structure\tree\avl tree">
+      <UniqueIdentifier>{9eda3693-bdce-452f-bf8b-fe04e8e743bf}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="File di intestazione\data_structure\tree\avl tree">
+      <UniqueIdentifier>{b2a66306-4a5e-462e-819d-6a9357f449bb}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="cinemad.c">
+      <Filter>File di origine</Filter>
+    </ClCompile>
+    <ClCompile Include="stack.c">
+      <Filter>File di origine\data_structure</Filter>
+    </ClCompile>
+    <ClCompile Include="queue.c">
+      <Filter>File di origine\data_structure</Filter>
+    </ClCompile>
+    <ClCompile Include="concurrent_queue.c">
+      <Filter>File di origine\thread_safe\data_structure</Filter>
+    </ClCompile>
+    <ClCompile Include="flag.c">
+      <Filter>File di origine</Filter>
+    </ClCompile>
+    <ClCompile Include="concurrent_flag.c">
+      <Filter>File di origine\thread_safe</Filter>
+    </ClCompile>
+    <ClCompile Include="database.c">
+      <Filter>File di origine\database</Filter>
+    </ClCompile>
+    <ClCompile Include="storage.c">
+      <Filter>File di origine\database</Filter>
+    </ClCompile>
+    <ClCompile Include="avl_tree.c">
+      <Filter>File di origine\data_structure\tree\avl tree</Filter>
+    </ClCompile>
+    <ClCompile Include="avl_tree_node.c">
+      <Filter>File di origine\data_structure\tree\avl tree</Filter>
+    </ClCompile>
+    <ClCompile Include="index_table.c">
+      <Filter>File di origine\database</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="concurrent_queue.h">
+      <Filter>File di intestazione\thread_safe\data_structure</Filter>
+    </ClInclude>
+    <ClInclude Include="queue.h">
+      <Filter>File di intestazione\data_structure</Filter>
+    </ClInclude>
+    <ClInclude Include="stack.h">
+      <Filter>File di intestazione\data_structure</Filter>
+    </ClInclude>
+    <ClInclude Include="flag.h">
+      <Filter>File di intestazione</Filter>
+    </ClInclude>
+    <ClInclude Include="concurrent_flag.h">
+      <Filter>File di intestazione\thread_safe</Filter>
+    </ClInclude>
+    <ClInclude Include="database.h">
+      <Filter>File di intestazione\database</Filter>
+    </ClInclude>
+    <ClInclude Include="storage.h">
+      <Filter>File di intestazione\database</Filter>
+    </ClInclude>
+    <ClInclude Include="avl_tree.h">
+      <Filter>File di intestazione\data_structure\tree\avl tree</Filter>
+    </ClInclude>
+    <ClInclude Include="avl_tree_node.h">
+      <Filter>File di intestazione\data_structure\tree\avl tree</Filter>
+    </ClInclude>
+    <ClInclude Include="index_table.h">
+      <Filter>File di intestazione\database</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

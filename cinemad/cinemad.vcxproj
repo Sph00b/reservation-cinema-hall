@@ -1,0 +1,109 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{44c01b71-f817-4aff-8339-86820d250bd2}</ProjectGuid>
+    <Keyword>Linux</Keyword>
+    <RootNamespace>cinemad</RootNamespace>
+    <MinimumVisualStudioVersion>15.0</MinimumVisualStudioVersion>
+    <ApplicationType>Linux</ApplicationType>
+    <ApplicationTypeRevision>1.0</ApplicationTypeRevision>
+    <TargetLinuxPlatform>Generic</TargetLinuxPlatform>
+    <LinuxProjectType>{D51BCBC9-82E9-4017-911E-C93873C4EA2B}</LinuxProjectType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared">
+    <Import Project="..\libraries\libraries.vcxitems" Label="Shared" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" />
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <TargetExt />
+    <RemoteCCompileToolExe>g++</RemoteCCompileToolExe>
+    <RemoteCppCompileToolExe>g++</RemoteCppCompileToolExe>
+    <RemoteLdToolExe>gcc</RemoteLdToolExe>
+    <LocalRemoteCopySources>true</LocalRemoteCopySources>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <TargetExt />
+    <RemoteCCompileToolExe>gcc</RemoteCCompileToolExe>
+    <RemoteCppCompileToolExe>gcc</RemoteCppCompileToolExe>
+    <RemoteLdToolExe>gcc</RemoteLdToolExe>
+    <LocalRemoteCopySources>true</LocalRemoteCopySources>
+  </PropertyGroup>
+  <ItemGroup>
+    <ClCompile Include="avl_tree_node.c" />
+    <ClCompile Include="avl_tree.c" />
+    <ClCompile Include="cinemad.c" />
+    <ClCompile Include="concurrent_flag.c" />
+    <ClCompile Include="concurrent_queue.c" />
+    <ClCompile Include="database.c" />
+    <ClCompile Include="flag.c" />
+    <ClCompile Include="index_table.c" />
+    <ClCompile Include="queue.c" />
+    <ClCompile Include="stack.c" />
+    <ClCompile Include="storage.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="avl_tree.h" />
+    <ClInclude Include="avl_tree_node.h" />
+    <ClInclude Include="concurrent_flag.h" />
+    <ClInclude Include="concurrent_queue.h" />
+    <ClInclude Include="database.h" />
+    <ClInclude Include="flag.h" />
+    <ClInclude Include="index_table.h" />
+    <ClInclude Include="queue.h" />
+    <ClInclude Include="stack.h" />
+    <ClInclude Include="storage.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Update="C:\Users\Fabio\Documents\GitHub\reservation-cinema-hall\libraries\resources.c">
+      <FileType>CppCode</FileType>
+    </ClCompile>
+  </ItemGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <CLanguageStandard>gnu11</CLanguageStandard>
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>_DEBUG</PreprocessorDefinitions>
+      <Verbose>true</Verbose>
+    </ClCompile>
+    <Link>
+      <LibraryDependencies>pthread</LibraryDependencies>
+    </Link>
+    <RemotePostBuildEvent>
+      <Command>mv $(RemoteProjectDir) $(RemoteRootDir)/tmp;mv -n $(RemoteRootDir)/tmp/$(ProjectName) $(RemoteRootDir);rm -r $(RemoteRootDir)/tmp;mkdir -p ~/.cinema;mkdir -p ~/.cinema/bin;cp $(RemoteProjectDir)/bin/$(Platform)/$(Configuration)/cinemad ~/.cinema/bin/cinemad;</Command>
+    </RemotePostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <CLanguageStandard>gnu11</CLanguageStandard>
+      <CompileAs>CompileAsC</CompileAs>
+    </ClCompile>
+    <Link>
+      <LibraryDependencies>pthread</LibraryDependencies>
+    </Link>
+    <RemotePostBuildEvent>
+      <Command>mv $(RemoteProjectDir) $(RemoteRootDir)/tmp;mv -n $(RemoteRootDir)/tmp/$(ProjectName) $(RemoteRootDir);rm -r $(RemoteRootDir)/tmp;mkdir -p ~/.cinema;mkdir -p ~/.cinema/bin;cp $(RemoteProjectDir)/bin/$(Platform)/$(Configuration)/cinemad ~/.cinema/bin/cinemad;</Command>
+    </RemotePostBuildEvent>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+</Project>

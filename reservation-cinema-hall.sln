@@ -1,0 +1,78 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29728.190
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cinemactl", "cinemactl\cinemactl.vcxproj", "{B97F83E4-DE57-48AE-B4DB-DA1DD63919C2}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cinema-client", "cinema-client\cinema-client.vcxproj", "{45CEE698-ADB7-40C0-B955-B31F25587478}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cinemad", "cinemad\cinemad.vcxproj", "{44C01B71-F817-4AFF-8339-86820D250BD2}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "git", "git", "{29F13327-4A98-4C25-A3D3-A6CA83C11EBA}"
+	ProjectSection(SolutionItems) = preProject
+		.gitattributes = .gitattributes
+		.gitignore = .gitignore
+		Makefile = Makefile
+		README.it.md = README.it.md
+		README.md = README.md
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libraries", "libraries\libraries.vcxitems", "{DC50DD87-EE0F-4984-989D-546CDABA3010}"
+EndProject
+Global
+	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		libraries\libraries.vcxitems*{44c01b71-f817-4aff-8339-86820d250bd2}*SharedItemsImports = 4
+		libraries\libraries.vcxitems*{45cee698-adb7-40c0-b955-b31f25587478}*SharedItemsImports = 4
+		libraries\libraries.vcxitems*{b97f83e4-de57-48ae-b4db-da1dd63919c2}*SharedItemsImports = 4
+		libraries\libraries.vcxitems*{dc50dd87-ee0f-4984-989d-546cdaba3010}*SharedItemsImports = 9
+	EndGlobalSection
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|Win32 = Release|Win32
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B97F83E4-DE57-48AE-B4DB-DA1DD63919C2}.Debug|Win32.ActiveCfg = Debug|x64
+		{B97F83E4-DE57-48AE-B4DB-DA1DD63919C2}.Debug|x64.ActiveCfg = Debug|x64
+		{B97F83E4-DE57-48AE-B4DB-DA1DD63919C2}.Debug|x64.Build.0 = Debug|x64
+		{B97F83E4-DE57-48AE-B4DB-DA1DD63919C2}.Debug|x64.Deploy.0 = Debug|x64
+		{B97F83E4-DE57-48AE-B4DB-DA1DD63919C2}.Debug|x86.ActiveCfg = Debug|x64
+		{B97F83E4-DE57-48AE-B4DB-DA1DD63919C2}.Release|Win32.ActiveCfg = Release|x64
+		{B97F83E4-DE57-48AE-B4DB-DA1DD63919C2}.Release|x64.ActiveCfg = Release|x64
+		{B97F83E4-DE57-48AE-B4DB-DA1DD63919C2}.Release|x64.Build.0 = Release|x64
+		{B97F83E4-DE57-48AE-B4DB-DA1DD63919C2}.Release|x64.Deploy.0 = Release|x64
+		{B97F83E4-DE57-48AE-B4DB-DA1DD63919C2}.Release|x86.ActiveCfg = Release|x64
+		{45CEE698-ADB7-40C0-B955-B31F25587478}.Debug|Win32.ActiveCfg = Debug|Win32
+		{45CEE698-ADB7-40C0-B955-B31F25587478}.Debug|Win32.Build.0 = Debug|Win32
+		{45CEE698-ADB7-40C0-B955-B31F25587478}.Debug|x64.ActiveCfg = Debug|Win32
+		{45CEE698-ADB7-40C0-B955-B31F25587478}.Debug|x64.Build.0 = Debug|Win32
+		{45CEE698-ADB7-40C0-B955-B31F25587478}.Debug|x86.ActiveCfg = Debug|Win32
+		{45CEE698-ADB7-40C0-B955-B31F25587478}.Debug|x86.Build.0 = Debug|Win32
+		{45CEE698-ADB7-40C0-B955-B31F25587478}.Release|Win32.ActiveCfg = Release|Win32
+		{45CEE698-ADB7-40C0-B955-B31F25587478}.Release|Win32.Build.0 = Release|Win32
+		{45CEE698-ADB7-40C0-B955-B31F25587478}.Release|x64.ActiveCfg = Release|x64
+		{45CEE698-ADB7-40C0-B955-B31F25587478}.Release|x64.Build.0 = Release|x64
+		{45CEE698-ADB7-40C0-B955-B31F25587478}.Release|x86.ActiveCfg = Release|Win32
+		{45CEE698-ADB7-40C0-B955-B31F25587478}.Release|x86.Build.0 = Release|Win32
+		{44C01B71-F817-4AFF-8339-86820D250BD2}.Debug|Win32.ActiveCfg = Debug|x64
+		{44C01B71-F817-4AFF-8339-86820D250BD2}.Debug|x64.ActiveCfg = Debug|x64
+		{44C01B71-F817-4AFF-8339-86820D250BD2}.Debug|x64.Build.0 = Debug|x64
+		{44C01B71-F817-4AFF-8339-86820D250BD2}.Debug|x64.Deploy.0 = Debug|x64
+		{44C01B71-F817-4AFF-8339-86820D250BD2}.Debug|x86.ActiveCfg = Debug|x64
+		{44C01B71-F817-4AFF-8339-86820D250BD2}.Release|Win32.ActiveCfg = Release|x64
+		{44C01B71-F817-4AFF-8339-86820D250BD2}.Release|x64.ActiveCfg = Release|x64
+		{44C01B71-F817-4AFF-8339-86820D250BD2}.Release|x64.Build.0 = Release|x64
+		{44C01B71-F817-4AFF-8339-86820D250BD2}.Release|x64.Deploy.0 = Release|x64
+		{44C01B71-F817-4AFF-8339-86820D250BD2}.Release|x86.ActiveCfg = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {659BBF57-2A5B-441C-BC36-49D3BB1B1859}
+	EndGlobalSection
+EndGlobal
