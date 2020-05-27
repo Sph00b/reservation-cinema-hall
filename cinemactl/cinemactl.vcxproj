@@ -9,6 +9,14 @@
       <Configuration>Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="WSL Debug|x64">
+      <Configuration>WSL Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="WSL Release|x64">
+      <Configuration>WSL Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{b97f83e4-de57-48ae-b4db-da1dd63919c2}</ProjectGuid>
@@ -24,8 +32,15 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <UseDebugLibraries>true</UseDebugLibraries>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='WSL Debug|x64'" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>WSL_1_0</PlatformToolset>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='WSL Release|x64'">
+    <PlatformToolset>WSL_1_0</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings" />
@@ -36,6 +51,12 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <RemoteLdToolExe>gcc</RemoteLdToolExe>
+    <RemoteCCompileToolExe>g++</RemoteCCompileToolExe>
+    <RemoteCppCompileToolExe>g++</RemoteCppCompileToolExe>
+    <TargetExt />
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='WSL Debug|x64'">
+    <RemoteLdToolExe>g++</RemoteLdToolExe>
     <RemoteCCompileToolExe>g++</RemoteCCompileToolExe>
     <RemoteCppCompileToolExe>g++</RemoteCppCompileToolExe>
     <TargetExt />
@@ -67,6 +88,21 @@
       <Command>mv $(RemoteProjectDir) $(RemoteRootDir)/tmp; mv -n $(RemoteRootDir)/tmp/* $(RemoteRootDir); rm -r $(RemoteRootDir)/tmp</Command>
     </RemotePostBuildEvent>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='WSL Debug|x64'">
+    <ClCompile>
+      <CLanguageStandard>gnu11</CLanguageStandard>
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>_DEBUG</PreprocessorDefinitions>
+      <CppLanguageStandard>gnu++1y</CppLanguageStandard>
+    </ClCompile>
+    <Link>
+      <LibraryDependencies>pthread</LibraryDependencies>
+    </Link>
+    <RemotePostBuildEvent>
+      <Command>
+      </Command>
+    </RemotePostBuildEvent>
+  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Link>
       <LibraryDependencies>pthread</LibraryDependencies>
@@ -78,6 +114,20 @@
     <RemotePostBuildEvent>
       <Command>mv $(RemoteProjectDir) $(RemoteRootDir)/tmp; mv -n $(RemoteRootDir)/tmp/* $(RemoteRootDir); rm -r $(RemoteRootDir)/tmp</Command>
     </RemotePostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='WSL Release|x64'">
+    <ClCompile>
+      <CLanguageStandard>gnu11</CLanguageStandard>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='WSL Release|x64'">
+    <ClCompile>
+      <CppLanguageStandard>gnu++1y</CppLanguageStandard>
+      <CompileAs>CompileAsC</CompileAs>
+    </ClCompile>
+    <Link>
+      <LibraryDependencies>pthread</LibraryDependencies>
+    </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

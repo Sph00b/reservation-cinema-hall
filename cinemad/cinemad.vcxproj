@@ -9,6 +9,14 @@
       <Configuration>Release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="WSL Debug|x64">
+      <Configuration>WSL Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="WSL Release|x64">
+      <Configuration>WSL Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{44c01b71-f817-4aff-8339-86820d250bd2}</ProjectGuid>
@@ -24,8 +32,15 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <UseDebugLibraries>true</UseDebugLibraries>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='WSL Debug|x64'" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>WSL_1_0</PlatformToolset>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='WSL Release|x64'">
+    <PlatformToolset>WSL_1_0</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings" />
@@ -39,6 +54,13 @@
     <RemoteCCompileToolExe>g++</RemoteCCompileToolExe>
     <RemoteCppCompileToolExe>g++</RemoteCppCompileToolExe>
     <RemoteLdToolExe>gcc</RemoteLdToolExe>
+    <LocalRemoteCopySources>true</LocalRemoteCopySources>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='WSL Debug|x64'">
+    <TargetExt>.out</TargetExt>
+    <RemoteCCompileToolExe>g++</RemoteCCompileToolExe>
+    <RemoteCppCompileToolExe>g++</RemoteCppCompileToolExe>
+    <RemoteLdToolExe>g++</RemoteLdToolExe>
     <LocalRemoteCopySources>true</LocalRemoteCopySources>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -92,6 +114,21 @@
       <Command>mv $(RemoteProjectDir) $(RemoteRootDir)/tmp;mv -n $(RemoteRootDir)/tmp/$(ProjectName) $(RemoteRootDir);rm -r $(RemoteRootDir)/tmp;mkdir -p ~/.cinema;mkdir -p ~/.cinema/bin;cp $(RemoteProjectDir)/bin/$(Platform)/$(Configuration)/cinemad ~/.cinema/bin/cinemad;</Command>
     </RemotePostBuildEvent>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='WSL Debug|x64'">
+    <ClCompile>
+      <CLanguageStandard>gnu11</CLanguageStandard>
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>_DEBUG</PreprocessorDefinitions>
+      <Verbose>true</Verbose>
+      <CppLanguageStandard>gnu++1y</CppLanguageStandard>
+    </ClCompile>
+    <Link>
+      <LibraryDependencies>pthread</LibraryDependencies>
+    </Link>
+    <RemotePostBuildEvent>
+      <Command>mkdir -p ~/.cinema/bin; cp "/mnt/d/source/repos/reservation-cinema-hall/cinemad/bin/$(Platform)/$(Configuration)/cinemad.out" ~/.cinema/bin/cinemad</Command>
+    </RemotePostBuildEvent>
+  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <CLanguageStandard>gnu11</CLanguageStandard>
@@ -102,6 +139,23 @@
     </Link>
     <RemotePostBuildEvent>
       <Command>mv $(RemoteProjectDir) $(RemoteRootDir)/tmp;mv -n $(RemoteRootDir)/tmp/$(ProjectName) $(RemoteRootDir);rm -r $(RemoteRootDir)/tmp;mkdir -p ~/.cinema;mkdir -p ~/.cinema/bin;cp $(RemoteProjectDir)/bin/$(Platform)/$(Configuration)/cinemad ~/.cinema/bin/cinemad;</Command>
+    </RemotePostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='WSL Release|x64'">
+    <ClCompile>
+      <CLanguageStandard>gnu11</CLanguageStandard>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='WSL Release|x64'">
+    <ClCompile>
+      <CppLanguageStandard>gnu++1y</CppLanguageStandard>
+      <CompileAs>CompileAsC</CompileAs>
+    </ClCompile>
+    <Link>
+      <LibraryDependencies>pthread</LibraryDependencies>
+    </Link>
+    <RemotePostBuildEvent>
+      <Command>mkdir -p ~/.cinema/bin; cp "/mnt/d/source/repos/reservation-cinema-hall/cinemad/bin/$(Platform)/$(Configuration)/cinemad.out" ~/.cinema/bin/cinemad</Command>
     </RemotePostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
