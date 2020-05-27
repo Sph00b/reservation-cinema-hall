@@ -360,4 +360,5 @@ MigrationBackup/
 FodyWeavers.xsd
 
 #WSL log file
-*/WSL*/
+*WSL*
+*.exe*
