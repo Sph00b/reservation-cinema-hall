@@ -11,11 +11,12 @@
 #include <signal.h>
 #include <errno.h>
 
-#include "resources.h"
 #include "database.h"
-#include "connection.h"
-#include "concurrent_queue.h"
-#include "concurrent_flag.h"
+
+#include <resources.h>
+#include <connection.h>
+#include <data-structure/concurrent_flag.h>
+#include <data-structure/concurrent_queue.h>
 
 #define try(foo, err_value)\
 	if ((foo) == (err_value)){\
@@ -55,7 +56,7 @@ int main(int argc, char *argv[]){
 	sigset_t sigset;
 try(
 	sigfillset(&sigset), (-1)
-)
+)/*
 try(
 	pthread_sigmask(SIG_BLOCK, &sigset, NULL), (!0)
 )

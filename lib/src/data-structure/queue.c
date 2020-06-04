@@ -1,7 +1,7 @@
-#include "queue.h"
+#include <queue.h>
 #include <stdlib.h>
 
-#include "stack.h"
+#include <stack.h>
 
 struct queue {
 	_stack_t stack_in;

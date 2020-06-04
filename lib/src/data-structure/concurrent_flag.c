@@ -1,9 +1,9 @@
-#include "concurrent_flag.h"
+#include <concurrent_flag.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <errno.h>
 
-#include "flag.h"
+#include <flag.h>
 
 struct concurrent_flag {
 	flag_t flag;

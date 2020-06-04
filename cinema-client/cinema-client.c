@@ -1,8 +1,9 @@
-#include "connection.h"
+#define WIN32_LEAN_AND_MEAN
+#include <resources.h>
+#include <connection.h>
 #include "cinema-client.h"
 #include "framework.h"
 #include "booking.h"
-#include "resources.h"
 #ifdef _DEBUG
 #include <io.h>
 #include <stdio.h>

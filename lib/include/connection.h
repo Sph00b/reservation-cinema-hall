@@ -1,13 +1,17 @@
 #pragma once
 #ifdef _WIN32
-#pragma comment (lib, "Ws2_32.lib")
-#ifndef _WINSOCKAPI_
-#define _WINSOCKAPI_
+	#pragma comment (lib, "Ws2_32.lib")
+	#define WIN32_LEAN_AND_MEAN
+	
+	#ifndef _WINSOCKAPI_
+		#define _WINSOCKAPI_
+	#endif
+	
+	#include <Windows.h>
+	#include <WinSock2.h>
+	#include <WS2tcpip.h>
 #endif
-#include <Windows.h>
-#include <WinSock2.h>
-#include <WS2tcpip.h>
-#endif
+
 #include <stdint.h>
 
 typedef void* connection_t;

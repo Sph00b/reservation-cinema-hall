@@ -4,8 +4,8 @@
 #include <pthread.h>
 #include <errno.h>
 
-#include "avl_tree.h"
-#include "stack.h"
+#include <data-structure/avl_tree.h>
+#include <data-structure/stack.h>
 
 struct index_table {
 	avl_tree_t avl_tree;

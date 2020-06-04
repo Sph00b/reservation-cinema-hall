@@ -1,9 +1,9 @@
-#include "concurrent_queue.h"
+#include <concurrent_queue.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <errno.h>
 
-#include "queue.h"
+#include <queue.h>
 
 struct concurrent_queue {
 	queue_t queue;

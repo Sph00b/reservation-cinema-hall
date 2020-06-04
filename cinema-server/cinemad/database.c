@@ -10,7 +10,7 @@
 #include <sys/file.h>
 #include <errno.h>
 
-#include "resources.h"
+#include <resources.h>
 #include "storage.h"
 
 struct cinema_info {

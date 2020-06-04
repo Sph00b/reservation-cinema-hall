@@ -1,8 +1,8 @@
-#include "avl_tree.h"
+#include <avl_tree.h>
 
 #include <stdlib.h>
 
-#include "stack.h"
+#include <stack.h>
 
 struct avl_tree {
 	avl_tree_node_t root;
