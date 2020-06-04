@@ -33,7 +33,7 @@ jobs:
         unzip -o $HOME/.sonar/build-wrapper-linux-x86.zip -d $HOME/.sonar/
         export PATH=$HOME/.sonar/build-wrapper-linux-x86:$PATH
         
-        build-wrapper-linux-x86-64 --out-dir bw-output cmake --build cinema-server/cinemad
+        build-wrapper-linux-x86-64 --out-dir bw-output make cinemad
         
         sonar-scanner \
         -Dsonar.organization=sph00b \
@@ -107,5 +107,4 @@ jobs:
           -D"sonar.sources=." \
           -D"sonar.host.url=https://sonarcloud.io" \
           -D"sonar.cfamily.build-wrapper-output=bw-output" \
-          -D"sonar.login=${{secrets.SONAR_TOKEN}} 
- 
+          -Dsonar.login=${{secrets.SONAR_TOKEN}}
