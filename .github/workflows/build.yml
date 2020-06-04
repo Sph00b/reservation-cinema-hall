@@ -26,9 +26,13 @@ jobs:
         cd build
         cmake ..
     - name: build cinemad
-      run: cd build && cmake --build cinema-server/cinemad
+      run: | 
+        cd build
+        cmake --build cinema-server/cinemad
     - name: build cinemactl
-      run: cd build && cmake --build cinema-server/cinemactl
+      run: | 
+        cd build
+        cmake --build cinema-server/cinemactl
 
   build-cinema-client:
 
