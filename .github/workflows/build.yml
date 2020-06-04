@@ -29,7 +29,14 @@ jobs:
     - name: build cinemad
       run: | 
         cd build
-        cmake --build cinema-server/cinemad
+        build-wrapper-linux-x86-64 --out-dir bw-output cmake --build cinema-server/cinemad
+        sonar-scanner \
+        -Dsonar.organization=sph00b \
+        -Dsonar.projectKey=Sph00b_reservation-cinema-hall \
+        -Dsonar.sources=. \
+        -Dsonar.host.url=https://sonarcloud.io \
+        -Dsonar.cfamily.build-wrapper-output=bw-output \
+        -Dsonar.login=${{secrets.SONAR_TOKEN}} 
     - name: build cinemactl
       run: | 
         cd build
