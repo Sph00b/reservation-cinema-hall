@@ -9,66 +9,22 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
+      
     - name: configure
       run: | 
         mkdir build
         cd build
-        cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_COVERAGE=ON
+        cmake ..
+        
     - name: build cinemad
-      env:
-        GITHUB_TOKEN : ${{ secrets.GITHUB_TOKEN }}
       run: | 
         cd build/cinema-server/cinemad
+        make
         
-        export SONAR_SCANNER_VERSION=4.2.0.1873
-        export SONAR_SCANNER_HOME=$HOME/.sonar/sonar-scanner-$SONAR_SCANNER_VERSION-linux
-        curl --create-dirs -sSLo $HOME/.sonar/sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-$SONAR_SCANNER_VERSION-linux.zip 
-        unzip -o $HOME/.sonar/sonar-scanner.zip -d $HOME/.sonar/
-        export PATH=$SONAR_SCANNER_HOME/bin:$PATH
-        export SONAR_SCANNER_OPTS="-server"
-        
-        curl --create-dirs -sSLo $HOME/.sonar/build-wrapper-linux-x86.zip https://sonarcloud.io/static/cpp/build-wrapper-linux-x86.zip
-        unzip -o $HOME/.sonar/build-wrapper-linux-x86.zip -d $HOME/.sonar/
-        export PATH=$HOME/.sonar/build-wrapper-linux-x86:$PATH
-        
-        build-wrapper-linux-x86-64 --out-dir bw-output make
-        
-        sonar-scanner \
-        -Dsonar.organization=sph00b \
-        -Dsonar.projectKey=Sph00b_reservation-cinema-hall \
-        -Dsonar.sources=. \
-        -Dsonar.host.url=https://sonarcloud.io \
-        -Dsonar.cfamily.build-wrapper-output=bw-output \
-        -Dsonar.login=${{secrets.SONAR_TOKEN}} 
-         
     - name: build cinemactl
-      env:
-        GITHUB_TOKEN : ${{ secrets.GITHUB_TOKEN }}
       run: | 
         cd build/cinema-server/cinemactl
-        
-        export SONAR_SCANNER_VERSION=4.2.0.1873
-        export SONAR_SCANNER_HOME=$HOME/.sonar/sonar-scanner-$SONAR_SCANNER_VERSION-linux
-        curl --create-dirs -sSLo $HOME/.sonar/sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-$SONAR_SCANNER_VERSION-linux.zip 
-        unzip -o $HOME/.sonar/sonar-scanner.zip -d $HOME/.sonar/
-        export PATH=$SONAR_SCANNER_HOME/bin:$PATH
-        export SONAR_SCANNER_OPTS="-server"
-        
-        curl --create-dirs -sSLo $HOME/.sonar/build-wrapper-linux-x86.zip https://sonarcloud.io/static/cpp/build-wrapper-linux-x86.zip
-        unzip -o $HOME/.sonar/build-wrapper-linux-x86.zip -d $HOME/.sonar/
-        export PATH=$HOME/.sonar/build-wrapper-linux-x86:$PATH
-        
-        build-wrapper-linux-x86-64 --out-dir bw-output make
-        
-        sonar-scanner \
-        -Dsonar.organization=sph00b \
-        -Dsonar.projectKey=Sph00b_reservation-cinema-hall \
-        -Dsonar.sources=. \
-        -Dsonar.host.url=https://sonarcloud.io \
-        -Dsonar.cfamily.build-wrapper-output=bw-output \
-        -Dsonar.login=${{secrets.SONAR_TOKEN}} 
+        make
          
   build-cinema-client:
 
@@ -76,39 +32,17 @@ jobs:
     
     steps:
     - uses: actions/checkout@v2  
+      
     - name: Enable Developer Command Prompt
-      uses: ilammy/msvc-dev-cmd@v1.2.0      
+      uses: ilammy/msvc-dev-cmd@v1.2.0    
+        
     - name: configure
       run: | 
         mkdir build
         cd build
         cmake -G "NMake Makefiles" ..
+        
     - name: build
-      env:
-        GITHUB_TOKEN : ${{ secrets.GITHUB_TOKEN }}
       run: | 
         cd build/cinema-client
-        
-        $env:SONAR_SCANNER_VERSION = "4.2.0.1873"
-        $env:SONAR_DIRECTORY = [System.IO.Path]::Combine($(get-location).Path,".sonar")
-        $env:SONAR_SCANNER_HOME = "$env:SONAR_DIRECTORY/sonar-scanner-$env:SONAR_SCANNER_VERSION-windows"
-        rm $env:SONAR_SCANNER_HOME -Force -Recurse -ErrorAction SilentlyContinue
-        New-Item -path $env:SONAR_SCANNER_HOME -type directory
-        (New-Object System.Net.WebClient).DownloadFile("https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-$env:SONAR_SCANNER_VERSION-windows.zip", "$env:SONAR_DIRECTORY/sonar-scanner.zip")
-        Add-Type -AssemblyName System.IO.Compression.FileSystem
-        [System.IO.Compression.ZipFile]::ExtractToDirectory("$env:SONAR_DIRECTORY/sonar-scanner.zip", "$env:SONAR_DIRECTORY")
-        rm ./.sonar/sonar-scanner.zip -Force -ErrorAction SilentlyContinue
-        $env:SONAR_SCANNER_OPTS="-server"
-
-        rm "$env:SONAR_DIRECTORY/build-wrapper-win-x86" -Force -Recurse -ErrorAction SilentlyContinue
-        (New-Object System.Net.WebClient).DownloadFile("https://sonarcloud.io/static/cpp/build-wrapper-win-x86.zip", "$env:SONAR_DIRECTORY/build-wrapper-win-x86.zip")
-        [System.IO.Compression.ZipFile]::ExtractToDirectory("$env:SONAR_DIRECTORY/build-wrapper-win-x86.zip", "$env:SONAR_DIRECTORY")
-
-        & $env:SONAR_DIRECTORY/build-wrapper-win-x86/build-wrapper-win-x86-64.exe --out-dir bw-output nmake \
-          & $env:SONAR_SCANNER_HOME/bin/sonar-scanner.bat \
-          -D"sonar.organization=sph00b" \
-          -D"sonar.projectKey=Sph00b_reservation-cinema-hall" \
-          -D"sonar.sources=." \
-          -D"sonar.host.url=https://sonarcloud.io" \
-          -D"sonar.cfamily.build-wrapper-output=bw-output" \
-          -D"sonar.login=${{secrets.SONAR_TOKEN}}"
+        nmake
