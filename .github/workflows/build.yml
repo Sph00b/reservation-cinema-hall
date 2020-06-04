@@ -10,11 +10,11 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: configure
-      run: pwd && mkdir build && cd build && cmake .. && pwd
+      run: mkdir build && cd build && cmake ..
     - name: build cinemad
-      run: pwd && cd build && pwd && cmake --build cinema-server/cinemad
+      run: cd build && cmake --build cinema-server/cinemad
     - name: build cinemactl
-      run: cmake --build cinema-server/cinemactl
+      run: cd build && cmake --build cinema-server/cinemactl
 
   build-cinema-client:
 
@@ -25,5 +25,5 @@ jobs:
     - name: configure
       run: mkdir build && cd build && cmake ..
     - name: build
-      run: cmake --build cinema-client
+      run: cd build && cmake --build cinema-client
   
