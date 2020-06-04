@@ -7,8 +7,13 @@ project("Cinema Booking Client" VERSION 1.0.0)
 add_executable (
 	cinema-client WIN32
 	"cinema-client.c"
+	"cinema-client.h"
 	"cinema-client.rc"
 	"booking.c"
+	"booking.h"
+	"framework.h"
+	"resource.h"
+	"targetver.h"
 	)
 
 # add shared librareis

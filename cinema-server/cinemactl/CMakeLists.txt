@@ -4,7 +4,10 @@ project("Cinema Booking Control Manager" VERSION 1.0.0)
 
 
 # add the executable
-add_executable (cinemactl "cinemactl.c")
+add_executable (
+	cinemactl
+	"cinemactl.c"
+	)
 
 # add the librareis
 target_link_libraries(cinemactl PUBLIC connection)

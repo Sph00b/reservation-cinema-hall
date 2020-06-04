@@ -7,8 +7,11 @@ add_executable (
 	cinemad
 	"cinemad.c"
 	"database.c"
+	"database.h"
 	"storage.c"
+	"storage.h"
 	"index_table.c"
+	"index_table.h"
 	)
 
 target_link_libraries(cinemad PUBLIC pthread)
