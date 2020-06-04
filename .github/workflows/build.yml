@@ -1,0 +1,29 @@
+name: CMake build CI
+
+on: [push]
+
+jobs:
+  build-cinema-server:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: configure
+      run: ./configure && mkdir build && cd build && cmake ..
+    - name: build cinemad
+      run: cmake --build cinema-server/cinemad
+    - name: build cinemactl
+      run: cmake --build cinema-server/cinemactl
+
+  build-cinema-client:
+
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    - name: configure
+      run: ./configure && mkdir build && cd build && cmake ..
+    - name: build
+      run: cmake --build cinema-client
+  
