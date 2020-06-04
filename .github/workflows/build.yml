@@ -68,10 +68,7 @@ jobs:
     runs-on: windows-latest
     
     steps:
-    - uses: actions/checkout@v2
-    - name: configure SonarScanner
-      run: | 
-        
+    - uses: actions/checkout@v2        
     - name: configure
       run: | 
         mkdir build
