@@ -47,7 +47,7 @@ jobs:
       env:
         GITHUB_TOKEN : ${{ secrets.GITHUB_TOKEN }}
       run: | 
-        cd build
+        cd build/cinema-server/cinemactl
         
         export SONAR_SCANNER_VERSION=4.2.0.1873
         export SONAR_SCANNER_HOME=$HOME/.sonar/sonar-scanner-$SONAR_SCANNER_VERSION-linux
@@ -60,7 +60,7 @@ jobs:
         unzip -o $HOME/.sonar/build-wrapper-linux-x86.zip -d $HOME/.sonar/
         export PATH=$HOME/.sonar/build-wrapper-linux-x86:$PATH
         
-        build-wrapper-linux-x86-64 --out-dir bw-output make cinemactl
+        build-wrapper-linux-x86-64 --out-dir bw-output make
         
         sonar-scanner \
         -Dsonar.organization=sph00b \
@@ -104,7 +104,7 @@ jobs:
 
         & $env:SONAR_DIRECTORY/build-wrapper-win-x86/build-wrapper-win-x86-64.exe --out-dir bw-output cmake --build cinema-client \
         & $env:SONAR_SCANNER_HOME/bin/sonar-scanner.bat \
-        -Dsonar.organization=sph00b \
+        -D"sonar.organization=sph00b" \
         -Dsonar.projectKey=Sph00b_reservation-cinema-hall \
         -Dsonar.sources=. \
         -Dsonar.host.url=https://sonarcloud.io \
