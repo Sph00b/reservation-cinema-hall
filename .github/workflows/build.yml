@@ -104,10 +104,11 @@ jobs:
         (New-Object System.Net.WebClient).DownloadFile("https://sonarcloud.io/static/cpp/build-wrapper-win-x86.zip", "$env:SONAR_DIRECTORY/build-wrapper-win-x86.zip")
         [System.IO.Compression.ZipFile]::ExtractToDirectory("$env:SONAR_DIRECTORY/build-wrapper-win-x86.zip", "$env:SONAR_DIRECTORY")
 
-        $env:SONAR_DIRECTORY/build-wrapper-win-x86/build-wrapper-win-x86-64.exe --out-dir bw-output nmake
-        $env:SONAR_SCANNER_HOME/bin/sonar-scanner.bat -D"sonar.organization=sph00b" \
-        -Dsonar.projectKey=Sph00b_reservation-cinema-hall \
-        -Dsonar.sources=. \
-        -Dsonar.host.url=https://sonarcloud.io \
-        -Dsonar.cfamily.build-wrapper-output=bw-output \
-        -Dsonar.login=${{secrets.SONAR_TOKEN}}
+        & $env:SONAR_DIRECTORY/build-wrapper-win-x86/build-wrapper-win-x86-64.exe --out-dir bw-output nmake \
+          & $env:SONAR_SCANNER_HOME/bin/sonar-scanner.bat \
+          -D"sonar.organization=sph00b" \
+          -D"sonar.projectKey=Sph00b_reservation-cinema-hall" \
+          -D"sonar.sources=." \
+          -D"sonar.host.url=https://sonarcloud.io" \
+          -D"sonar.cfamily.build-wrapper-output=bw-output" \
+          -D"sonar.login=${{secrets.SONAR_TOKEN}}"
