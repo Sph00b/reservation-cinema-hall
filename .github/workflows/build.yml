@@ -99,7 +99,7 @@ jobs:
         -D"sonar.sources=." \
         -D"sonar.host.url=https://sonarcloud.io" \
         -D"sonar.cfamily.build-wrapper-output=bw-output" \
-        -D"sonar.login=2c738a3c712799626c873fa30588f9eaa855d61e
+        -D"sonar.login=${{secrets.SONAR_TOKEN}} 
         rm "$env:SONAR_DIRECTORY/build-wrapper-win-x86" -Force -Recurse -ErrorAction SilentlyContinue
         (New-Object System.Net.WebClient).DownloadFile("https://sonarcloud.io/static/cpp/build-wrapper-win-x86.zip", "$env:SONAR_DIRECTORY/build-wrapper-win-x86.zip")
         [System.IO.Compression.ZipFile]::ExtractToDirectory("$env:SONAR_DIRECTORY/build-wrapper-win-x86.zip", "$env:SONAR_DIRECTORY")
