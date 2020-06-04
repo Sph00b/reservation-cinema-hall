@@ -80,12 +80,12 @@ jobs:
       run: | 
         mkdir build
         cd build
-        cmake ..
+        cmake -G "NMake Makefiles" ..
     - name: build
       env:
         GITHUB_TOKEN : ${{ secrets.GITHUB_TOKEN }}
       run: | 
-        cd build
+        cd build/cinema-client
         
         $env:SONAR_SCANNER_VERSION = "4.2.0.1873"
         $env:SONAR_DIRECTORY = [System.IO.Path]::Combine($(get-location).Path,".sonar")
@@ -102,7 +102,7 @@ jobs:
         (New-Object System.Net.WebClient).DownloadFile("https://sonarcloud.io/static/cpp/build-wrapper-win-x86.zip", "$env:SONAR_DIRECTORY/build-wrapper-win-x86.zip")
         [System.IO.Compression.ZipFile]::ExtractToDirectory("$env:SONAR_DIRECTORY/build-wrapper-win-x86.zip", "$env:SONAR_DIRECTORY")
 
-        & $env:SONAR_DIRECTORY/build-wrapper-win-x86/build-wrapper-win-x86-64.exe --out-dir bw-output cmake --build cinema-client \
+        & $env:SONAR_DIRECTORY/build-wrapper-win-x86/build-wrapper-win-x86-64.exe --out-dir bw-output nmake \
         & $env:SONAR_SCANNER_HOME/bin/sonar-scanner.bat \
         -D"sonar.organization=sph00b" \
         -Dsonar.projectKey=Sph00b_reservation-cinema-hall \
