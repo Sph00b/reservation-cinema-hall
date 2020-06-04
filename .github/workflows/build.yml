@@ -15,7 +15,7 @@ jobs:
       run: | 
         mkdir build
         cd build
-        cmake ..
+        cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_COVERAGE=ON
     - name: build cinemad
       env:
         GITHUB_TOKEN : ${{ secrets.GITHUB_TOKEN }}
