@@ -17,6 +17,8 @@ jobs:
         cd build
         cmake ..
     - name: build cinemad
+      env:
+        GITHUB_TOKEN : ${{ secrets.GITHUB_TOKEN }}
       run: | 
         cd build
         
