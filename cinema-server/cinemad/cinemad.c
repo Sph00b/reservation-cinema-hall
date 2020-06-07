@@ -56,7 +56,7 @@ int main(int argc, char *argv[]){
 	sigset_t sigset;
 try(
 	sigfillset(&sigset), (-1)
-)/*
+)
 try(
 	pthread_sigmask(SIG_BLOCK, &sigset, NULL), (!0)
 )
