@@ -1,5 +1,6 @@
 add_library(
-	resources STATIC
+	resources
+	STATIC
 	"include/resources.h"
 	"src/resources/resources.c"
 )
@@ -10,7 +11,8 @@ target_include_directories(resources PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_compile_definitions(resources PRIVATE RESOURCES_VERSION=1)
 
 add_library(
-	connection STATIC
+	connection
+	STATIC
 	"include/connection.h"
 	"src/connection/connection.c"
 )
@@ -19,6 +21,13 @@ target_include_directories(connection PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/includ
 target_include_directories(connection PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
 target_compile_definitions(connection PRIVATE CONNECTION_VERSION=1)
+
+add_library(
+	try
+	INTERFACE
+)
+
+target_include_directories(try INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
 add_library(
 	data-structure STATIC

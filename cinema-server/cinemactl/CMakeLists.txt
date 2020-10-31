@@ -12,5 +12,6 @@ add_executable (
 # add the librareis
 target_link_libraries(cinemactl PUBLIC connection)
 target_link_libraries(cinemactl PUBLIC resources)
+target_link_libraries(cinemactl PUBLIC try)
 
 # TODO: Aggiungere i test e, se necessario, installare le destinazioni.

@@ -13,7 +13,6 @@ add_executable (
 	"index_table.h"
 	"storage.c"
 	"storage.h"
-	"try.h"
 	"utils.h"
 	"utils.c"
 	)
@@ -23,6 +22,7 @@ target_link_libraries(cinemad PUBLIC pthread)
 # add shared librareis
 target_link_libraries(cinemad PUBLIC connection)
 target_link_libraries(cinemad PUBLIC resources)
+target_link_libraries(cinemad PUBLIC try)
 target_link_libraries(cinemad PUBLIC data-structure)
 
 # TODO: Aggiungere i test e, se necessario, installare le destinazioni.
