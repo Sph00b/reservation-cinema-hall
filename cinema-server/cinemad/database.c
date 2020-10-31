@@ -366,7 +366,7 @@ static int procedure_map(const database_t handle, char** query, char** result) {
 	return 0;
 }
 
-/*	Return the ID on a successfull operation	*/
+/*	Return the ID on a successful operation	*/
 
 static int procedure_book(const database_t handle, char** query, char** result) {
 	struct database* database = (struct database*)handle;

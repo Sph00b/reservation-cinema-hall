@@ -289,7 +289,7 @@ void* request_handler(void* arg) {
 #endif
 	// Elaborate the response
 	try(database_execute(database, request, &response), 1);
-	free(response);
+	free(request);
 	// Send the response
 	try(connection_send(connection, response), -1 - (errno == ECONNRESET) - (errno == EPIPE));
 	free(response);
