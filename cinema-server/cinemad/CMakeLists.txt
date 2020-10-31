@@ -1,11 +1,15 @@
-cmake_minimum_required (VERSION 3.8)
-
-project("Cinema Booking Daemon" VERSION 1.0.0)
+project(
+	"Cinema Booking Daemon"
+	VERSION 1.0.0
+)
 
 # add the executable
 add_executable (
 	cinemad
 	"cinemad.c"
+	"try.h"
+	"utils.h"
+	"utils.c"
 	"database.c"
 	"database.h"
 	"storage.c"
