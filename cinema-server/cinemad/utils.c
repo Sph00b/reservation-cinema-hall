@@ -32,7 +32,7 @@ static int redirect_standard_streams();
 static int store_pid(const char* name);
 static int drop_privileges(const char* name);
 
-extern inline int sysv_daemon() {
+extern inline int sysv_daemon(void) {
 	pid_t pid;
 	
 	try(close_file_descriptors(), 1, error);
@@ -47,13 +47,13 @@ extern inline int sysv_daemon() {
 		setsid();						// detach from any terminal and create an independent session
 		try(pid = fork(), -1, error);	// ensure that the daemon can never re-acquire a terminal again
 		if (is_child(pid)) {
-			int fd;
 			try(redirect_standard_streams(), 1, error);
-			try(fd = store_pid("cinemad"), -1, error);
+			try(store_pid("cinemad"), -1, error);
 			try(drop_privileges("cinema"), 1, error);
 			try(close(pfd[0]), -1, error);
 			try(write(pfd[1], MSG, strlen(MSG)), -1, error);	//notify the original process started that initialization is complete
-			return fd;
+			try(close(pfd[1]), -1, error);
+			return 0;
 		}
 		else {
 			exit(EXIT_SUCCESS);			// ensures that the daemon process is re-parented to init / PID 1
@@ -62,10 +62,38 @@ extern inline int sysv_daemon() {
 	char buff[32];
 	try(close(pfd[1]), -1, error);
 	try((read(pfd[0], buff, strlen(MSG)) == strlen(MSG)), 0, error);	//notify the original process started that initialization is complete
-	buff[0]++;
+	try(close(pfd[0]), -1, error);
 	exit(EXIT_SUCCESS);
 error:
 	return -1;
+}
+
+extern inline int signal_ignore_all(void) {
+	struct sigaction sact;
+	memset(&sact, 0, sizeof * &sact);
+	try(sigemptyset(&sact.sa_mask), -1, error);
+	sact.sa_handler = SIG_IGN;
+	sact.sa_flags = 0;
+	for (int i = 1; i < __SIGRTMIN; i++) {
+		if (i == SIGKILL || i == SIGSTOP) {
+			continue;
+		}
+		try(sigaction(i, &sact, NULL), -1, error);
+	}
+	return 0;
+error:
+	return 1;
+}
+
+extern int signal_wait(int signum) {
+	int sig;
+	sigset_t sigset;
+	try(sigemptyset(&sigset), -1, error);
+	try(sigaddset(&sigset, signum), -1, error);
+	try(sigwait(&sigset, &sig), !0, error);
+	return 0;
+error:
+	return 1;
 }
 
 /*
@@ -163,7 +191,8 @@ static int store_pid(const char* name) {
 	try(stream = fdopen(fd_dup, "w"), NULL, cleanup);
 	try(fprintf(stream, "%ld", (long) getpid()) < 0, !0, cleanup);	// need some love
 	try(fclose(stream), EOF, cleanup);
-	return fd;
+
+	return 0;
 cleanup:
 	free(filename);
 error:
