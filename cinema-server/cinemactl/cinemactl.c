@@ -8,158 +8,157 @@
 
 #include <connection.h>
 #include <resources.h>
+#include <try.h>
 
-#define try(foo, err_value)\
-	if ((foo) == (err_value)){\
-		fprintf(stderr, "%m\n");\
-		exit(EXIT_FAILURE);\
-	}
+#define is_child(pid) !pid
+#define COLOR_GREEN "\e[1;92m"
+#define COLOR_DEFAULT "\e[0m"
 
-int server_start();
-int server_stop();
-int server_status();
-int server_query(char*, char**);
+static int usage();
+static int server_start();
+static int server_stop();
+static int server_status();
+static int server_query(char*, char**);
 
-int main(int argc, char *argv[]){
+static int format_time_string(char** timestr);
+
+int main(int argc, char* argv[]) {
 	if (argc == 2 && !strncasecmp(argv[1], "start", 5)) {
-try(
-		server_start(), (1)
-)
+		try(server_start(), 1, error);
 	}
 	else if (argc == 2 && !strncasecmp(argv[1], "stop", 4)) {
-try(
-		server_stop(), (1)
-)
+		try(server_stop(), 1, error);
 	}
 	else if (argc == 2 && !strncasecmp(argv[1], "status", 6)) {
-try(
-		server_status(), (1)
-)
+		try(server_status(), 1, error);
 	}
 	else if (argc == 3 && !strncasecmp(argv[1], "query", 5)) {
 		char* buff;
-try(
-		server_query(argv[2], &buff), (1)
-)
+		try(server_query(argv[2], &buff), 1, error);
 		printf("%s\n", buff);
+		free(buff);
 	}
 	else {
-		printf("\nUsage:\n cinemactl [COMMAND]\n\n\
+		try(usage(), 1, error);
+	}
+	return 0;
+error:
+	fprintf(stderr, "%m\n");
+	return 1;
+}
+
+static int usage() {
+	try(
+		fprintf(
+			stderr,
+			"\nUsage:\n cinemactl [COMMAND]\n\n\
 			\rCommands:\n\
 			\r start\n\
 			\r stop\n\
 			\r status\n\
 			\r restart\n\
-			\r query [...]\n\n");
-		exit(EXIT_SUCCESS);
-	}
+			\r query [...]\n\n"
+		) < 0,
+		!0,
+		error
+	);
 	return 0;
+error:
+	return 1;
 }
 
-int server_start(){
+static int server_start(){
 	pid_t pid;
 	char *filename;
-	if (asprintf(&filename, "%s%s", getenv("HOME"), "/.cinema/bin/cinemad") == -1) {
-		return 1;
+	try(asprintf(&filename, "%s%s", getenv("HOME"), "/.cinema/bin/cinemad"), -1, error);
+	try(pid = fork(), -1, cleanup);
+	if (is_child(pid)) {
+		try(execl(filename, "cinemad", NULL), -1, cleanup);
 	}
-	pid = fork();
-switch (pid) {
-case 0:
-	if (execl(filename, "cinemad", NULL) == -1) {
-		free(filename);
-		return 1;
-	}
-case -1:
+	return 0;
+cleanup:
 	free(filename);
+error:
 	return 1;
-default:
-	free(filename);
-	return 0;
-	}
-
 }
 
-int server_stop(){
-	char* pid;
-try(
-	server_query("GET PID", &pid), (1)
-)
-	int pid_value;
-try(
-	strtoi(pid, &pid_value), (1)
-)
-try(
-	kill(pid_value, SIGTERM), (-1)
-)
-	free(pid);
+static int server_stop() {
+	pid_t pid;
+	char* result;
+
+	try(server_query("GET PID", &result), 1, error);
+	try(strtoi(result, &pid), 1, cleanup);
+	free(result);
+
+	try(kill(pid, SIGTERM), -1, error);
+
 	return 0;
+cleanup:
+	free(result);
+error:
+	return 1;
 }
 
-int server_status() {
-	char* pid = NULL;
-	char* timestr = NULL;
-	char* icon = NULL;
-	char* status = NULL;
-	if (server_query("GET PID", &pid) == 1 ||
-		server_query("GET TIMESTAMP", &timestr) == 1)	{
-		if (asprintf(&icon, "●") == -1) {
-			return 1;
-		}
-		if (asprintf(&status, "inactive (dead)") == -1) {
-			return 1;
-		}
-	}
-	else {
-		time_t rawtime;
-		struct tm* timeinfo;
-		rawtime = atoll(timestr);
-		timeinfo = localtime(&rawtime);
+/*
+* This is seriously messed up, I guess I was drunk the day I designed it.
+*/
+static int server_status() {
+	char* icon;
+	char* status;
+
+	char* result;
+	int is_server_active = !server_query("TEST", &result);	// This must be changed
+	free(result);
+
+	if (is_server_active) {
+		char* pid;
+		char* timestr;
+		try(server_query("GET PID", &pid), 1, error);
+		try(server_query("GET TIMESTAMP", &timestr), 1, error);
+		try(format_time_string(&timestr), 1, error);
+		try(asprintf(&icon, COLOR_GREEN "●" COLOR_DEFAULT), -1, error);
+		try(asprintf(&status, COLOR_GREEN "active (running) " COLOR_DEFAULT "since %s\nMain PID : %s (cinemad)", timestr, pid), -1, error);
 		free(timestr);
-		if ((timestr = malloc(sizeof(char) * 64)) == NULL) {
-			return 1;
-		}
-		if (strftime(timestr, 64, "%a %F %T %Z", timeinfo) == -1) {
-			return 1;
-		}
-		if (asprintf(&icon, "\e[0;92m●\e[0m") == -1) {
-			return 1;
-		}
-		if (asprintf(&status, "\e[1;92mactive (running)\e[0m since %s", timestr) == -1) {
-			return 1;
-		}
-		free(timestr);
-	}
-	printf("%s cinemad - The Reservation Cinema Server\n   Active: %s\n", icon, status);
-	if (pid) {
-		printf("Main PID : %s (cinemad)\n", pid);
 		free(pid);
 	}
+	else {
+		try(asprintf(&icon, "●"), -1, error);
+		try(asprintf(&status, "inactive (dead)"), -1, error);	
+	}
+	try(printf("%s cinemad - The Reservation Cinema Server\n    Active: %s\n", icon, status) < 1, !0, error);
 	free(icon);
 	free(status);
 	return 0;
+error:
+	return 1;
 }
 
-int server_query(char* query, char** result) {
+static int server_query(char* query, char** result) {
 	connection_t connection;
 	char* filename;
-	if (asprintf(&filename, "%s%s", getenv("HOME"), "/.cinema/tmp/socket") == -1) {
-		return 1;
-	}
-	if ((connection = connection_init(filename, 0)) == NULL) {
-		return 1;
-	}
+	try(asprintf(&filename, "%s%s", getenv("HOME"), "/.cinema/tmp/socket"), -1, error);
+	try(connection = connection_init(filename, 0), NULL, cleanup);
 	free(filename);
-	if (connetcion_connect(connection) == -1) {
-		return 1;
-	}
-	if (connection_send(connection, query) == -1) {
-		return 1;
-	}
-	if (connection_recv(connection, result) == -1) {
-		return 1;
-	}
-	if (connection_close(connection) == -1) {
-		return 1;
-	}
+	try(connetcion_connect(connection), -1, error);
+	try(connection_send(connection, query), -1, error);
+	try(connection_recv(connection, result), -1, error);
+	try(connection_close(connection), -1, error);
 	return 0;
+cleanup:
+	free(filename);
+error:
+	return 1;
+}
+
+static int format_time_string(char** timestr) {
+	time_t rawtime;
+	struct tm* timeinfo;
+	rawtime = atoll(*timestr);
+	timeinfo = localtime(&rawtime);
+	free(*timestr);
+	try(*timestr = malloc(sizeof(char) * 64), NULL, error);
+	try(strftime(*timestr, 64, "%a %F %T %Z", timeinfo), -1, error);
+	return 0;
+error:
+	return 1;
 }
