@@ -19,8 +19,8 @@
 
 #include <sys/file.h>
 
-#include "try.h"
-#include "resources.h"
+#include <resources.h>
+#include <try.h>
 
 #define is_child(pid) !pid
 #define MSG "Initialization complete"

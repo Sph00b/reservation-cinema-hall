@@ -14,12 +14,11 @@
 #include "utils.h"
 #include "database.h"
 
-#include <resources.h>
 #include <connection.h>
+#include <resources.h>
+#include <try.h>
 #include <data-structure/concurrent_flag.h>
 #include <data-structure/concurrent_queue.h>
-
-#include "try.h"
 
 #define TIMEOUT 5
 
