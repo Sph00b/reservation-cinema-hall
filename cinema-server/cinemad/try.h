@@ -9,6 +9,7 @@
 
 #define try_default(predicate, error_value) \
 	do { \
+		errno = 0; \
 		if ((predicate) == (error_value)) { \
 			syslog( \
 				LOG_ERR, \
@@ -23,6 +24,7 @@
 
 #define try_routine(predicate, error_value, routine) \
 	do { \
+		errno = 0; \
 		if ((predicate) == (error_value)) { \
 			goto routine; \
 		} \
@@ -31,6 +33,7 @@
 #define try_pthread(foo, routine) \
 	do { \
 		int ret; \
+		errno = 0; \
 		while ((ret = foo) && errno == EINTR); \
 		if (ret) { \
 			goto routine; \
