@@ -28,14 +28,14 @@ struct request_info {
 	connection_t connection;
 };
 
-/*	Global variables	*/
+// Global variables
 
 database_t database;
 concurrent_queue_t request_queue;
 
-/*	Prototype declarations of functions included in this code module	*/
+// Prototype declarations of functions included in this code module
 
-void thread_exit(int sig) { pthread_exit(NULL); }	//SIAGALRM handler
+void thread_exit(int sig) { pthread_exit(NULL); }	// SIAGALRM handler
 void* thread_joiner(void* arg);
 void* thread_timer(void* arg);
 void* connection_mngr(void* arg);
@@ -253,7 +253,7 @@ void* connection_mngr(void* arg) {
 
 		try(pthread_sigmask(SIG_BLOCK, &sigalrm, NULL), !0);
 
-		// bCreate request handler thread
+		// Create request handler thread
 		struct request_info* accepted_request;
 		try(accepted_request = malloc(sizeof * accepted_connection), NULL);
 		accepted_request->connection = accepted_connection;
@@ -290,7 +290,7 @@ void* request_handler(void* arg) {
 	// Elaborate the response
 	try(database_execute(database, request, &response), 1);
 	free(response);
-	//	Send the response
+	// Send the response
 	try(connection_send(connection, response), -1 - (errno == ECONNRESET) - (errno == EPIPE));
 	free(response);
 #ifdef _DEBUG
