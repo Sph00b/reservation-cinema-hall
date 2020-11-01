@@ -29,8 +29,8 @@ struct request_info {
 
 // Global variables
 
-database_t database;
-concurrent_queue_t request_queue;
+static database_t database;
+static concurrent_queue_t request_queue;
 
 // Prototype declarations of functions included in this code module
 
@@ -56,8 +56,8 @@ int main(int argc, char *argv[]){
 
 	try(request_queue = concurrent_queue_init(), NULL);
 	try(is_server_running = concurrent_flag_init(), NULL);
-	try(daemonize(), 1);
 
+	try(daemonize(), 1);
 	try(signal_ignore_all(), 1);
 	try(setup_workspace(), 1);
 	try(connect_database(), 1);
