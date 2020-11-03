@@ -1,3 +1,5 @@
+#include "utils.h"
+
 #include <stdlib.h>
 
 #include <stdio.h>
@@ -68,18 +70,10 @@ error:
 	return 1;
 }
 
-extern inline int signal_ignore_all(void) {
-	struct sigaction sact;
-	memset(&sact, 0, sizeof * &sact);
-	try(sigemptyset(&sact.sa_mask), -1, error);
-	sact.sa_handler = SIG_IGN;
-	sact.sa_flags = 0;
-	for (int i = 1; i < __SIGRTMIN; i++) {
-		if (i == SIGKILL || i == SIGSTOP) {
-			continue;
-		}
-		try(sigaction(i, &sact, NULL), -1, error);
-	}
+extern inline int signal_block_all(void) {
+	sigset_t sigset;
+	try(sigfillset(&sigset), -1, error);
+	try(pthread_sigmask(SIG_BLOCK, &sigset, NULL), !0, error);
 	return 0;
 error:
 	return 1;
@@ -88,8 +82,13 @@ error:
 extern int signal_wait(int signum) {
 	int sig;
 	sigset_t sigset;
-	try(sigemptyset(&sigset), -1, error);
-	try(sigaddset(&sigset, signum), -1, error);
+	if (signum == SIGANY) {
+		try(sigfillset(&sigset), -1, error);
+	}
+	else {
+		try(sigemptyset(&sigset), -1, error);
+		try(sigaddset(&sigset, signum), -1, error);
+	}
 	try(sigwait(&sigset, &sig), !0, error);
 	return 0;
 error:

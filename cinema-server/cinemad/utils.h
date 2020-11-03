@@ -22,6 +22,8 @@ extern int sysv_daemon(void);
 #define daemonize daemon	// it probably needs a wrapper anyway
 #endif
 
-extern int signal_ignore_all(void);
+#define SIGANY -1
+
+extern int signal_block_all(void);
 
 extern int signal_wait(int signum);

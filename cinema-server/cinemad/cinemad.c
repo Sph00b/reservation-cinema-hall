@@ -58,7 +58,7 @@ int main(int argc, char *argv[]){
 	try(is_server_running = concurrent_flag_init(), NULL);
 
 	try(daemonize(), 1);
-	try(signal_ignore_all(), 1);
+	try(signal_block_all(), 1);
 	try(setup_workspace(), 1);
 	try(connect_database(), 1);
 	try(setup_database(), 1);
@@ -71,7 +71,7 @@ int main(int argc, char *argv[]){
 
 	syslog(LOG_INFO, "Service started");
 
-	try(signal_wait(SIGTERM), 1);
+	try(signal_wait(SIGANY), 1);
 
 	try(pthread_kill(internet_mngr_tid, SIGALRM), !0);
 	try(pthread_kill(internal_mngr_tid, SIGALRM), !0);
