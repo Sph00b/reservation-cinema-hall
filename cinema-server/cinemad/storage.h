@@ -5,30 +5,64 @@
 
 typedef void* storage_t;
 
-/*	Create storage, return database handle on success or return NULL and set properly errno on error */
+/*
+* Create storage.
+* 
+* @return	database handle on success or return NULL and properly errno 
+*			on error.
+*/
+extern storage_t storage_init(
+	const char* filename
+);
 
-storage_t storage_init(const char* filename);
+/*
+* Close the storage.
+* 
+* @return	0 on success or return 1 and set properly errno on error.
+*/
+extern int storage_close(
+	const storage_t handle
+);
 
-/*	Close the storage, return 0 on succes or return 1 and set properly errno on error */
+/*
+* Store the value linked to the key in the storage.
+*/
+extern int storage_store(
+	const storage_t handle, 
+	const char* key, 
+	const char* value, 
+	char** result
+);
 
-int storage_close(const storage_t handle);
+/*
+* Load the value linked to the key from the storage.
+*/
+extern int storage_load(
+	const storage_t handle, 
+	const char* key, 
+	char** result
+);
 
-/*	Store the value linked to the key in the storage */
+/*
+* Lock as shared the lock linked to the key.
+*/
+extern int storage_lock_shared(
+	const storage_t handle, 
+	const char* key
+);
 
-int storage_store(const storage_t handle, const char* key, const char* value, char** result);
+/*
+* Lock as exclusive the lock linked to the key.
+*/
+extern int storage_lock_exclusive(
+	const storage_t handle, 
+	const char* key
+);
 
-/*	Load the value linked to the key from the storage */
-
-int storage_load(const storage_t handle, const char* key, char** result);
-
-/*	Llock as shared the lock linked to the key */
-
-int storage_lock_shared(const storage_t handle, const char* key);
-
-/*	Llock as exclusive the lock linked to the key */
-
-int storage_lock_exclusive(const storage_t handle, const char* key);
-
-/*	Unlock the lock linked to the key */
-
-int storage_unlock(const storage_t handle, const char* key);
+/*
+* Unlock the lock linked to the key.
+*/
+extern int storage_unlock(
+	const storage_t handle, 
+	const char* key
+);
