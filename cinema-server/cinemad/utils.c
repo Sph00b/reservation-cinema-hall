@@ -65,7 +65,7 @@ extern inline int sysv_daemon(void) {
 	try(close(pfd[0]), -1, error);
 	exit(EXIT_SUCCESS);
 error:
-	return -1;
+	return 1;
 }
 
 extern inline int signal_ignore_all(void) {
@@ -177,7 +177,7 @@ static int store_pid(const char* name) {
 	size_t size;
 	
 	size = strlen("/run/") + strlen(name) + strlen(".pid") + 1;
-	try(filename = calloc(0, sizeof * filename * size), NULL, error);
+	try(filename = calloc(1, sizeof * filename * size), NULL, error);
 	strcat(filename, "/tmp/");
 	strcat(filename, name);
 	strcat(filename, ".pid");
@@ -207,10 +207,12 @@ static int drop_privileges(const char* name) {
 	}
 	char* wdir;
 	try(asprintf(&wdir, "%s%s%s", getenv("HOME"), "/.", name), -1, error);
-	try(chdir(wdir), -1, error);
-	try(setenv("PWD", wdir, 1), !0, error);
+	try(chdir(wdir), -1, cleanup);
+	try(setenv("PWD", wdir, 1), !0, cleanup);
 	free(wdir);
 	return 0;
+cleanup:
+	free(wdir);
 error:
 	return 1;
 }

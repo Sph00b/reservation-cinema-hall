@@ -11,6 +11,7 @@
 #include <try.h>
 
 #define is_child(pid) !pid
+
 #define COLOR_GREEN "\e[1;92m"
 #define COLOR_DEFAULT "\e[0m"
 
@@ -106,7 +107,7 @@ static int server_status() {
 	char* icon;
 	char* status;
 
-	char* result;
+	char* result = NULL;
 	int is_server_active = !server_query("TEST", &result);	// This must be changed
 	free(result);
 
