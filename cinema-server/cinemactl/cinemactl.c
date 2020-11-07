@@ -15,6 +15,17 @@
 #define COLOR_GREEN "\e[1;92m"
 #define COLOR_DEFAULT "\e[0m"
 
+enum operation {
+	NOP,
+	HELP,
+	START,
+	STOP,
+	STATUS,
+	QUERY
+};
+
+static enum operation get_operation(int argc, char* argv[]);
+
 static int usage();
 static int server_start();
 static int server_stop();
@@ -24,28 +35,49 @@ static int server_query(char*, char**);
 static int format_time_string(char** timestr);
 
 int main(int argc, char* argv[]) {
-	if (argc == 2 && !strncasecmp(argv[1], "start", 5)) {
+	switch (get_operation(argc, argv)) {
+	case HELP:
+		try(usage(), 1, error);
+		break;
+	case START:
 		try(server_start(), 1, error);
-	}
-	else if (argc == 2 && !strncasecmp(argv[1], "stop", 4)) {
+		break;
+	case STOP:
 		try(server_stop(), 1, error);
-	}
-	else if (argc == 2 && !strncasecmp(argv[1], "status", 6)) {
+		break;
+	case STATUS:
 		try(server_status(), 1, error);
-	}
-	else if (argc == 3 && !strncasecmp(argv[1], "query", 5)) {
+		break;
+	case QUERY: {
 		char* buff;
 		try(server_query(argv[2], &buff), 1, error);
 		printf("%s\n", buff);
 		free(buff);
-	}
-	else {
+		}
+		break;
+	default:
 		try(usage(), 1, error);
+		return 1;
 	}
 	return 0;
 error:
 	fprintf(stderr, "%m\n");
 	return 1;
+}
+
+static enum operation get_operation(int argc, char* argv[]) {
+	if (argc == 2 && !strncasecmp(argv[1], "help", 4))
+		return HELP;
+	if (argc == 2 && !strncasecmp(argv[1], "start", 5))
+		return START;
+	else if (argc == 2 && !strncasecmp(argv[1], "stop", 4))
+		return STOP;
+	else if (argc == 2 && !strncasecmp(argv[1], "status", 6))
+		return STATUS;
+	else if (argc == 3 && !strncasecmp(argv[1], "query", 5))
+		return QUERY;
+	else
+		return NOP;
 }
 
 static int usage() {
@@ -54,6 +86,7 @@ static int usage() {
 			stderr,
 			"\nUsage:\n cinemactl [COMMAND]\n\n\
 			\rCommands:\n\
+			\r help\n\
 			\r start\n\
 			\r stop\n\
 			\r status\n\
@@ -100,9 +133,6 @@ error:
 	return 1;
 }
 
-/*
-* This is seriously messed up, I guess I was drunk the day I designed it.
-*/
 static int server_status() {
 	char* icon;
 	char* status;
