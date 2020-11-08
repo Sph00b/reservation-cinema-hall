@@ -9,14 +9,18 @@ on:
   schedule:
     - cron: '45 10 * * 2'
 
+env:
+  BUILD_TYPE: Release
+
 jobs:
   analyze:
     name: Analyze
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
 
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest]
         language: [ 'cpp' ]
 
     steps:
@@ -32,18 +36,31 @@ jobs:
         # Prefix the list here with "+" to use these queries and those in the config file.
         # queries: ./path/to/local/query, your-org/your-repo/queries@main
 
-    # If this step fails, then you should remove it and run the build manually (see below)
-    - name: Autobuild
-      uses: github/codeql-action/autobuild@v1
+    - name: Build Environment
+      run: cmake -E make_directory ${{runner.workspace}}/build
 
-    # ℹ️ Command-line programs to run using the OS shell.
-    # 📚 https://git.io/JvXDl
-
-    # ✏️ If the Autobuild fails above, remove it and uncomment the following three lines
-    #    and modify them (or add more) to build your code if your project
-    #    uses a compiled language
-
-    #- run: make
+    - name: Configure CMake
+      shell: bash
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+      
+    - name: Build cinemad
+      if: matrix.os == 'ubuntu-latest'
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: cmake --build . --config $BUILD_TYPE --target cinemad
+      
+    - name: Build cinemactl
+      if: matrix.os == 'ubuntu-latest'
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: cmake --build . --config $BUILD_TYPE --target cinemactl
+      
+    - name: Build cinema-client
+      if: matrix.os == 'windows-latest'
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: cmake --build . --config $BUILD_TYPE --target cinema-client
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v1
