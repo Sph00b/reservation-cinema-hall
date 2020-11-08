@@ -2,7 +2,7 @@
 
 ![build](https://github.com/Sph00b/reservation-cinema-hall/workflows/build/badge.svg)
 
-Client/server (WinAPI/POSIX) cinema hall seats reservation system.
+Client/server (WinAPI/POSIX) remote cinema hall seats reservation system.
 
 Term paper of Operating Systems course.
 
@@ -11,7 +11,7 @@ Term paper of Operating Systems course.
 ### Server
 
 The server (multithreaded) accepts and processes concurrently the booking 
-requests from the clients (residing, in general, on different machines).
+requests from the clients via TCP/IP.
 
 ![Alt Text](doc/server.gif)
 
