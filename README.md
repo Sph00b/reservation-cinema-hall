@@ -1,5 +1,27 @@
-# reservation-cinema-hall-seats
+# Cinema Booking System
 
 ![build](https://github.com/Sph00b/reservation-cinema-hall/workflows/build/badge.svg)
 
-Client/server desktop (WinAPI/POSIX) application to reserve seating at movie theatre. Term paper of Operating Systems course.
+Client/server (WinAPI/POSIX) application to reserve seats in a cinema hall.
+
+Term paper of Operating Systems course.
+
+## Overview
+
+### Server
+
+The server (multithreaded) accepts and processes concurrently the booking 
+requests from the clients (residing, in general, on different machines).
+
+![Alt Text](doc/server.gif)
+
+### Client
+
+The client provides the user with the following functions:
+- Show the hall map to identify available seats.
+- Send to the server the list of seats to be reserved.
+- Retrieve the booking confirmation and a unique booking code from the server.
+- Cancel the reservation associated with the code held.
+
+![Alt Text](doc/client.gif)
+
