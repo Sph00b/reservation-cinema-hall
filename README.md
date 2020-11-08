@@ -2,7 +2,7 @@
 
 ![build](https://github.com/Sph00b/reservation-cinema-hall/workflows/build/badge.svg)
 
-Client/server (WinAPI/POSIX) application to reserve seats in a cinema hall.
+Client/server (WinAPI/POSIX) cinema hall seat reservation system.
 
 Term paper of Operating Systems course.
 
