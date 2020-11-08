@@ -10,8 +10,8 @@ Term paper of Operating Systems course.
 
 ### Server
 
-The server (multithreaded) accepts and processes concurrently the booking 
-requests from the clients via TCP/IP.
+The server (multithreaded) accepts and processes concurrently the clients'
+booking requests via TCP/IP.
 
 ![Alt Text](doc/server.gif)
 
