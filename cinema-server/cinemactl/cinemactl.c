@@ -183,12 +183,12 @@ error:
 
 static int format_time_string(char** timestr) {
 	time_t rawtime;
-	struct tm* timeinfo;
+	struct tm timeinfo;
 	rawtime = atoll(*timestr);
-	timeinfo = localtime(&rawtime);
+	localtime_r(&rawtime, &timeinfo);
 	free(*timestr);
 	try(*timestr = malloc(sizeof(char) * 64), NULL, error);
-	try(strftime(*timestr, 64, "%a %F %T %Z", timeinfo), -1, error);
+	try(strftime(*timestr, 64, "%a %F %T %Z", &timeinfo), -1, error);
 	return 0;
 error:
 	return 1;
