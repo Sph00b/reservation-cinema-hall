@@ -2,47 +2,59 @@ name: build
 
 on: [push]
 
-jobs:
-  build-cinema-server:
+env:
+  BUILD_TYPE: Release
 
+jobs:
+  build-server:
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v2
-      
-    - name: configure
-      run: | 
-        mkdir build
-        cd build
-        cmake ..
-        
-    - name: build cinemad
-      run: | 
-        cd build/cinema-server/cinemad
-        make
-        
-    - name: build cinemactl
-      run: | 
-        cd build/cinema-server/cinemactl
-        make
-         
-  build-cinema-client:
 
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{runner.workspace}}/build
+
+    - name: Configure CMake
+      shell: bash
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+      
+    - name: Build cinemad
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: cmake --build . --config $BUILD_TYPE --target cinemad
+      
+    - name: Build cinemactl
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: cmake --build . --config $BUILD_TYPE --target cinemactl
+
+    - name: Test
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: ctest -C $BUILD_TYPE
+  
+  build-client:
     runs-on: windows-latest
     
     steps:
     - uses: actions/checkout@v2  
       
-    - name: Enable Developer Command Prompt
-      uses: ilammy/msvc-dev-cmd@v1.2.0    
-        
-    - name: configure
-      run: | 
-        mkdir build
-        cd build
-        cmake -G "NMake Makefiles" ..
-        
-    - name: build
-      run: | 
-        cd build/cinema-client
-        nmake
+    - name: Create Build Environment
+      run: cmake -E make_directory ${{runner.workspace}}/build
+
+    - name: Configure CMake
+      shell: bash
+      working-directory: ${{runner.workspace}}/build
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+      
+    - name: Build cinema-client
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: cmake --build . --config $BUILD_TYPE --target cinema-client
+
+    - name: Test
+      working-directory: ${{runner.workspace}}/build
+      shell: bash
+      run: ctest -C $BUILD_TYPE
