@@ -1,6 +1,7 @@
 # Cinema Booking System
 
-![build](https://github.com/Sph00b/reservation-cinema-hall/workflows/build/badge.svg)
+![build](https://github.com/buracchi/reservation-cinema-hall/workflows/build/badge.svg)
+![CodeQL](https://github.com/buracchi/reservation-cinema-hall/workflows/CodeQL/badge.svg)
 
 Client/server (WinAPI/POSIX) remote cinema hall seats reservation system.
 
