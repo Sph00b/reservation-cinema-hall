@@ -1,7 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <resources.h>
 #include <connection.h>
-#include "cinema-client.h"
+#include "client.h"
 #include "framework.h"
 #include "booking.h"
 #ifdef _DEBUG

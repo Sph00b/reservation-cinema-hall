@@ -1,6 +1,6 @@
 //{{NO_DEPENDENCIES}}
 // File di inclusione generato con Microsoft Visual C++.
-// Utilizzato da cinema-client.rc
+// Utilizzato da client.rc
 //
 #define IDB_BITMAP1                     106
 #define IDB_BITMAP2                     107

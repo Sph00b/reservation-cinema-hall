@@ -5,10 +5,10 @@ project("Cinema Booking Client" VERSION 1.0.0)
 # add the executable
 
 add_executable (
-	cinema-client WIN32
-	"cinema-client.c"
-	"cinema-client.h"
-	"cinema-client.rc"
+	client WIN32
+	"client.c"
+	"client.h"
+	"client.rc"
 	"booking.c"
 	"booking.h"
 	"framework.h"
@@ -18,6 +18,6 @@ add_executable (
 
 # add shared librareis
 
-target_link_libraries(cinema-client PUBLIC connection)
-target_link_libraries(cinema-client PUBLIC resources)
+target_link_libraries(client PUBLIC connection)
+target_link_libraries(client PUBLIC resources)
 # TODO: Aggiungere i test e, se necessario, installare le destinazioni.

@@ -19,5 +19,5 @@ endif()
 
 # Includere i sottoprogetti.
 add_subdirectory ("lib")
-add_subdirectory ("cinema-client")
-add_subdirectory ("cinema-server")
+add_subdirectory ("client")
+add_subdirectory ("server")
