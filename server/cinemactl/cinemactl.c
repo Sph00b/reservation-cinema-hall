@@ -156,7 +156,7 @@ static int server_status() {
 		try(asprintf(&icon, "●"), -1, error);
 		try(asprintf(&status, "inactive (dead)"), -1, error);	
 	}
-	try(printf("%s cinemad - The Reservation Cinema Server\n    Active: %s\n", icon, status) < 1, !0, error);
+	try(printf("%s cinemad - The Cinema Booking Server\n    Active: %s\n", icon, status) < 1, !0, error);
 	free(icon);
 	free(status);
 	return 0;
