@@ -27,7 +27,7 @@ jobs:
       run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}  --target cinemactl
 
     - name: Build client
-      if: matrix.os == 'ubuntu-latest'
+      if: matrix.os == 'windows-latest'
       run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}  --target client
 
     - name: Test
